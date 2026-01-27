@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35527.113 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediMate", "MediMate\MediMate.csproj", "{7A6BE4A8-0D92-410B-9353-6B7C5A3AD102}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediMateRepository", "MediMateRepository\MediMateRepository.csproj", "{737E6FEC-713B-442C-BE18-3EA6163404E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediMateService", "MediMateService\MediMateService.csproj", "{838FD283-BD09-4DA8-9DD9-E5250E511A0A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7A6BE4A8-0D92-410B-9353-6B7C5A3AD102}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A6BE4A8-0D92-410B-9353-6B7C5A3AD102}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A6BE4A8-0D92-410B-9353-6B7C5A3AD102}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A6BE4A8-0D92-410B-9353-6B7C5A3AD102}.Release|Any CPU.Build.0 = Release|Any CPU
+		{737E6FEC-713B-442C-BE18-3EA6163404E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{737E6FEC-713B-442C-BE18-3EA6163404E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{737E6FEC-713B-442C-BE18-3EA6163404E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{737E6FEC-713B-442C-BE18-3EA6163404E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{838FD283-BD09-4DA8-9DD9-E5250E511A0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{838FD283-BD09-4DA8-9DD9-E5250E511A0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{838FD283-BD09-4DA8-9DD9-E5250E511A0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{838FD283-BD09-4DA8-9DD9-E5250E511A0A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -1,6 +1,8 @@
 ﻿
 using DotNetEnv;
 using MediMateRepository.Data;
+using MediMateRepository.Repositories;
+using MediMateService.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -27,6 +29,11 @@ namespace MediMate
                 // Fix lỗi ngày giờ UTC của PostgreSQL
                 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             });
+
+
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
+            builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 
             // Add services to the container.
             builder.Services.AddControllers();

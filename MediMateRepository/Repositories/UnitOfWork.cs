@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using MediMateRepository.Data;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -18,12 +19,12 @@ namespace MediMateRepository.Repositories
     }
     public class UnitOfWork : IUnitOfWork
     {
-        private readonly DbContext _context;
+        private readonly MediMateDbContext _context;
         private Hashtable _repositories;
         private bool _disposed = false;
 
         // Inject DbContext vào Constructor
-        public UnitOfWork(DbContext context)
+        public UnitOfWork(MediMateDbContext context)
         {
             _context = context;
         }
@@ -35,12 +36,11 @@ namespace MediMateRepository.Repositories
 
             var type = typeof(T).Name;
 
-            // Kiểm tra xem Repository cho Entity này đã được tạo chưa
             if (!_repositories.ContainsKey(type))
             {
                 var repositoryType = typeof(GenericRepository<>);
 
-                // Tạo instance mới của GenericRepository<T> và truyền _context vào
+                // Truyền _context (kiểu MediMateDbContext) vào GenericRepository
                 var repositoryInstance = Activator.CreateInstance(repositoryType.MakeGenericType(typeof(T)), _context);
 
                 _repositories.Add(type, repositoryInstance);

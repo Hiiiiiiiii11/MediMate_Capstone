@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using MediMateRepository.Data;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,9 +25,9 @@ namespace MediMateRepository.Repositories
     }
     public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
-        protected readonly DbContext _context;
+        protected readonly MediMateDbContext _context;
         protected readonly DbSet<T> _dbSet;
-        public GenericRepository(DbContext context)
+        public GenericRepository(MediMateDbContext context)
         {
             _context = context;
             _dbSet = _context.Set<T>();

@@ -16,8 +16,8 @@ namespace MediMateService.Services
 {
     public interface IAuthenticationService
     {
-        Task<ApiResponse<UserResponse>> RegisterAsync(RegisterRequest request);
-        Task<ApiResponse<UserResponse>> LoginAsync(LoginRequest request);
+        Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request);
+        Task<ApiResponse<AutheticationResponse>> LoginAsync(LoginRequest request);
     }
 
 
@@ -34,7 +34,7 @@ namespace MediMateService.Services
             _configuration = configuration;
         }
 
-        public async Task<ApiResponse<UserResponse>> RegisterAsync(RegisterRequest request)
+        public async Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request)
         {
             // 1. Kiểm tra tồn tại (SĐT hoặc Email)
             // Giả sử bạn đã thêm hàm IsUserExistsAsync vào IAuthenticationRepository như bài trước
@@ -42,7 +42,7 @@ namespace MediMateService.Services
             var existingUser = await _authRepo.GetUserByEmailOrPhoneAsync(request.PhoneNumber);
             if (existingUser != null)
             {
-                return ApiResponse<UserResponse>.Fail("Số điện thoại này đã được sử dụng.", 409);
+                return ApiResponse<AutheticationResponse>.Fail("Số điện thoại này đã được sử dụng.", 409);
             }
 
             if (!string.IsNullOrEmpty(request.Email))
@@ -50,7 +50,7 @@ namespace MediMateService.Services
                 var existingEmail = await _authRepo.GetUserByEmailOrPhoneAsync(request.Email);
                 if (existingEmail != null)
                 {
-                    return ApiResponse<UserResponse>.Fail("Email này đã được sử dụng.", 409);
+                    return ApiResponse<AutheticationResponse>.Fail("Email này đã được sử dụng.", 409);
                 }
             }
 
@@ -67,7 +67,7 @@ namespace MediMateService.Services
                 PasswordHash = passwordHash,
                 Role = "User",
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // 4. Lưu vào DB
@@ -78,20 +78,15 @@ namespace MediMateService.Services
             var token = GenerateJwtToken(newUser);
 
             // 6. Trả về Response
-            var responseData = new UserResponse
+            var responseData = new AutheticationResponse
             {
-                UserId = newUser.UserId,
-                FullName = newUser.FullName ?? "",
-                PhoneNumber = newUser.PhoneNumber,
-                Email = newUser.Email,
-                Role = newUser.Role ?? "User",
                 AccessToken = token
             };
 
-            return ApiResponse<UserResponse>.Ok(responseData, "Đăng ký tài khoản thành công.");
+            return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng ký tài khoản thành công.");
         }
 
-        public async Task<ApiResponse<UserResponse>> LoginAsync(LoginRequest request)
+        public async Task<ApiResponse<AutheticationResponse>> LoginAsync(LoginRequest request)
         {
             // 1. Tìm user theo Email HOẶC Phone
             var user = await _authRepo.GetUserByEmailOrPhoneAsync(request.Identifier);
@@ -99,38 +94,33 @@ namespace MediMateService.Services
             // 2. Kiểm tra user có tồn tại không
             if (user == null)
             {
-                return ApiResponse<UserResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
             }
 
             // 3. Kiểm tra mật khẩu (So sánh hash)
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
             if (!isPasswordValid)
             {
-                return ApiResponse<UserResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
             }
 
             // 4. Kiểm tra trạng thái hoạt động
             if (!user.IsActive)
             {
-                return ApiResponse<UserResponse>.Fail("Tài khoản của bạn đã bị khóa.", 403);
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản của bạn đã bị khóa.", 403);
             }
 
             // 5. Tạo JWT Token
             var token = GenerateJwtToken(user);
 
             // 6. Trả về kết quả
-            var responseData = new UserResponse
+            var responseData = new AutheticationResponse
             {
-                UserId = user.UserId,
-                FullName = user.FullName ?? "",
-                PhoneNumber = user.PhoneNumber,
-                Email = user.Email,
-                Role = user.Role ?? "User",
-                AvatarUrl = user.AvatarUrl,
+               
                 AccessToken = token
             };
 
-            return ApiResponse<UserResponse>.Ok(responseData, "Đăng nhập thành công.");
+            return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng nhập thành công.");
         }
 
         // --- HELPER: GENERATE JWT ---

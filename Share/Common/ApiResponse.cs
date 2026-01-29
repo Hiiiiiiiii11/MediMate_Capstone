@@ -35,5 +35,16 @@ namespace Share.Common
                 Data = default
             };
         }
+
+        public static ApiResponse<T> ServerError(string message = "Internal Server Error")
+        {
+            return new ApiResponse<T>
+            {
+                Success = false,
+                Code = 500,
+                Message = message,
+                Data = default
+            };
+        }
     }
 }

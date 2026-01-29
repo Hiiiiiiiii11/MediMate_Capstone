@@ -44,11 +44,28 @@ namespace MediMateRepository.Repositories
         public async Task<T?> GetByIdAsync(object id, params Expression<Func<T, object>>[] includes)
         {
             IQueryable<T> query = _dbSet;
+
+            // 1. Apply các bảng liên kết (Include)
             foreach (var include in includes)
             {
                 query = query.Include(include);
             }
-            return await query.FirstOrDefaultAsync(e => EF.Property<object>(e, "Id").Equals(id));
+
+            // 2. Tìm tên khóa chính (Primary Key) của bảng hiện tại một cách động
+            // Ví dụ: Với User -> keyName = "UserId", Với Family -> keyName = "FamilyId"
+            var entityType = _context.Model.FindEntityType(typeof(T));
+            var keyName = entityType?.FindPrimaryKey()?.Properties
+                .Select(x => x.Name)
+                .FirstOrDefault();
+
+            if (string.IsNullOrEmpty(keyName))
+            {
+                throw new Exception($"Entity {typeof(T).Name} does not have a primary key defined.");
+            }
+
+            // 3. Query với tên khóa chính vừa tìm được
+            // EF.Property<object>(e, keyName) giúp EF hiểu cột nào cần so sánh
+            return await query.FirstOrDefaultAsync(e => EF.Property<object>(e, keyName) == id);
         }
         public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
         {

@@ -27,10 +27,12 @@ namespace MediMateService.Services
     public class UserService : IUserService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public UserService(IUnitOfWork unitOfWork)
+        public UserService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService)
         {
             _unitOfWork = unitOfWork;
+            _uploadPhotoService = uploadPhotoService;
         }
         public async Task<ApiResponse<IEnumerable<UserProfileResponse>>> GetAllUsersAsync()
         {
@@ -115,9 +117,10 @@ namespace MediMateService.Services
                 
 
             // Chỉ cập nhật Avatar nếu có dữ liệu mới (Nếu null thì giữ nguyên hoặc xử lý theo logic riêng)
-            if (!string.IsNullOrEmpty(request.AvatarUrl))
+            if (request.AvatarFile != null)
             {
-                user.AvatarUrl = request.AvatarUrl;
+                var avatarUrl = _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
+                user.AvatarUrl = avatarUrl;
             }
 
             // 3. Lưu vào DB

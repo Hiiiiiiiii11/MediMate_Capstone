@@ -65,7 +65,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPut("me")]
-        public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateProfileRequest request)
+        public async Task<IActionResult> UpdateMyProfile([FromForm] UpdateProfileRequest request)
         {
             try
             {

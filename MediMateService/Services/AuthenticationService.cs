@@ -90,7 +90,10 @@ namespace MediMateService.Services
         {
             // 1. Tìm user theo Email HOẶC Phone
             var user = await _authRepo.GetUserByEmailOrPhoneAsync(request.Identifier);
-
+            if (!user.IsActive)
+            {
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản của bạn đã bị khóa hoặc vô hiệu hóa.", 403);
+            }
             // 2. Kiểm tra user có tồn tại không
             if (user == null)
             {

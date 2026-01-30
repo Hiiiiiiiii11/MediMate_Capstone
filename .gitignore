@@ -60,3 +60,4 @@ publish/
 # Temporary files
 [Tt]emp/
 .env
+.env.local

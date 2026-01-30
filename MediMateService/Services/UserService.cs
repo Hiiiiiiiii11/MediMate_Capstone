@@ -5,8 +5,10 @@ using Share.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+
 
 namespace MediMateService.Services
 {
@@ -22,6 +24,13 @@ namespace MediMateService.Services
 
         // Đổi mật khẩu
         Task<ApiResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
+
+        // 1. Khóa tài khoản (Unactive)
+        Task<ApiResponse<bool>> DeactivateUserAsync(Guid userId);
+        Task<ApiResponse<bool>> ActivateUserAsync(Guid userId);
+
+        // 2. Xóa tài khoản vĩnh viễn
+        Task<ApiResponse<bool>> DeleteUserAsync(Guid userId, DeleteAccountRequest request);
     }
 
     public class UserService : IUserService
@@ -52,6 +61,7 @@ namespace MediMateService.Services
                 Gender = u.Gender,
                 AvatarUrl = u.AvatarUrl,
                 Role = u.Role,
+                IsActive = u.IsActive,
                 CreatedAt = u.CreatedAt
             }).ToList();
 
@@ -79,6 +89,7 @@ namespace MediMateService.Services
                 Gender = user.Gender,
                 AvatarUrl = user.AvatarUrl,
                 Role = user.Role,
+                IsActive = user.IsActive,
                 CreatedAt = user.CreatedAt
             };
 
@@ -154,6 +165,64 @@ namespace MediMateService.Services
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<bool>.Ok(true, "Đổi mật khẩu thành công.");
+        }
+        public async Task<ApiResponse<bool>> DeactivateUserAsync(Guid userId)
+        {
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            if (user == null) return ApiResponse<bool>.Fail("User not found", 404);
+
+            // Chuyển trạng thái sang false
+            user.IsActive = false;
+
+            _unitOfWork.Repository<User>().Update(user);
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Tài khoản đã bị vô hiệu hóa.");
+        }
+        public async Task<ApiResponse<bool>> ActivateUserAsync(Guid userId)
+        {
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            if (user == null) return ApiResponse<bool>.Fail("User not found", 404);
+
+            // Chuyển trạng thái sang true
+            user.IsActive = true;
+
+            _unitOfWork.Repository<User>().Update(user);
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Tài khoản đã được active");
+        }
+
+        public async Task<ApiResponse<bool>> DeleteUserAsync(Guid userId, DeleteAccountRequest request)
+        {
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            if (user == null) return ApiResponse<bool>.Fail("User not found", 404);
+
+            // 1. Xác thực mật khẩu trước khi xóa
+            bool isPasswordCorrect = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+            if (!isPasswordCorrect)
+            {
+                return ApiResponse<bool>.Fail("Mật khẩu không chính xác. Không thể xóa tài khoản.", 400);
+            }
+
+            // 2. Xử lý dữ liệu liên quan (Quan trọng!)
+            // User này đang sở hữu các hồ sơ Member trong các Family.
+            // Nếu xóa User, các hồ sơ Member đó sẽ bị lỗi Foreign Key hoặc mất chủ.
+            // GIẢI PHÁP: Giữ lại Member profile nhưng set UserId = null (thành hồ sơ mồ côi)
+
+            var linkedMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == userId);
+            foreach (var member in linkedMembers)
+            {
+                member.UserId = null; // Ngắt kết nối
+                member.IsActive = false; // Tạm thời unactive profile đó (tùy nghiệp vụ)
+                _unitOfWork.Repository<Members>().Update(member);
+            }
+
+            // 3. Xóa User
+            _unitOfWork.Repository<User>().Remove(user);
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Tài khoản đã được xóa vĩnh viễn.");
         }
 
     }

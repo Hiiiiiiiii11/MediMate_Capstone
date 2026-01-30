@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260130143954_fixDb")]
+    partial class fixDb
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -65,7 +68,7 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<Guid?>("FamilyId")
+                    b.Property<Guid>("FamilyId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("FullName")
@@ -73,9 +76,6 @@ namespace MediMateRepository.Migrations
 
                     b.Property<string>("Gender")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("IdentityCode")
                         .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
@@ -98,7 +98,8 @@ namespace MediMateRepository.Migrations
 
                     b.HasIndex("FamilyId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique();
 
                     b.ToTable("Members");
                 });
@@ -172,11 +173,13 @@ namespace MediMateRepository.Migrations
                     b.HasOne("MediMateRepository.Model.Families", null)
                         .WithMany("FamilyMembers")
                         .HasForeignKey("FamilyId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("MediMateRepository.Model.User", null)
-                        .WithMany("MemberProfiles")
-                        .HasForeignKey("UserId");
+                        .WithOne("MemberProfile")
+                        .HasForeignKey("MediMateRepository.Model.Members", "UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
@@ -188,7 +191,7 @@ namespace MediMateRepository.Migrations
                 {
                     b.Navigation("CreatedFamilies");
 
-                    b.Navigation("MemberProfiles");
+                    b.Navigation("MemberProfile");
                 });
 #pragma warning restore 612, 618
         }

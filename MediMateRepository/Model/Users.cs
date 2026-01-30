@@ -26,7 +26,9 @@ namespace MediMateRepository.Model
         public bool IsActive { get; set; } = true;
         public string? Role { get; set; } = "User";
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public int? VerifyCode { get; set; }
+        public DateTime? ExpiriedAt { get; set; }
         public virtual ICollection<Families> CreatedFamilies { get; set; } = new List<Families>();
-        public virtual Members? MemberProfile { get; set; }
+        public virtual ICollection<Members> MemberProfiles { get; set; } = new List<Members>();
     }
 }

@@ -1,10 +1,21 @@
 ﻿
+using CloudinaryDotNet;
 using DotNetEnv;
+using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
 using MediMateService.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Share.Cloudinaries;
+using Share.Common;
+using Share.Jwt;
+using System.Security.Principal;
+using System.Text;
+using System.Text.Json;
 
 namespace MediMate
 {
@@ -34,9 +45,33 @@ namespace MediMate
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
             builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IUploadPhotoService, UploadPhotoService>();
 
             // Add services to the container.
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Ghi đè hành vi trả về lỗi Validation mặc định
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            // 1. Lấy danh sách lỗi từ ModelState
+            var errors = context.ModelState
+                .Where(e => e.Value.Errors.Count > 0)
+                .SelectMany(x => x.Value.Errors)
+                .Select(x => x.ErrorMessage)
+                .ToList();
+
+            // 2. Ghép các lỗi thành 1 chuỗi (hoặc xử lý tùy ý)
+            var errorMessage = string.Join("; ", errors);
+
+            // 3. Tạo ApiResponse chuẩn
+            var response = ApiResponse<object>.Fail(errorMessage, 400);
+
+            // 4. Trả về BadRequest với ApiResponse
+            return new BadRequestObjectResult(response);
+        };
+    });
             builder.Services.AddEndpointsApiExplorer();
 
             builder.Services.AddSwaggerGen(c =>
@@ -71,8 +106,82 @@ namespace MediMate
                     }
                 });
             });
+            builder.Services.Configure<JwtSettings>(
+            builder.Configuration.GetSection("Jwt")
+            );
+            var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
+            var key = Encoding.UTF8.GetBytes(jwtSettings.SecretKey);
 
+
+            builder.Services.Configure<CloudinarySettings>(
+            builder.Configuration.GetSection("CloudinarySettings"));
+            builder.Services.AddSingleton(provider =>
+            {
+                var config = builder.Configuration.GetSection("CloudinarySettings").Get<CloudinarySettings>();
+                var account = new Account(config.CloudName, config.ApiKey, config.ApiSecret);
+                return new Cloudinary(account);
+            });
+
+            builder.Services
+                .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = false;
+                    options.SaveToken = true;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = jwtSettings.Issuer,
+                        ValidAudience = jwtSettings.Audience,
+                        IssuerSigningKey = new SymmetricSecurityKey(key)
+                    };
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnChallenge = async context =>
+                        {
+                            // 1. Ngăn chặn behavior mặc định (tránh việc nó tự ghi header WWW-Authenticate không mong muốn)
+                            context.HandleResponse();
+
+                            // 2. Thiết lập Status Code 401
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            context.Response.ContentType = "application/json";
+
+                            // 3. Tạo object ApiResponse chuẩn
+                            var response = ApiResponse<object>.Fail("Unauthorized - Token is missing or invalid.", 401);
+
+                            // 4. Serialize sang JSON (dùng CamelCase cho chuẩn api)
+                            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
+                            {
+                                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                            });
+
+                            // 5. Ghi ra Response
+                            await context.Response.WriteAsync(json);
+                        },
+                        OnForbidden = async context =>
+                        {
+                            // 1. Thiết lập Status Code 403
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                            context.Response.ContentType = "application/json";
+
+                            // 2. Tạo object ApiResponse chuẩn
+                            var response = ApiResponse<object>.Fail("Forbidden - You do not have permission to access this resource.", 403);
+
+                            // 3. Serialize và ghi ra Response
+                            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
+                            {
+                                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                            });
+
+                            await context.Response.WriteAsync(json);
+                        }
+                    };
+                });
             var app = builder.Build();
+            app.UseMiddleware<GlobalExceptionMiddleware>();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -82,7 +191,7 @@ namespace MediMate
             }
 
             app.UseHttpsRedirection();
-
+            app.UseAuthentication();
             app.UseAuthorization();
 
 

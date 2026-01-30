@@ -29,12 +29,12 @@ namespace MediMateRepository.Data
 
             // --- MEMBER CONFIGURATION ---
             // Quan hệ 1-1: User <-> Member
-            modelBuilder.Entity<Members>()
-                .HasOne<User>() // Member có thể liên kết với User (không cần property navigation ngược lại ở User nếu không muốn)
-                .WithOne(u => u.MemberProfile) // User có 1 MemberProfile
-                .HasForeignKey<Members>(m => m.UserId) // Khóa ngoại là UserId trong bảng Members
-                .IsRequired(false) // UserId có thể null (cho người già/trẻ em)
-                .OnDelete(DeleteBehavior.SetNull); // Xóa User thì set UserId về null
+            //modelBuilder.Entity<Members>()
+            //    .HasOne<User>() // Member có thể liên kết với User (không cần property navigation ngược lại ở User nếu không muốn)
+            //    .WithOne(u => u.MemberProfile) // User có 1 MemberProfile
+            //    .HasForeignKey<Members>(m => m.UserId) // Khóa ngoại là UserId trong bảng Members
+            //    .IsRequired(false) // UserId có thể null (cho người già/trẻ em)
+            //    .OnDelete(DeleteBehavior.SetNull); // Xóa User thì set UserId về null
 
             // Quan hệ 1-N: Family -> Members
             modelBuilder.Entity<Members>()

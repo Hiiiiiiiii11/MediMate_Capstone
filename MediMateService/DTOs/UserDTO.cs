@@ -13,6 +13,7 @@ namespace MediMateService.DTOs
         public DateTime? DateOfBirth { get; set; }
         public string? Gender { get; set; }
         public string? AvatarUrl { get; set; }
+        public bool IsActive { get; set; }
         public string? Role { get; set; }
         public DateTime CreatedAt { get; set; }
     }
@@ -45,5 +46,9 @@ namespace MediMateService.DTOs
 
         [Compare("NewPassword", ErrorMessage = "Mật khẩu xác nhận không khớp")]
         public string ConfirmPassword { get; set; } = string.Empty;
+    }
+    public class DeleteAccountRequest
+    {
+        public string Password { get; set; } // Yêu cầu nhập mật khẩu để xác nhận xóa
     }
 }

@@ -5,6 +5,7 @@ using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
 using MediMateService.Services;
+using MediMateService.Services.MediMateService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -41,12 +42,17 @@ namespace MediMate
                 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             });
 
+            builder.Services.AddHttpContextAccessor();
+
 
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
             builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IUploadPhotoService, UploadPhotoService>();
+            builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+            builder.Services.AddScoped<IFamilyService, FamilyService>();
+            builder.Services.AddScoped<IMemberService, MemberService>();
 
             // Add services to the container.
             builder.Services.AddControllers()

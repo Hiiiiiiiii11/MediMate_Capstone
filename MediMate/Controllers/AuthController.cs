@@ -18,23 +18,39 @@ namespace MediMate.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
-            var result = await _authenticationService.RegisterAsync(request);
-            if (!result.Success)
+            try
             {
-                return StatusCode(result.Code, result); // Trả về lỗi 400/409 kèm message
+                var result = await _authenticationService.RegisterAsync(request);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Code, result); // Trả về lỗi 400/409 kèm message
+                }
+                return Ok(result); // Trả về 200 kèm data
             }
-            return Ok(result); // Trả về 200 kèm data
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
         }
-
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var result = await _authenticationService.LoginAsync(request);
-            if (!result.Success)
+            try
             {
-                return StatusCode(result.Code, result);
+                var result = await _authenticationService.LoginAsync(request);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Code, result);
+                }
+                return Ok(result);
             }
-            return Ok(result);
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+            
         }
     }
 }

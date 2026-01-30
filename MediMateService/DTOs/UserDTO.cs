@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
 {
@@ -29,7 +30,7 @@ namespace MediMateService.DTOs
 
         public string? Gender { get; set; }
 
-        public string? AvatarUrl { get; set; }
+        public IFormFile? AvatarFile { get; set; }
     }
 
     // --- REQUEST: Đổi mật khẩu ---

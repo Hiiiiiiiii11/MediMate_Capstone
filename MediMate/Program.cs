@@ -1,4 +1,5 @@
 ﻿
+using CloudinaryDotNet;
 using DotNetEnv;
 using MediMate.Middleware;
 using MediMateRepository.Data;
@@ -9,8 +10,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Share.Cloudinaries;
 using Share.Common;
 using Share.Jwt;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 
@@ -43,6 +46,7 @@ namespace MediMate
             builder.Services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
             builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
             builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IUploadPhotoService, UploadPhotoService>();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -105,9 +109,18 @@ namespace MediMate
             builder.Services.Configure<JwtSettings>(
             builder.Configuration.GetSection("Jwt")
             );
-
             var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
             var key = Encoding.UTF8.GetBytes(jwtSettings.SecretKey);
+
+
+            builder.Services.Configure<CloudinarySettings>(
+            builder.Configuration.GetSection("CloudinarySettings"));
+            builder.Services.AddSingleton(provider =>
+            {
+                var config = builder.Configuration.GetSection("CloudinarySettings").Get<CloudinarySettings>();
+                var account = new Account(config.CloudName, config.ApiKey, config.ApiSecret);
+                return new Cloudinary(account);
+            });
 
             builder.Services
                 .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

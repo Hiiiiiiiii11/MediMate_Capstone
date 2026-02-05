@@ -21,6 +21,14 @@ namespace MediMateService.DTOs
         public string IdentityCode { get; set; } // Mã text (VD: MEM-1234)
         public string QrCodeBase64 { get; set; } // Ảnh QR
     }
+    //request tạo lại qr
+    public class MemberQrResponse
+    {
+        public Guid MemberId { get; set; }
+        public string FullName { get; set; }
+        public string IdentityCode { get; set; }
+        public string QrCodeBase64 { get; set; }
+    }
 
     // 3. Request: Chủ Family quét mã để thêm người này vào nhà
     public class AddMemberByIdentityRequest
@@ -38,6 +46,9 @@ namespace MediMateService.DTOs
         public string Role { get; set; }
         public string AvatarUrl { get; set; }
         public bool IsActive { get; set; }
+        public string IdentityCode { get; set; }
+        public string? SyncToken { get; set; }
+        public DateTime? SyncTokenExpireAt { get; set; }
     }
 
     public class UpdateMemberRequest
@@ -46,5 +57,13 @@ namespace MediMateService.DTOs
         public DateTime? DateOfBirth { get; set; }
         public string Gender { get; set; }
         /*public string? Role { get; set; }*/ // Chỉ Owner mới sửa được Role
+    }
+    //request jion family by join code
+    public class JoinFamilyRequest
+    {
+        public string JoinCode { get; set; } = string.Empty;
+
+        // Chỉ cần truyền nếu là Người phụ thuộc (Dependent) chưa có tài khoản
+        public Guid? ExistingMemberId { get; set; }
     }
 }

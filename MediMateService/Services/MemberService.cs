@@ -11,6 +11,7 @@ namespace MediMateService.Services
 {
     public interface IMemberService
     {
+        Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember();
         Task<ApiResponse<InitDependentResponse>> InitDependentProfileAsync(InitDependentRequest request);
         Task<ApiResponse<bool>> AddMemberByIdentityQrAsync(Guid ownerId, AddMemberByIdentityRequest request);
         Task<ApiResponse<IEnumerable<MemberResponse>>> GetMembersByFamilyIdAsync(Guid familyId, Guid userId);
@@ -23,6 +24,8 @@ namespace MediMateService.Services
 
         // Delete/Remove Member (Soft delete or Remove from family)
         Task<ApiResponse<bool>> RemoveMemberAsync(Guid memberId, Guid userId);
+        Task<ApiResponse<MemberQrResponse>> GetIdentityQrAsync(Guid memberId);
+        Task<ApiResponse<bool>> JoinFamilyUnifiedAsync(Guid? userId, JoinFamilyRequest request);
     }
 
     public class MemberService : IMemberService
@@ -32,6 +35,28 @@ namespace MediMateService.Services
         public MemberService(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
+        }
+        public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember()
+        {
+            var members = await _unitOfWork.Repository<Members>().GetAllAsync();
+            var memberDto = members.Select(u => new MemberResponse
+            {
+                MemberId = u.MemberId,
+                FullName = u.FullName,
+                DateOfBirth = u.DateOfBirth,
+                AvatarUrl = u.AvatarUrl,
+                Gender = u.Gender,
+                IsActive = u.IsActive,
+                UserId = u.UserId,
+                IdentityCode = u.IdentityCode,
+                SyncToken = u.SyncToken,
+                SyncTokenExpireAt = u.SyncTokenExpireAt,
+                Role = u.Role,
+
+
+
+            });
+            return ApiResponse<IEnumerable<MemberResponse>>.Ok(memberDto, "Lấy danh sách members  thành công.");
         }
 
         // --- HÀM 1: TẠO PROFILE ĐỘC LẬP (MỒ CÔI) ---
@@ -246,5 +271,107 @@ namespace MediMateService.Services
                 }
             }
         }
+        public async Task<ApiResponse<MemberQrResponse>> GetIdentityQrAsync(Guid memberId)
+        {
+            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (member == null) return ApiResponse<MemberQrResponse>.Fail("Thành viên không tồn tại.", 404);
+
+            // Check quyền: 
+            // 1. Nếu member này chưa có UserId (mồ côi/phụ thuộc) -> Ai giữ MemberId đều xem được (Logic public)
+            // 2. Nếu member này đã có UserId -> Phải là chính chủ hoặc Owner family mới xem được.
+            // (Ở đây mình demo logic đơn giản nhất: check tồn tại)
+
+            // LOGIC TÁI TẠO MÃ:
+            // Nếu IdentityCode đang null (do đã join family rồi bị xóa code, hoặc chưa có), thì sinh mã mới.
+            if (string.IsNullOrEmpty(member.IdentityCode))
+            {
+                member.IdentityCode = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
+                _unitOfWork.Repository<Members>().Update(member);
+                await _unitOfWork.CompleteAsync();
+            }
+
+            // Tạo ảnh QR từ IdentityCode (chỉ xử lý trên RAM, không lưu DB)
+            var qrBase64 = GenerateQrCode(member.IdentityCode);
+
+            return ApiResponse<MemberQrResponse>.Ok(new MemberQrResponse
+            {
+                MemberId = member.MemberId,
+                FullName = member.FullName,
+                IdentityCode = member.IdentityCode,
+                QrCodeBase64 = qrBase64
+            }, "Lấy mã QR thành công.");
+        }
+
+        // ... Helper GenerateQrCode giữ nguyên ...
+
+        public async Task<ApiResponse<bool>> JoinFamilyUnifiedAsync(Guid? userId, JoinFamilyRequest request)
+        {
+            // 1. Tìm Family theo Code
+            var family = (await _unitOfWork.Repository<Families>()
+                .FindAsync(f => f.JoinCode == request.JoinCode)).FirstOrDefault();
+
+            if (family == null) return ApiResponse<bool>.Fail("Mã gia đình không chính xác.", 404);
+            if (family.Type == FamilyType.Personal) return ApiResponse<bool>.Fail("Không thể tham gia hồ sơ cá nhân.", 403);
+
+            // --- TRƯỜNG HỢP A: NGƯỜI DÙNG ĐÃ ĐĂNG NHẬP (CÓ USER ID) ---
+            if (userId.HasValue)
+            {
+                // Kiểm tra đã trong nhóm chưa
+                var exists = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == family.FamilyId && m.UserId == userId.Value)).Any();
+
+                if (exists) return ApiResponse<bool>.Ok(true, "Bạn đã là thành viên của gia đình này.");
+
+                // Lấy info User để tạo Member mới
+                var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId.Value);
+                var newMember = new Members
+                {
+                    MemberId = Guid.NewGuid(),
+                    FamilyId = family.FamilyId,
+                    UserId = userId.Value, // Link tài khoản
+                    FullName = user.FullName,
+                    DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
+                    Gender = user.Gender ?? "Other",
+                    Role = "Member",
+                    AvatarUrl = user.AvatarUrl,
+                    IsActive = true
+                };
+
+                await _unitOfWork.Repository<Members>().AddAsync(newMember);
+                await _unitOfWork.CompleteAsync();
+
+                return ApiResponse<bool>.Ok(true, $"Đã tham gia gia đình '{family.FamilyName}' với tư cách thành viên.");
+            }
+
+            // --- TRƯỜNG HỢP B: NGƯỜI PHỤ THUỘC (CHƯA LOGIN, CÓ MEMBER ID) ---
+            else if (request.ExistingMemberId.HasValue)
+            {
+                // Tìm Member mồ côi đang lưu trên máy
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(request.ExistingMemberId.Value);
+
+                if (member == null) return ApiResponse<bool>.Fail("Hồ sơ thành viên không tồn tại.", 404);
+
+                // Nếu đã có nhà rồi thì thôi (trừ khi chính là nhà này)
+                if (member.FamilyId != null)
+                {
+                    if (member.FamilyId == family.FamilyId) return ApiResponse<bool>.Ok(true, "Đã ở trong gia đình này.");
+                    return ApiResponse<bool>.Fail("Hồ sơ này đã thuộc về gia đình khác.", 409);
+                }
+
+                // Cập nhật Family
+                member.FamilyId = family.FamilyId;
+                //member.IdentityCode = null; // Reset mã định danh
+
+                _unitOfWork.Repository<Members>().Update(member);
+                await _unitOfWork.CompleteAsync();
+
+                return ApiResponse<bool>.Ok(true, $"Hồ sơ '{member.FullName}' đã được thêm vào gia đình '{family.FamilyName}'.");
+            }
+
+            // --- TRƯỜNG HỢP C: KHÔNG CÓ CẢ 2 ---
+            return ApiResponse<bool>.Fail("Dữ liệu không hợp lệ. Cần đăng nhập hoặc có hồ sơ thành viên.", 400);
+        }
+
+
     }
 }

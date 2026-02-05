@@ -13,7 +13,7 @@ namespace MediMateRepository.Repositories
     {
         Task<IEnumerable<T>> GetAllAsync(params Expression<Func<T, object>>[] includes);
         Task<T?> GetByIdAsync(object id, params Expression<Func<T, object>>[] includes);
-        Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate);
+        Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate, string includeProperties = "");
 
         Task AddAsync(T entity);
         Task AddRangeAsync(IEnumerable<T> entities);
@@ -67,9 +67,24 @@ namespace MediMateRepository.Repositories
             // EF.Property<object>(e, keyName) giúp EF hiểu cột nào cần so sánh
             return await query.FirstOrDefaultAsync(e => EF.Property<object>(e, keyName) == id);
         }
-        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
+        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> expression, string includeProperties = "")
         {
-            return await _dbSet.Where(predicate).ToListAsync();
+            IQueryable<T> query = _dbSet;
+
+            // 1. Áp dụng điều kiện lọc (Where)
+            if (expression != null)
+            {
+                query = query.Where(expression);
+            }
+
+            // 2. Áp dụng Include (Join bảng)
+            // Chuỗi nhập vào dạng: "Conditions,Member"
+            foreach (var includeProperty in includeProperties.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                query = query.Include(includeProperty);
+            }
+
+            return await query.ToListAsync();
         }
         public async Task AddAsync(T entity)
         {

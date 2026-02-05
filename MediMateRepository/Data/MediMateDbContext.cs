@@ -19,8 +19,10 @@ namespace MediMateRepository.Data
 
 
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
-            modelBuilder.Entity<Families>().HasKey(f => f.FamilyId); 
+            modelBuilder.Entity<Families>().HasKey(f => f.FamilyId);
             modelBuilder.Entity<Members>().HasKey(m => m.MemberId);
+            modelBuilder.Entity<HealthProfiles>().HasKey(hp => hp.HealthProfileId);
+            modelBuilder.Entity<HealthConditions>().HasKey(hc => hc.ConditionId);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
@@ -50,6 +52,19 @@ namespace MediMateRepository.Data
                 .WithMany(u => u.CreatedFamilies)
                 .HasForeignKey(f => f.CreateBy)
                 .OnDelete(DeleteBehavior.Restrict); // Xóa User không xóa Family để giữ lịch sử
+
+            modelBuilder.Entity<Members>()
+        .HasOne(m => m.HealthProfile)
+        .WithOne(hp => hp.Member)
+        .HasForeignKey<HealthProfiles>(hp => hp.MemberId)
+        .OnDelete(DeleteBehavior.Cascade); // Xóa Member thì xóa luôn HealthProfile
+
+            // Cấu hình 1-N: HealthProfile - HealthConditions
+            modelBuilder.Entity<HealthProfiles>()
+                .HasMany(hp => hp.Conditions)
+                .WithOne(c => c.HealthProfile)
+                .HasForeignKey(c => c.HealthProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -1,11 +1,12 @@
 ﻿using MediMateService.DTOs;
 using MediMateService.Services;
 using MediMateService.Services.MediMateService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MediMate.Controllers
 {
-    [Route("api/v1")]
+    [Route("api/v1/members")]
     [ApiController]
     public class MemberController : ControllerBase
     {
@@ -18,6 +19,48 @@ namespace MediMate.Controllers
             _currentUserService = currentUserService;
         }
 
+        [HttpGet("get-all")]
+        public async Task<IActionResult> GetAllMembers()
+        {
+            try
+            {
+                var result = await _memberService.GetAllMember();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
+        [HttpPost("join-by-joincode")]
+        [AllowAnonymous] // Mở cửa cho tất cả
+        public async Task<IActionResult> JoinFamily([FromBody] JoinFamilyRequest request)
+        {
+            Guid? userId = null;
+
+            // Tự check Token thủ công (vì AllowAnonymous sẽ bỏ qua Authorize Middleware)
+            try
+            {
+                if (User.Identity != null && User.Identity.IsAuthenticated)
+                {
+                    // Lấy Claim thủ công để an toàn
+                    var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (Guid.TryParse(userIdString, out var parsedId)) userId = parsedId;
+                }
+            }
+            catch
+            {
+                // Không có token hoặc token lỗi -> Coi như là Guest (Dependent)
+                userId = null;
+            }
+
+            var result = await _memberService.JoinFamilyUnifiedAsync(userId, request);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
         // API: Tạo hồ sơ phụ thuộc -> Nhận QR
         [HttpPost("init-dependent")]
         public async Task<IActionResult> InitDependent([FromBody] InitDependentRequest request)
@@ -32,6 +75,17 @@ namespace MediMate.Controllers
                 // Log lỗi ex ở đây nếu cần
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
+        }
+
+        [HttpGet("{memberId}/qr/viewQr")]
+        public async Task<IActionResult> GetMemberQr(Guid memberId)
+        {
+            // userId lấy từ Token, dùng để check quyền nếu cần
+
+            var result = await _memberService.GetIdentityQrAsync(memberId);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
         }
 
         [HttpGet("family/{familyId}")]

@@ -1,6 +1,7 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;// Chứa ApiResponse
 using MediMateService.DTOs;
+using MediMateService.Services;
 using Share.Common;
 
 namespace MediMateService.Services
@@ -32,16 +33,18 @@ namespace MediMateService.Services
     public class HealthService : IHealthService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentUserService _currentUserService;
 
-        public HealthService(IUnitOfWork unitOfWork)
+        public HealthService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork;
+            _currentUserService = currentUserService;
         }
 
         public async Task<ApiResponse<HealthProfileResponse>> GetHealthProfileAsync(Guid memberId, Guid userId)
         {
             // 1. Validate quyền truy cập (Check xem User có quyền xem Member này không)
-            if (!await CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
 
             // 2. Lấy Profile (Include Conditions)
             // Lưu ý: GenericRepository cần hỗ trợ Include. Nếu chưa, dùng code thuần hoặc thêm param include
@@ -59,7 +62,7 @@ namespace MediMateService.Services
         public async Task<ApiResponse<HealthProfileResponse>> CreateHealthProfileAsync(Guid memberId, Guid userId, CreateHealthProfileRequest request)
         {
             // 1. Check quyền truy cập (Dùng lại hàm CheckAccess đã viết)
-            if (!await CheckAccess(memberId, userId))
+            if (!await _currentUserService.CheckAccess(memberId, userId))
                 return ApiResponse<HealthProfileResponse>.Fail("Bạn không có quyền tạo hồ sơ cho thành viên này.", 403);
 
             // 2. Kiểm tra xem đã có hồ sơ chưa (Quan hệ 1-1)
@@ -91,7 +94,7 @@ namespace MediMateService.Services
         }
         public async Task<ApiResponse<HealthProfileResponse>>UpdateHealthProfileAsync(Guid memberId, Guid userId, UpdateHealthProfileRequest request)
         {
-            if (!await CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Access Denied", 403);
 
             var profile = (await _unitOfWork.Repository<HealthProfiles>()
                 .FindAsync(p => p.MemberId == memberId)).FirstOrDefault();
@@ -118,7 +121,7 @@ namespace MediMateService.Services
 
         public async Task<ApiResponse<bool>> AddConditionAsync(Guid memberId, Guid userId, AddConditionRequest request)
         {
-            if (!await CheckAccess(memberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
 
             // Phải đảm bảo Profile đã tồn tại
             var profile = (await _unitOfWork.Repository<HealthProfiles>().FindAsync(p => p.MemberId == memberId)).FirstOrDefault();
@@ -147,7 +150,7 @@ namespace MediMateService.Services
 
             // Truy ngược lại để check quyền (Condition -> Profile -> Member -> Family -> User)
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
-            if (!await CheckAccess(profile.MemberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(profile.MemberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
 
             _unitOfWork.Repository<HealthConditions>().Remove(condition);
             await _unitOfWork.CompleteAsync();
@@ -177,26 +180,6 @@ namespace MediMateService.Services
             };
         }
 
-        // Helper: Check quyền (User có phải chủ member hoặc cùng family không)
-        private async Task<bool> CheckAccess(Guid memberId, Guid userId)
-        {
-            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-            if (member == null) return false;
-
-            // 1. Nếu là chính mình
-            if (member.UserId == userId) return true;
-
-            // 2. Nếu trong cùng Family
-            if (member.FamilyId != null)
-            {
-                // Check xem User hiện tại có trong Family đó không
-                var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == member.FamilyId && m.UserId == userId)).FirstOrDefault();
-                return requester != null;
-            }
-
-            return false;
-        }
         public async Task<ApiResponse<IEnumerable<FamilyHealthSummaryResponse>>> GetHealthProfilesByFamilyIdAsync(Guid familyId, Guid userId)
         {
             // 1. Check quyền: User có thuộc Family này không?
@@ -257,7 +240,7 @@ namespace MediMateService.Services
 
             // Check quyền truy cập ngược từ Condition -> Profile -> Member -> Family
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
-            if (!await CheckAccess(profile.MemberId, userId)) // Hàm CheckAccess đã viết ở bài trước
+            if (!await _currentUserService.CheckAccess(profile.MemberId, userId)) // Hàm CheckAccess đã viết ở bài trước
                 return ApiResponse<HealthConditionDto>.Fail("Không có quyền truy cập.", 403);
 
             return ApiResponse<HealthConditionDto>.Ok(new HealthConditionDto
@@ -278,7 +261,7 @@ namespace MediMateService.Services
 
             // Check quyền
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
-            if (!await CheckAccess(profile.MemberId, userId))
+            if (!await _currentUserService.CheckAccess(profile.MemberId, userId))
                 return ApiResponse<bool>.Fail("Không có quyền chỉnh sửa.", 403);
 
             // --- LOGIC GIỮ GIÁ TRỊ CŨ NẾU NULL ---

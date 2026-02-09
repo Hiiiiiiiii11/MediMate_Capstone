@@ -42,6 +42,7 @@ namespace MediMateService.Services
             var memberDto = members.Select(u => new MemberResponse
             {
                 MemberId = u.MemberId,
+                FamilyId = u.FamilyId,
                 FullName = u.FullName,
                 DateOfBirth = u.DateOfBirth,
                 AvatarUrl = u.AvatarUrl,

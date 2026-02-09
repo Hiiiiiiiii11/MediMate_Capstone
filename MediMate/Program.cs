@@ -5,7 +5,6 @@ using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
 using MediMateService.Services;
-using MediMateService.Services.MediMateService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +52,8 @@ namespace MediMate
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
             builder.Services.AddScoped<IFamilyService, FamilyService>();
             builder.Services.AddScoped<IMemberService, MemberService>();
+            builder.Services.AddScoped<IHealthService, HealthService>();
+            builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
 
             // Add services to the container.
             builder.Services.AddControllers()

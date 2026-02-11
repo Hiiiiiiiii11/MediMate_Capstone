@@ -1,7 +1,6 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;// Chứa ApiResponse
 using MediMateService.DTOs;
-using MediMateService.Services;
 using Share.Common;
 
 namespace MediMateService.Services
@@ -44,7 +43,10 @@ namespace MediMateService.Services
         public async Task<ApiResponse<HealthProfileResponse>> GetHealthProfileAsync(Guid memberId, Guid userId)
         {
             // 1. Validate quyền truy cập (Check xem User có quyền xem Member này không)
-            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
+                return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
+            }
 
             // 2. Lấy Profile (Include Conditions)
             // Lưu ý: GenericRepository cần hỗ trợ Include. Nếu chưa, dùng code thuần hoặc thêm param include
@@ -63,7 +65,9 @@ namespace MediMateService.Services
         {
             // 1. Check quyền truy cập (Dùng lại hàm CheckAccess đã viết)
             if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
                 return ApiResponse<HealthProfileResponse>.Fail("Bạn không có quyền tạo hồ sơ cho thành viên này.", 403);
+            }
 
             // 2. Kiểm tra xem đã có hồ sơ chưa (Quan hệ 1-1)
             var existingProfile = (await _unitOfWork.Repository<HealthProfiles>()
@@ -92,9 +96,12 @@ namespace MediMateService.Services
 
             return ApiResponse<HealthProfileResponse>.Ok(MapToResponse(newProfile), "Tạo hồ sơ sức khỏe thành công.");
         }
-        public async Task<ApiResponse<HealthProfileResponse>>UpdateHealthProfileAsync(Guid memberId, Guid userId, UpdateHealthProfileRequest request)
+        public async Task<ApiResponse<HealthProfileResponse>> UpdateHealthProfileAsync(Guid memberId, Guid userId, UpdateHealthProfileRequest request)
         {
-            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<HealthProfileResponse>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
+                return ApiResponse<HealthProfileResponse>.Fail("Access Denied", 403);
+            }
 
             var profile = (await _unitOfWork.Repository<HealthProfiles>()
                 .FindAsync(p => p.MemberId == memberId)).FirstOrDefault();
@@ -102,14 +109,29 @@ namespace MediMateService.Services
             // Nếu chưa có profile thì TẠO MỚI
             if (profile == null)
             {
-               return ApiResponse<HealthProfileResponse >.Fail(" Hồ sơ sức khỏe không tồn tại.", 404);
+                return ApiResponse<HealthProfileResponse>.Fail(" Hồ sơ sức khỏe không tồn tại.", 404);
             }
 
             // Cập nhật dữ liệu
-            if (!string.IsNullOrEmpty(request.BloodType)) profile.BloodType = request.BloodType;
-            if (!string.IsNullOrEmpty(request.InsuranceNumber)) profile.InsuranceNumber = request.InsuranceNumber;
-            if (request.Height > 0) profile.Height = request.Height;
-            if (request.Weight > 0) profile.Weight = request.Weight;
+            if (!string.IsNullOrEmpty(request.BloodType))
+            {
+                profile.BloodType = request.BloodType;
+            }
+
+            if (!string.IsNullOrEmpty(request.InsuranceNumber))
+            {
+                profile.InsuranceNumber = request.InsuranceNumber;
+            }
+
+            if (request.Height > 0)
+            {
+                profile.Height = request.Height;
+            }
+
+            if (request.Weight > 0)
+            {
+                profile.Weight = request.Weight;
+            }
 
             profile.UpdatedAt = DateTime.UtcNow;
 
@@ -121,11 +143,17 @@ namespace MediMateService.Services
 
         public async Task<ApiResponse<bool>> AddConditionAsync(Guid memberId, Guid userId, AddConditionRequest request)
         {
-            if (!await _currentUserService.CheckAccess(memberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
+                return ApiResponse<bool>.Fail("Access Denied", 403);
+            }
 
             // Phải đảm bảo Profile đã tồn tại
             var profile = (await _unitOfWork.Repository<HealthProfiles>().FindAsync(p => p.MemberId == memberId)).FirstOrDefault();
-            if (profile == null) return ApiResponse<bool>.Fail("Vui lòng cập nhật thông tin cơ bản trước khi thêm bệnh lý.", 400);
+            if (profile == null)
+            {
+                return ApiResponse<bool>.Fail("Vui lòng cập nhật thông tin cơ bản trước khi thêm bệnh lý.", 400);
+            }
 
             var condition = new HealthConditions
             {
@@ -146,11 +174,17 @@ namespace MediMateService.Services
         public async Task<ApiResponse<bool>> RemoveConditionAsync(Guid conditionId, Guid userId)
         {
             var condition = await _unitOfWork.Repository<HealthConditions>().GetByIdAsync(conditionId);
-            if (condition == null) return ApiResponse<bool>.Fail("Không tìm thấy dữ liệu.", 404);
+            if (condition == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy dữ liệu.", 404);
+            }
 
             // Truy ngược lại để check quyền (Condition -> Profile -> Member -> Family -> User)
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
-            if (!await _currentUserService.CheckAccess(profile.MemberId, userId)) return ApiResponse<bool>.Fail("Access Denied", 403);
+            if (!await _currentUserService.CheckAccess(profile.MemberId, userId))
+            {
+                return ApiResponse<bool>.Fail("Access Denied", 403);
+            }
 
             _unitOfWork.Repository<HealthConditions>().Remove(condition);
             await _unitOfWork.CompleteAsync();
@@ -187,7 +221,9 @@ namespace MediMateService.Services
                 .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
 
             if (currentUserMember == null)
+            {
                 return ApiResponse<IEnumerable<FamilyHealthSummaryResponse>>.Fail("Bạn không thuộc gia đình này.", 403);
+            }
 
             // 2. Lấy tất cả Member trong Family kèm theo HealthProfile và Conditions
             // Sử dụng includeProperties chuỗi string mà chúng ta đã sửa ở GenericRepository
@@ -236,47 +272,62 @@ namespace MediMateService.Services
         public async Task<ApiResponse<HealthConditionDto>> GetConditionByIdAsync(Guid conditionId, Guid userId)
         {
             var condition = await _unitOfWork.Repository<HealthConditions>().GetByIdAsync(conditionId);
-            if (condition == null) return ApiResponse<HealthConditionDto>.Fail("Không tìm thấy thông tin bệnh lý.", 404);
+            if (condition == null)
+            {
+                return ApiResponse<HealthConditionDto>.Fail("Không tìm thấy thông tin bệnh lý.", 404);
+            }
 
             // Check quyền truy cập ngược từ Condition -> Profile -> Member -> Family
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
-            if (!await _currentUserService.CheckAccess(profile.MemberId, userId)) // Hàm CheckAccess đã viết ở bài trước
-                return ApiResponse<HealthConditionDto>.Fail("Không có quyền truy cập.", 403);
-
-            return ApiResponse<HealthConditionDto>.Ok(new HealthConditionDto
-            {
-                ConditionId = condition.ConditionId,
-                ConditionName = condition.ConditionName,
-                Description = condition.Description,
-                DiagnosedDate = condition.DiagnosedDate,
-                Status = condition.Status
-            });
+            return !await _currentUserService.CheckAccess(profile.MemberId, userId)
+                ? ApiResponse<HealthConditionDto>.Fail("Không có quyền truy cập.", 403)
+                : ApiResponse<HealthConditionDto>.Ok(new HealthConditionDto
+                {
+                    ConditionId = condition.ConditionId,
+                    ConditionName = condition.ConditionName,
+                    Description = condition.Description,
+                    DiagnosedDate = condition.DiagnosedDate,
+                    Status = condition.Status
+                });
         }
 
         // --- 3. CẬP NHẬT BỆNH ÁN (Partial Update) ---
         public async Task<ApiResponse<bool>> UpdateConditionAsync(Guid conditionId, Guid userId, UpdateConditionRequest request)
         {
             var condition = await _unitOfWork.Repository<HealthConditions>().GetByIdAsync(conditionId);
-            if (condition == null) return ApiResponse<bool>.Fail("Không tìm thấy thông tin bệnh lý.", 404);
+            if (condition == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy thông tin bệnh lý.", 404);
+            }
 
             // Check quyền
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
             if (!await _currentUserService.CheckAccess(profile.MemberId, userId))
+            {
                 return ApiResponse<bool>.Fail("Không có quyền chỉnh sửa.", 403);
+            }
 
             // --- LOGIC GIỮ GIÁ TRỊ CŨ NẾU NULL ---
 
             if (!string.IsNullOrEmpty(request.ConditionName))
+            {
                 condition.ConditionName = request.ConditionName;
+            }
 
             if (!string.IsNullOrEmpty(request.Description))
+            {
                 condition.Description = request.Description;
+            }
 
             if (request.DiagnosedDate.HasValue)
+            {
                 condition.DiagnosedDate = request.DiagnosedDate.Value;
+            }
 
             if (!string.IsNullOrEmpty(request.Status))
+            {
                 condition.Status = request.Status;
+            }
 
             _unitOfWork.Repository<HealthConditions>().Update(condition);
             await _unitOfWork.CompleteAsync();

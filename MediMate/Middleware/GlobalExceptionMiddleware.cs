@@ -1,9 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using MediMateService.Shared;
 using Share.Common;
-using System;
 using System.Net;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace MediMate.Middleware // Hoặc namespace phù hợp của bạn
 {
@@ -35,8 +33,16 @@ namespace MediMate.Middleware // Hoặc namespace phù hợp của bạn
 
         private static Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
+            var statusCode = exception switch
+            {
+                NotFoundException => HttpStatusCode.NotFound,
+                ForbiddenException => HttpStatusCode.Forbidden,
+                BadRequestException => HttpStatusCode.BadRequest,
+                ConflictException => HttpStatusCode.Conflict,
+                _ => HttpStatusCode.InternalServerError
+            };
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            context.Response.StatusCode = (int)statusCode;
 
             // Tạo response chuẩn theo format ApiResponse
             // Lưu ý: Có thể ẩn exception.Message khi chạy Prod để bảo mật

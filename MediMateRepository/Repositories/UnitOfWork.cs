@@ -1,11 +1,5 @@
 ﻿using MediMateRepository.Data;
-using Microsoft.EntityFrameworkCore;
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MediMateRepository.Repositories
 {
@@ -31,8 +25,7 @@ namespace MediMateRepository.Repositories
 
         public IGenericRepository<T> Repository<T>() where T : class
         {
-            if (_repositories == null)
-                _repositories = new Hashtable();
+            _repositories ??= new Hashtable();
 
             var type = typeof(T).Name;
 

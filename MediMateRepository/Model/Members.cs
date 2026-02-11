@@ -19,6 +19,7 @@ namespace MediMateRepository.Model
         public string? AvatarUrl { get; set; }
         public string? SyncToken { get; set; }
         public DateTime? SyncTokenExpireAt { get; set; }
-        public bool IsActive { get; set; } 
+        public bool IsActive { get; set; }
+        public virtual HealthProfiles? HealthProfile { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260205161909_addtablehealth")]
+    partial class addtablehealth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -171,133 +174,6 @@ namespace MediMateRepository.Migrations
                     b.ToTable("Members");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>
-                {
-                    b.Property<Guid>("ImageId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsProcessed")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("OcrRawData")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("PrescriptionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ThumbnailUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("ImageId");
-
-                    b.HasIndex("PrescriptionId");
-
-                    b.ToTable("PrescriptionImages");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.PrescriptionMedicines", b =>
-                {
-                    b.Property<Guid>("PrescriptionMedicineId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AiParsedInstructions")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Dosage")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Instructions")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("MedicineName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("PrescriptionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Unit")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("PrescriptionMedicineId");
-
-                    b.HasIndex("PrescriptionId");
-
-                    b.ToTable("PrescriptionMedicines");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Prescriptions", b =>
-                {
-                    b.Property<Guid>("PrescriptionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DoctorName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ExpiryDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("HospitalName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PrescriptionCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("PrescriptionDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("PrescriptionId");
-
-                    b.HasIndex("MemberId");
-
-                    b.ToTable("Prescriptions");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.User", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -344,9 +220,6 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("UserId");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique();
@@ -399,39 +272,6 @@ namespace MediMateRepository.Migrations
                         .HasForeignKey("UserId");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Prescriptions", "Prescription")
-                        .WithMany("PrescriptionImages")
-                        .HasForeignKey("PrescriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Prescription");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.PrescriptionMedicines", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Prescriptions", "Prescription")
-                        .WithMany("PrescriptionMedicines")
-                        .HasForeignKey("PrescriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Prescription");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Prescriptions", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Member");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
                     b.Navigation("FamilyMembers");
@@ -445,13 +285,6 @@ namespace MediMateRepository.Migrations
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>
                 {
                     b.Navigation("HealthProfile");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Prescriptions", b =>
-                {
-                    b.Navigation("PrescriptionImages");
-
-                    b.Navigation("PrescriptionMedicines");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.User", b =>

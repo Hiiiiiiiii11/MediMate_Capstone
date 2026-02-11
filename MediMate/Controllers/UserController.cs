@@ -1,7 +1,6 @@
 ﻿using MediMateRepository.Model;
 using MediMateService.DTOs;
 using MediMateService.Services;
-using MediMateService.Services.MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

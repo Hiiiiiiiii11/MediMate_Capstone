@@ -1,0 +1,67 @@
+﻿namespace MediMateService.DTOs
+{
+    // Request tạo đơn thuốc (Dữ liệu đã được UI/AI xử lý)
+    public class CreatePrescriptionRequest
+    {
+        public string? PrescriptionCode { get; set; }
+        public string? DoctorName { get; set; }
+        public string? HospitalName { get; set; }
+        public DateTime PrescriptionDate { get; set; }
+        public string? Notes { get; set; }
+
+        // Danh sách ảnh (Link ảnh đã upload + Raw text OCR nếu cần lưu lại)
+        public List<PrescriptionImageDto> Images { get; set; } = new List<PrescriptionImageDto>();
+
+        // Danh sách thuốc (Đã được UI bóc tách thành text)
+        public List<PrescriptionMedicineDto> Medicines { get; set; } = new List<PrescriptionMedicineDto>();
+    }
+
+    public class PrescriptionImageDto
+    {
+        public string ImageUrl { get; set; }
+        public string? OcrRawData { get; set; } // Text thô AI quét được (lưu để debug nếu cần)
+    }
+    public class FileUploadResult
+    {
+        public string OriginalUrl { get; set; }
+        public string ThumbnailUrl { get; set; }
+    }
+
+    public class PrescriptionMedicineDto
+    {
+        public string MedicineName { get; set; }
+        public string? Dosage { get; set; } // Liều lượng (vd: 500mg)
+        public string? Unit { get; set; }   // Đơn vị (vd: Viên)
+        public int Quantity { get; set; }
+        public string? Instructions { get; set; } // HDSD (Sáng 1, Chiều 1)
+    }
+    public class UpdatePrescriptionRequest
+    {
+        public string? PrescriptionCode { get; set; }
+        public string? DoctorName { get; set; }
+        public string? HospitalName { get; set; }
+        public DateTime? PrescriptionDate { get; set; }
+        public string? Notes { get; set; }
+        public string? Status { get; set; } // Active, Cancelled
+
+        // Nếu gửi null: Giữ nguyên danh sách thuốc cũ
+        // Nếu gửi list (kể cả rỗng): Xóa thuốc cũ, thay bằng thuốc mới
+        public List<PrescriptionMedicineDto>? Medicines { get; set; }
+    }
+
+    // Response trả về cho UI
+    public class PrescriptionResponse
+    {
+        public Guid PrescriptionId { get; set; }
+        public Guid MemberId { get; set; }
+        public string DoctorName { get; set; }
+        public string HospitalName { get; set; }
+        public DateTime PrescriptionDate { get; set; }
+        public string Status { get; set; }
+        public string Notes { get; set; }
+
+        public List<PrescriptionImageDto> Images { get; set; }
+        public List<PrescriptionMedicineDto> Medicines { get; set; }
+    }
+
+}

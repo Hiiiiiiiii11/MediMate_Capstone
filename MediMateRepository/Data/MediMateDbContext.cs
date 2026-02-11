@@ -12,6 +12,11 @@ namespace MediMateRepository.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Families> Families { get; set; }
         public DbSet<Members> Members { get; set; }
+        public DbSet<HealthProfiles> HealthProfiles { get; set; }
+        public DbSet<HealthConditions> HealthConditions { get; set; }
+        public DbSet<Prescriptions> Prescriptions { get; set; }
+        public DbSet<PrescriptionMedicines> PrescriptionMedicines { get; set; }
+        public DbSet<PrescriptionImages> PrescriptionImages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -19,14 +24,21 @@ namespace MediMateRepository.Data
 
 
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
-            modelBuilder.Entity<Families>().HasKey(f => f.FamilyId); 
+            modelBuilder.Entity<Families>().HasKey(f => f.FamilyId);
             modelBuilder.Entity<Members>().HasKey(m => m.MemberId);
+            modelBuilder.Entity<HealthProfiles>().HasKey(hp => hp.HealthProfileId);
+            modelBuilder.Entity<HealthConditions>().HasKey(hc => hc.ConditionId);
+            modelBuilder.Entity<Prescriptions>().HasKey(p => p.PrescriptionId);
+            modelBuilder.Entity<PrescriptionMedicines>().HasKey(pm => pm.PrescriptionMedicineId);
+            modelBuilder.Entity<PrescriptionImages>().HasKey(pi => pi.ImageId);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.PhoneNumber)
                 .IsUnique(); // SĐT là duy nhất
-
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
             // --- MEMBER CONFIGURATION ---
             // Quan hệ 1-1: User <-> Member
             //modelBuilder.Entity<Members>()
@@ -50,6 +62,41 @@ namespace MediMateRepository.Data
                 .WithMany(u => u.CreatedFamilies)
                 .HasForeignKey(f => f.CreateBy)
                 .OnDelete(DeleteBehavior.Restrict); // Xóa User không xóa Family để giữ lịch sử
+
+            modelBuilder.Entity<Members>()
+        .HasOne(m => m.HealthProfile)
+        .WithOne(hp => hp.Member)
+        .HasForeignKey<HealthProfiles>(hp => hp.MemberId)
+        .OnDelete(DeleteBehavior.Cascade); // Xóa Member thì xóa luôn HealthProfile
+
+            // Cấu hình 1-N: HealthProfile - HealthConditions
+            modelBuilder.Entity<HealthProfiles>()
+                .HasMany(hp => hp.Conditions)
+                .WithOne(c => c.HealthProfile)
+                .HasForeignKey(c => c.HealthProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+
+            // 1. Members 1-N Prescriptions
+            modelBuilder.Entity<Prescriptions>()
+                .HasOne(p => p.Member)
+                .WithMany() // Nếu Member không cần list Prescriptions thì để trống, hoặc thêm prop vào Member
+                .HasForeignKey(p => p.MemberId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Xóa đơn thuốc
+
+            // 2. Prescriptions 1-N Images
+            modelBuilder.Entity<PrescriptionImages>()
+                .HasOne(img => img.Prescription)
+                .WithMany(p => p.PrescriptionImages)
+                .HasForeignKey(img => img.PrescriptionId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn -> Xóa ảnh
+
+            // 3. Prescriptions 1-N Medicines
+            modelBuilder.Entity<PrescriptionMedicines>()
+                .HasOne(pm => pm.Prescription)
+                .WithMany(p => p.PrescriptionMedicines) // Mapping với property Medications đã sửa ở B1
+                .HasForeignKey(pm => pm.PrescriptionId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn -> Xóa danh sách thuốc
         }
     }
 }

@@ -46,7 +46,7 @@ namespace MediMate.Middleware // Hoặc namespace phù hợp của bạn
 
             // Tạo response chuẩn theo format ApiResponse
             // Lưu ý: Có thể ẩn exception.Message khi chạy Prod để bảo mật
-            var response = ApiResponse<object>.ServerError(exception.Message);
+            var response = ApiResponse<object>.Fail(exception.Message);
 
             var jsonOptions = new JsonSerializerOptions
             {

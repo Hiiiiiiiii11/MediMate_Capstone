@@ -18,8 +18,9 @@
 
     public class PrescriptionImageDto
     {
-        public string ImageUrl { get; set; }
-        public string? OcrRawData { get; set; } // Text thô AI quét được (lưu để debug nếu cần)
+        public string ImageUrl { get; set; }     // Link gốc (nhận từ API upload trên)
+        public string? ThumbnailUrl { get; set; } // Link thumbnail (nhận từ API upload trên)
+        public string? OcrRawData { get; set; }
     }
     public class FileUploadResult
     {

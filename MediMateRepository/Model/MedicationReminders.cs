@@ -6,7 +6,16 @@ using System.Threading.Tasks;
 
 namespace MediMateRepository.Model
 {
-    internal class MedicationReminders
+    public class MedicationReminders
     {
+        public Guid ReminderId { get; set; }
+        public Guid ScheduleId { get; set; }
+        public DateTime ReminderDate { get; set; }
+        public DateTime ReminderTime { get; set; }
+        public string Status { get; set; } = "Pending"; // Pending, Taken, Skipped
+        public DateTime ScheduledAt { get; set; }
+        public DateTime SentdAt { get; set; }
+        public DateTime AcknowledgedAt { get; set; }
+        public virtual MedicationSchedules Schedule { get; set; }
     }
 }

@@ -31,10 +31,12 @@ namespace MediMateService.Services
     public class MemberService : IMemberService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public MemberService(IUnitOfWork unitOfWork)
+        public MemberService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService)
         {
             _unitOfWork = unitOfWork;
+            _uploadPhotoService = uploadPhotoService;
         }
         public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember()
         {
@@ -219,7 +221,15 @@ namespace MediMateService.Services
             //if (isOwner && !string.IsNullOrEmpty(request.Role))
             //{
             //    member.Role = request.Role;
-            //}
+            //}if (request.AvatarFile != null)
+            {
+                // Gọi hàm upload mới
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
+
+                // Lưu link vào DB
+                // Với Avatar, ta thường dùng OriginalUrl (đã được crop face ở service)
+                member.AvatarUrl = uploadResult.OriginalUrl;
+            }
 
             _unitOfWork.Repository<Members>().Update(member);
             await _unitOfWork.CompleteAsync();

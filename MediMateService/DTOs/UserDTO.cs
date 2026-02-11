@@ -21,8 +21,8 @@ namespace MediMateService.DTOs
     // --- REQUEST: Cập nhật thông tin ---
     public class UpdateProfileRequest
     {
-        [Required(ErrorMessage = "Họ tên không được để trống")]
-        public string FullName { get; set; } = string.Empty;
+        //[Required(ErrorMessage = "Họ tên không được để trống")]
+        public string? FullName { get; set; } = string.Empty;
 
         [EmailAddress(ErrorMessage = "Email không hợp lệ")]
         public string? Email { get; set; }

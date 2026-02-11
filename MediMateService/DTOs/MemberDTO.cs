@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -58,6 +59,7 @@ namespace MediMateService.DTOs
         public DateTime? DateOfBirth { get; set; }
         public string Gender { get; set; }
         /*public string? Role { get; set; }*/ // Chỉ Owner mới sửa được Role
+        public IFormFile? AvatarFile { get; set; }
     }
     //request jion family by join code
     public class JoinFamilyRequest

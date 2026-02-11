@@ -68,6 +68,21 @@ namespace MediMateService.Services
             };
 
             // 3. Map dữ liệu Images (Bảng PrescriptionImages)
+            //if (request.Images != null)
+            //{
+            //    foreach (var img in request.Images)
+            //    {
+            //        prescription.PrescriptionImages.Add(new PrescriptionImages
+            //        {
+            //            ImageId = Guid.NewGuid(),
+            //            PrescriptionId = prescription.PrescriptionId,
+            //            ImageUrl = img.ImageUrl,
+            //            OcrRawData = img.OcrRawData ?? "",
+            //            UploadedAt = DateTime.UtcNow,
+            //            IsProcessed = true // Vì UI đã xử lý rồi mới gửi xuống
+            //        });
+            //    }
+            //}
             if (request.Images != null)
             {
                 foreach (var img in request.Images)
@@ -77,9 +92,14 @@ namespace MediMateService.Services
                         ImageId = Guid.NewGuid(),
                         PrescriptionId = prescription.PrescriptionId,
                         ImageUrl = img.ImageUrl,
+
+                        // Lấy Thumbnail từ Request (FE gửi xuống)
+                        // Nếu FE không gửi thì fallback bằng cách dùng ImageUrl
+                        ThumbnailUrl = !string.IsNullOrEmpty(img.ThumbnailUrl) ? img.ThumbnailUrl : img.ImageUrl,
+
                         OcrRawData = img.OcrRawData ?? "",
                         UploadedAt = DateTime.UtcNow,
-                        IsProcessed = true // Vì UI đã xử lý rồi mới gửi xuống
+                        IsProcessed = true
                     });
                 }
             }
@@ -226,18 +246,16 @@ namespace MediMateService.Services
 
             try
             {
-                // 1. Gọi hàm Upload mới (nhận về Object)
-                var uploadResult = await _uploadPhotoService.UploadPrescriptionPhotoAsync(file);
+                // Gọi Service Upload chung
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
 
-                // 2. Lưu vào DB (Lưu cả 2 link)
+                // Lưu vào DB
                 var newImage = new PrescriptionImages
                 {
                     ImageId = Guid.NewGuid(),
                     PrescriptionId = prescriptionId,
-
-                    ImageUrl = uploadResult.OriginalUrl,    // Link gốc
-                    ThumbnailUrl = uploadResult.ThumbnailUrl, // Link thumbnail (Đã có cột này trong DB)
-
+                    ImageUrl = uploadResult.OriginalUrl,
+                    ThumbnailUrl = uploadResult.ThumbnailUrl, // Lưu thumbnail
                     IsProcessed = false,
                     UploadedAt = DateTime.UtcNow
                 };
@@ -249,7 +267,7 @@ namespace MediMateService.Services
             }
             catch (Exception ex)
             {
-                return ApiResponse<string>.Fail($"Lỗi upload: {ex.Message}", 500);
+                return ApiResponse<string>.Fail(ex.Message, 500);
             }
         }
 

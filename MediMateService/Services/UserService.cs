@@ -125,13 +125,17 @@ namespace MediMateService.Services
             {
                 user.Gender = request.Gender;
             }
-                
+
 
             // Chỉ cập nhật Avatar nếu có dữ liệu mới (Nếu null thì giữ nguyên hoặc xử lý theo logic riêng)
             if (request.AvatarFile != null)
             {
-                var avatarUrl = _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
-                user.AvatarUrl = avatarUrl;
+                // Gọi hàm upload mới
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
+
+                // Lưu link vào DB
+                // Với Avatar, ta thường dùng OriginalUrl (đã được crop face ở service)
+                user.AvatarUrl = uploadResult.OriginalUrl;
             }
 
             // 3. Lưu vào DB

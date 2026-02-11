@@ -17,6 +17,10 @@ namespace MediMateRepository.Data
         public DbSet<Prescriptions> Prescriptions { get; set; }
         public DbSet<PrescriptionMedicines> PrescriptionMedicines { get; set; }
         public DbSet<PrescriptionImages> PrescriptionImages { get; set; }
+        public DbSet<MedicationLogs> MedicationLogs { get; set; }
+        public DbSet<MedicationSchedules> MedicationSchedules { get; set; }
+        public DbSet<MedicationReminders> MedicationReminders { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -31,6 +35,10 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Prescriptions>().HasKey(p => p.PrescriptionId);
             modelBuilder.Entity<PrescriptionMedicines>().HasKey(pm => pm.PrescriptionMedicineId);
             modelBuilder.Entity<PrescriptionImages>().HasKey(pi => pi.ImageId);
+            modelBuilder.Entity<MedicationLogs>().HasKey(ml => ml.LogId);
+            modelBuilder.Entity<MedicationSchedules>().HasKey(ms => ms.ScheduleId);
+            modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
+
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
@@ -97,6 +105,55 @@ namespace MediMateRepository.Data
                 .WithMany(p => p.PrescriptionMedicines) // Mapping với property Medications đã sửa ở B1
                 .HasForeignKey(pm => pm.PrescriptionId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa đơn -> Xóa danh sách thuốc
+
+
+
+            // 1. MedicationSchedules - PrescriptionMedicines (1-1 hoặc 1-N tùy logic)
+            // Ở đây bạn đang để 1 Schedule ứng với 1 PrescriptionMedicineId
+            modelBuilder.Entity<MedicationSchedules>()
+                .HasOne(ms => ms.PrescriptionMedicines)
+                .WithMany() // Một loại thuốc trong đơn có thể có nhiều lịch uống (hoặc 1, tùy bạn)
+                .HasForeignKey(ms => ms.PrescriptionMedicineId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa thuốc trong đơn -> Xóa lịch uống
+
+            // 2. MedicationSchedules - Members (1-N)
+            modelBuilder.Entity<MedicationSchedules>()
+                .HasOne(ms => ms.Member)
+                .WithMany() // Member có nhiều lịch uống
+                .HasForeignKey(ms => ms.MemberId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // --- MEDICATION REMINDERS CONFIGURATION ---
+
+            // 1. MedicationSchedules - MedicationReminders (1-N)
+            modelBuilder.Entity<MedicationReminders>()
+                .HasOne(mr => mr.Schedule)
+                .WithMany(ms => ms.MedicationReminders) // Mapping ngược lại
+                .HasForeignKey(mr => mr.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa lịch -> Xóa các nhắc nhở con
+
+            // --- MEDICATION LOGS CONFIGURATION ---
+
+            // 1. MedicationLogs - Members (1-N)
+            modelBuilder.Entity<MedicationLogs>()
+                .HasOne(ml => ml.Member)
+                .WithMany()
+                .HasForeignKey(ml => ml.MemberId)
+                .OnDelete(DeleteBehavior.NoAction); // Tránh vòng lặp cascade (Member -> Log)
+
+            // 2. MedicationLogs - MedicationSchedules (1-N)
+            modelBuilder.Entity<MedicationLogs>()
+                .HasOne(ml => ml.Schedule)
+                .WithMany()
+                .HasForeignKey(ml => ml.ScheduleId)
+                .OnDelete(DeleteBehavior.NoAction); // Tránh vòng lặp cascade
+
+            // 3. MedicationLogs - MedicationReminders (1-N)
+            modelBuilder.Entity<MedicationLogs>()
+                .HasOne(ml => ml.Reminder)
+                .WithMany()
+                .HasForeignKey(ml => ml.ReminderId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa nhắc nhở -> Xóa log
         }
     }
 }

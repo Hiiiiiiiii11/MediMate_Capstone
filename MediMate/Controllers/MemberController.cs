@@ -126,7 +126,7 @@ namespace MediMate.Controllers
 
         // PUT: api/v1/members/{id} -> Sửa thông tin
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMember(Guid id, [FromBody] UpdateMemberRequest request)
+        public async Task<IActionResult> UpdateMember(Guid id, [FromForm] UpdateMemberRequest request)
         {
             try
             {

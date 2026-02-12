@@ -45,7 +45,7 @@ namespace MediMateService.Services
                 CreateBy = userId,
                 Type = FamilyType.Personal, // Đánh dấu là cá nhân
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // 2. Tạo Member (Copy info từ User)
@@ -83,7 +83,7 @@ namespace MediMateService.Services
                 CreateBy = userId,
                 Type = FamilyType.Shared, // Đánh dấu là gia đình
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // 2. Tạo Member (Người tạo là Owner)

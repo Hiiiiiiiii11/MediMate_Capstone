@@ -87,8 +87,8 @@ namespace MediMateService.Services
                 Height = request.Height,
                 Weight = request.Weight,
                 InsuranceNumber = request.InsuranceNumber ?? string.Empty,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
             };
 
             await _unitOfWork.Repository<HealthProfiles>().AddAsync(newProfile);
@@ -133,7 +133,7 @@ namespace MediMateService.Services
                 profile.Weight = request.Weight;
             }
 
-            profile.UpdatedAt = DateTime.UtcNow;
+            profile.UpdatedAt = DateTime.Now;
 
             _unitOfWork.Repository<HealthProfiles>().Update(profile);
             await _unitOfWork.CompleteAsync();

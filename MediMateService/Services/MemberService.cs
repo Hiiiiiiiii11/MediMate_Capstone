@@ -341,7 +341,7 @@ namespace MediMateService.Services
                     FamilyId = family.FamilyId,
                     UserId = userId.Value, // Link tài khoản
                     FullName = user.FullName,
-                    DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
+                    DateOfBirth = user.DateOfBirth ?? DateTime.Now,
                     Gender = user.Gender ?? "Other",
                     Role = "Member",
                     AvatarUrl = user.AvatarUrl,

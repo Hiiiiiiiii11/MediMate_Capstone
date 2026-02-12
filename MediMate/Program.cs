@@ -55,6 +55,9 @@ namespace MediMate
             builder.Services.AddScoped<IHealthService, HealthService>();
             builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
 
+
+            builder.Services.AddAutoMapper(typeof(Program));
+
             // Add services to the container.
             builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

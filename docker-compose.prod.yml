@@ -40,6 +40,8 @@ services:
     image: caddy:2-alpine
     container_name: medimate_caddy
     restart: unless-stopped
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
     ports:
       - "80:80"
       - "443:443"

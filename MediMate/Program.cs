@@ -183,7 +183,7 @@ namespace MediMate
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
 
-            // Bật Swagger ở mọi môi trường (bao gồm Production)
+          
             app.UseSwagger();
             app.UseSwaggerUI();
 
@@ -193,6 +193,13 @@ namespace MediMate
 
 
             app.MapControllers();
+
+            // Tự động chạy migration khi app khởi động
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<MediMateDbContext>();
+                db.Database.Migrate();
+            }
 
             app.Run();
         }

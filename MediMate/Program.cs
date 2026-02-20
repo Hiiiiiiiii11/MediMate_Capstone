@@ -114,9 +114,9 @@ namespace MediMate
                 });
             });
             builder.Services.Configure<JwtSettings>(
-            builder.Configuration.GetSection("Jwt")
+            builder.Configuration.GetSection("JWT")
             );
-            var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
+            var jwtSettings = builder.Configuration.GetSection("JWT").Get<JwtSettings>();
             var key = Encoding.UTF8.GetBytes(jwtSettings.SecretKey);
 
 
@@ -190,12 +190,9 @@ namespace MediMate
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+            // Bật Swagger ở mọi môi trường (bao gồm Production)
+            app.UseSwagger();
+            app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
             app.UseAuthentication();

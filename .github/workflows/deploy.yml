@@ -23,18 +23,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull base images (avoid MCR rate limit)
-        run: |
-          docker pull mcr.microsoft.com/dotnet/sdk:8.0
-          docker pull mcr.microsoft.com/dotnet/aspnet:8.0
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          provenance: false
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/medimate-api:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/medimate-api:${{ github.sha }}
@@ -76,6 +70,9 @@ jobs:
             JWT_ISSUER=${{ secrets.JWT_ISSUER }}
             JWT_AUDIENCE=${{ secrets.JWT_AUDIENCE }}
             DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
+            CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+            CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+            CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
             EOF
 
             docker compose -f docker-compose.prod.yml pull

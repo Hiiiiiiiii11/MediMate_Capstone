@@ -30,6 +30,23 @@ namespace MediMate
             }
             builder.Configuration.AddEnvironmentVariables();
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("MediMatePolicy", policy =>
+                {
+                    policy.WithOrigins(
+                            "https://medimate.health.vn",
+                            "https://demo.medimate.health.vn",
+                            "http://localhost:3000",   // React / Next.js
+                            "http://localhost:5173",   // Vite
+                            "http://localhost:4200"    // Angular
+                        )
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                });
+            });
+
             // --- PHẦN NÀY GIỮ NGUYÊN ---
             var connectionString = builder.Configuration.GetConnectionString("MedimateDbConnection");
 
@@ -188,6 +205,7 @@ namespace MediMate
             app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
+            app.UseCors("MediMatePolicy");
             app.UseAuthentication();
             app.UseAuthorization();
 

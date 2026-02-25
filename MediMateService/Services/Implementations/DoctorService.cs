@@ -14,6 +14,35 @@ namespace MediMateService.Services.Implementations
             _repo = repo;
         }
 
+        public async Task<List<DoctorDto>> GetPublicDoctorsAsync(string? specialty = null)
+        {
+            var list = await _repo.GetPublicDoctorsAsync();
+            if (!string.IsNullOrWhiteSpace(specialty))
+            {
+                list = list.Where(d => d.Specialty.Contains(specialty, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            return list.Select(MapToDto).ToList();
+        }
+
+        public async Task<DoctorDto> GetPublicDoctorByIdAsync(Guid doctorId)
+        {
+            var doc = await _repo.GetPublicDoctorByIdAsync(doctorId);
+            return doc == null ? throw new NotFoundException("Không tìm thấy bác sĩ.") : MapToDto(doc);
+        }
+
+        public async Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId)
+        {
+            var doc = await _repo.GetPublicDoctorByIdAsync(doctorId);
+            if (doc == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            var list = await _repo.GetAvailabilityByDoctorIdAsync(doctorId);
+            return list.Select(MapToDto).ToList();
+        }
+
         public async Task<List<DoctorDto>> GetDoctorsAsync(string? specialty = null)
         {
             var list = await _repo.GetAllDoctorsAsync();
@@ -57,6 +86,158 @@ namespace MediMateService.Services.Implementations
             return dtos;
         }
 
+        public async Task<DoctorDto> CreateDoctorAsync(CreateDoctorDto request)
+        {
+            var existedLicense = (await _repo.GetAllDoctorsAsync())
+                .Any(d => d.LicenseNumber.Equals(request.LicenseNumber, StringComparison.OrdinalIgnoreCase));
+            if (existedLicense)
+            {
+                throw new ConflictException("Số giấy phép hành nghề đã tồn tại.");
+            }
+
+            var doctor = new Doctors
+            {
+                DoctorId = Guid.NewGuid(),
+                FullName = request.FullName,
+                Specialty = request.Specialty,
+                CurrentHospitalName = request.CurrentHospitalName,
+                LicenseNumber = request.LicenseNumber,
+                YearsOfExperience = request.YearsOfExperience,
+                Bio = request.Bio,
+                UserId = request.UserId,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true,
+                IsVerified = false,
+                ApprovalStatus = "Pending"
+            };
+
+            await _repo.AddDoctorAsync(doctor);
+            return MapToDto(doctor);
+        }
+
+        public async Task<DoctorDto> UpdateDoctorAsync(Guid doctorId, UpdateDoctorDto request)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            doctor.FullName = request.FullName;
+            doctor.Specialty = request.Specialty;
+            doctor.CurrentHospitalName = request.CurrentHospitalName;
+            doctor.LicenseNumber = request.LicenseNumber;
+            doctor.YearsOfExperience = request.YearsOfExperience;
+            doctor.Bio = request.Bio;
+
+            await _repo.UpdateDoctorAsync(doctor);
+            return MapToDto(doctor);
+        }
+
+        public async Task<DoctorDto> ChangeDoctorStatusAsync(Guid doctorId, ChangeDoctorStatusDto request)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            doctor.IsActive = request.IsActive;
+            await _repo.UpdateDoctorAsync(doctor);
+            return MapToDto(doctor);
+        }
+
+        public async Task<DoctorDto> VerifyDoctorLicenseAsync(Guid doctorId, VerifyDoctorLicenseDto request)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            doctor.IsVerified = request.IsVerified;
+            await _repo.UpdateDoctorAsync(doctor);
+            return MapToDto(doctor);
+        }
+
+        public async Task<DoctorDto> ApproveDoctorAsync(Guid doctorId, ApproveDoctorDto request)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            var action = request.Action?.Trim().ToLowerInvariant();
+            doctor.ApprovalStatus = action switch
+            {
+                "approve" => "Approved",
+                "reject" => "Rejected",
+                _ => throw new BadRequestException("Action phải là 'approve' hoặc 'reject'.")
+            };
+
+            await _repo.UpdateDoctorAsync(doctor);
+            return MapToDto(doctor);
+        }
+
+        public async Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy bác sĩ.");
+            }
+
+            var startTime = ParseTime(request.StartTime, "StartTime");
+            var endTime = ParseTime(request.EndTime, "EndTime");
+            ValidateRange(startTime, endTime);
+
+            var availability = new DoctorAvailability
+            {
+                DoctorAvailabilityId = Guid.NewGuid(),
+                DoctorId = doctorId,
+                DayOfWeek = request.DayOfWeek,
+                StartTime = startTime,
+                EndTime = endTime,
+                IsBooked = false
+            };
+
+            await _repo.AddAvailabilityAsync(availability);
+            return MapToDto(availability);
+        }
+
+        public async Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request)
+        {
+            var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
+            if (availability == null)
+            {
+                throw new NotFoundException("Không tìm thấy lịch làm việc.");
+            }
+
+            var startTime = ParseTime(request.StartTime, "StartTime");
+            var endTime = ParseTime(request.EndTime, "EndTime");
+            ValidateRange(startTime, endTime);
+
+            availability.DayOfWeek = request.DayOfWeek;
+            availability.StartTime = startTime;
+            availability.EndTime = endTime;
+            availability.IsBooked = request.IsBooked;
+
+            await _repo.UpdateAvailabilityAsync(availability);
+            return MapToDto(availability);
+        }
+
+        public async Task DeleteAvailabilityAsync(Guid doctorId, Guid availabilityId)
+        {
+            var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
+            if (availability == null)
+            {
+                throw new NotFoundException("Không tìm thấy lịch làm việc.");
+            }
+
+            await _repo.DeleteAvailabilityAsync(availability);
+        }
+
         private static DoctorDto MapToDto(Doctors e)
         {
             return new()
@@ -70,6 +251,8 @@ namespace MediMateService.Services.Implementations
                 Bio = e.Bio,
                 AverageRating = e.AverageRating,
                 IsVerified = e.IsVerified,
+                IsActive = e.IsActive,
+                ApprovalStatus = e.ApprovalStatus,
                 CreatedAt = e.CreatedAt,
                 UserId = e.UserId
             };
@@ -100,6 +283,24 @@ namespace MediMateService.Services.Implementations
                 Reason = e.Reason,
                 IsAvailableOverride = e.IsAvailableOverride
             };
+        }
+
+        private static TimeSpan ParseTime(string value, string fieldName)
+        {
+            if (!TimeSpan.TryParse(value, out var result))
+            {
+                throw new BadRequestException($"{fieldName} không đúng định dạng HH:mm.");
+            }
+
+            return result;
+        }
+
+        private static void ValidateRange(TimeSpan startTime, TimeSpan endTime)
+        {
+            if (startTime >= endTime)
+            {
+                throw new BadRequestException("StartTime phải nhỏ hơn EndTime.");
+            }
         }
     }
 }

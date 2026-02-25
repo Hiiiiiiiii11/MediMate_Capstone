@@ -18,6 +18,8 @@ namespace MediMateRepository.Model.Mock
                 Bio = "Chuyên gia nội khoa, nhiều năm kinh nghiệm khám và điều trị bệnh mãn tính.",
                 AverageRating = 4.8,
                 IsVerified = true,
+                IsActive = true,
+                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 1, 15, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000001")
             },
@@ -32,6 +34,8 @@ namespace MediMateRepository.Model.Mock
                 Bio = "Bác sĩ nhi khoa, chuyên khám và tư vấn dinh dưỡng trẻ em.",
                 AverageRating = 4.9,
                 IsVerified = true,
+                IsActive = true,
+                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 2, 20, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000002")
             },
@@ -46,6 +50,8 @@ namespace MediMateRepository.Model.Mock
                 Bio = "Chuyên gia tim mạch, tư vấn và điều trị bệnh huyết áp, tim mạch.",
                 AverageRating = 4.7,
                 IsVerified = true,
+                IsActive = true,
+                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 3, 10, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000003")
             }

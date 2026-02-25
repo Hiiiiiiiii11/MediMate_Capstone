@@ -10,9 +10,33 @@ namespace MediMateRepository.Repositories.Implementations
             return Task.FromResult(DoctorMockData.Doctors.ToList());
         }
 
+        public Task<List<Doctors>> GetPublicDoctorsAsync()
+        {
+            var list = DoctorMockData.Doctors
+                .Where(d => d.IsVerified)
+                .ToList();
+            return Task.FromResult(list);
+        }
+
         public Task<Doctors?> GetDoctorByIdAsync(Guid doctorId)
         {
             return Task.FromResult(DoctorMockData.Doctors.FirstOrDefault(d => d.DoctorId == doctorId));
+        }
+
+        public Task<Doctors?> GetPublicDoctorByIdAsync(Guid doctorId)
+        {
+            return Task.FromResult(DoctorMockData.Doctors.FirstOrDefault(d => d.DoctorId == doctorId && d.IsVerified));
+        }
+
+        public Task AddDoctorAsync(Doctors doctor)
+        {
+            DoctorMockData.Doctors.Add(doctor);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateDoctorAsync(Doctors doctor)
+        {
+            return Task.CompletedTask;
         }
 
         public Task<List<DoctorAvailability>> GetAvailabilityByDoctorIdAsync(Guid doctorId)
@@ -23,6 +47,30 @@ namespace MediMateRepository.Repositories.Implementations
         public Task<List<DoctorAvailability>> GetAllAvailabilityAsync()
         {
             return Task.FromResult(DoctorMockData.Availability.ToList());
+        }
+
+        public Task<DoctorAvailability?> GetAvailabilityByIdAsync(Guid doctorId, Guid availabilityId)
+        {
+            var item = DoctorMockData.Availability.FirstOrDefault(a =>
+                a.DoctorId == doctorId && a.DoctorAvailabilityId == availabilityId);
+            return Task.FromResult(item);
+        }
+
+        public Task AddAvailabilityAsync(DoctorAvailability availability)
+        {
+            DoctorMockData.Availability.Add(availability);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAvailabilityAsync(DoctorAvailability availability)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAvailabilityAsync(DoctorAvailability availability)
+        {
+            DoctorMockData.Availability.Remove(availability);
+            return Task.CompletedTask;
         }
 
         public Task<List<DoctorAvailabilityExceptions>> GetExceptionsByDoctorIdAsync(Guid doctorId)

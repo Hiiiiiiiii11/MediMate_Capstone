@@ -1,9 +1,10 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Share.Common;
+using Share.Constants;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
@@ -65,7 +66,7 @@ namespace MediMateService.Services
                 Email = request.Email,
                 FullName = request.FullName,
                 PasswordHash = passwordHash,
-                Role = "User",
+                Role = Roles.User,
                 IsActive = true,
                 CreatedAt = DateTime.Now
             };
@@ -143,7 +144,7 @@ namespace MediMateService.Services
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Role, user.Role ?? "User"),
+                new Claim(ClaimTypes.Role, user.Role ?? Roles.User),
                 new Claim("FullName", user.FullName ?? ""),
                 new Claim("Phone", user.PhoneNumber)
             };

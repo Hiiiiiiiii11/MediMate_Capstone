@@ -1,8 +1,9 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs; // Nhớ cài package QRCoder
 using QRCoder;
 using Share.Common;
+using Share.Constants;
 using System.Drawing;
 using System.Drawing.Imaging;
 using static MediMateRepository.Model.Families;
@@ -77,7 +78,7 @@ namespace MediMateService.Services
                 FullName = request.FullName,
                 DateOfBirth = request.DateOfBirth,
                 Gender = request.Gender,
-                Role = "Member",
+                Role = Roles.Member,
                 IdentityCode = identityCode, // Lưu mã để chờ quét
                 IsActive = true
             };
@@ -207,7 +208,7 @@ namespace MediMateService.Services
             {
                 var requester = (await _unitOfWork.Repository<Members>()
                     .FindAsync(m => m.FamilyId == member.FamilyId && m.UserId == userId)).FirstOrDefault();
-                if (requester != null && requester.Role == "Owner") isOwner = true;
+                if (requester != null && requester.Role == Roles.Owner) isOwner = true;
             }
 
             if (!isSelf && !isOwner) return ApiResponse<MemberResponse>.Fail("Bạn không có quyền sửa thông tin này.", 403);
@@ -250,7 +251,7 @@ namespace MediMateService.Services
             {
                 var requester = (await _unitOfWork.Repository<Members>()
                     .FindAsync(m => m.FamilyId == memberToRemove.FamilyId && m.UserId == userId)).FirstOrDefault();
-                if (requester != null && requester.Role == "Owner") isOwner = true;
+                if (requester != null && requester.Role == Roles.Owner) isOwner = true;
             }
 
             if (!isSelf && !isOwner) return ApiResponse<bool>.Fail("Không có quyền thực hiện.", 403);
@@ -343,7 +344,7 @@ namespace MediMateService.Services
                     FullName = user.FullName,
                     DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
                     Gender = user.Gender ?? "Other",
-                    Role = "Member",
+                    Role = Roles.Member,
                     AvatarUrl = user.AvatarUrl,
                     IsActive = true
                 };

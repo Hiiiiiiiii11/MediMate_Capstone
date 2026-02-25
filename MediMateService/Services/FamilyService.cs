@@ -1,7 +1,8 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
+using Share.Constants;
 using static MediMateRepository.Model.Families;
 
 namespace MediMateService.Services
@@ -58,7 +59,7 @@ namespace MediMateService.Services
                 DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
-                Role = "Owner",
+                Role = Roles.Owner,
                 IsActive = true
             };
 
@@ -96,7 +97,7 @@ namespace MediMateService.Services
                 DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
-                Role = "Owner",
+                Role = Roles.Owner,
                 IsActive = true
             };
 

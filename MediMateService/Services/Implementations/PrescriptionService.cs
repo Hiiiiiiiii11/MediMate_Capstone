@@ -1,30 +1,11 @@
-﻿using MediMateService.DTOs;
+﻿using MediMateRepository.Model;
+using MediMateRepository.Repositories;
+using MediMateService.DTOs;
 using Microsoft.AspNetCore.Http;
 using Share.Common;
 
-namespace MediMateService.Services
+namespace MediMateService.Services.Implementations
 {
-    public interface IPrescriptionService
-    {
-        // Tạo đơn thuốc mới (Import từ kết quả quét của UI)
-        Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request);
-
-        // Lấy danh sách đơn thuốc của 1 thành viên
-        Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId);
-
-        // Lấy chi tiết 1 đơn thuốc
-        Task<ApiResponse<PrescriptionResponse>> GetPrescriptionByIdAsync(Guid prescriptionId, Guid userId);
-        // 1. Cập nhật đơn thuốc
-        Task<ApiResponse<PrescriptionResponse>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request);
-
-        // 2. Xóa đơn thuốc
-        Task<ApiResponse<bool>> DeletePrescriptionAsync(Guid prescriptionId, Guid userId);
-
-        // 3. Upload thêm ảnh vào đơn thuốc đã có
-        Task<ApiResponse<string>> AddImageToPrescriptionAsync(Guid prescriptionId, Guid userId, IFormFile file);
-    }
-
-
     public class PrescriptionService : IPrescriptionService
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -42,7 +23,9 @@ namespace MediMateService.Services
         {
             // 1. Check quyền truy cập Member
             if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
+            }
 
             // 2. Map dữ liệu Header (Bảng Prescriptions)
             var prescription = new Prescriptions
@@ -55,8 +38,8 @@ namespace MediMateService.Services
                 PrescriptionDate = request.PrescriptionDate,
                 Notes = request.Notes,
                 Status = "Active",
-                CreateAt = DateTime.Now,
-                UpdateAt = DateTime.Now
+                CreateAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
             };
 
             // 3. Map dữ liệu Images (Bảng PrescriptionImages)
@@ -90,7 +73,7 @@ namespace MediMateService.Services
                         ThumbnailUrl = !string.IsNullOrEmpty(img.ThumbnailUrl) ? img.ThumbnailUrl : img.ImageUrl,
 
                         OcrRawData = img.OcrRawData ?? "",
-                        UploadedAt = DateTime.Now,
+                        UploadedAt = DateTime.UtcNow,
                         IsProcessed = true
                     });
                 }
@@ -110,8 +93,8 @@ namespace MediMateService.Services
                         Unit = med.Unit ?? "",
                         Quantity = med.Quantity,
                         Instructions = med.Instructions ?? "",
-                        CreatedAt = DateTime.Now,
-                        UpdatedAt = DateTime.Now
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
                     });
                 }
             }
@@ -126,7 +109,9 @@ namespace MediMateService.Services
         public async Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId)
         {
             if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
                 return ApiResponse<IEnumerable<PrescriptionResponse>>.Fail("Access Denied", 403);
+            }
 
             // Include cả Images và Medications
             var list = await _unitOfWork.Repository<Prescriptions>()
@@ -144,12 +129,14 @@ namespace MediMateService.Services
                 .FindAsync(x => x.PrescriptionId == prescriptionId, includeProperties: "PrescriptionImages,Medications"))
                 .FirstOrDefault();
 
-            if (p == null) return ApiResponse<PrescriptionResponse>.Fail("Không tìm thấy đơn thuốc.", 404);
+            if (p == null)
+            {
+                return ApiResponse<PrescriptionResponse>.Fail("Không tìm thấy đơn thuốc.", 404);
+            }
 
-            if (!await _currentUserService.CheckAccess(p.MemberId, userId))
-                return ApiResponse<PrescriptionResponse>.Fail("Access Denied", 403);
-
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(p));
+            return !await _currentUserService.CheckAccess(p.MemberId, userId)
+                ? ApiResponse<PrescriptionResponse>.Fail("Access Denied", 403)
+                : ApiResponse<PrescriptionResponse>.Ok(MapToResponse(p));
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request)
@@ -159,21 +146,49 @@ namespace MediMateService.Services
                 .FindAsync(p => p.PrescriptionId == prescriptionId, includeProperties: "PrescriptionMedicines,PrescriptionImages"))
                 .FirstOrDefault();
 
-            if (prescription == null) return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
+            if (prescription == null)
+            {
+                return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
+            }
 
             // 2. Check quyền
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
+            {
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền chỉnh sửa.", 403);
+            }
 
             // 3. Update từng trường (Giữ giá trị cũ nếu request null)
-            if (!string.IsNullOrEmpty(request.PrescriptionCode)) prescription.PrescriptionCode = request.PrescriptionCode;
-            if (!string.IsNullOrEmpty(request.DoctorName)) prescription.DoctorName = request.DoctorName;
-            if (!string.IsNullOrEmpty(request.HospitalName)) prescription.HospitalName = request.HospitalName;
-            if (request.PrescriptionDate.HasValue) prescription.PrescriptionDate = request.PrescriptionDate.Value;
-            if (!string.IsNullOrEmpty(request.Notes)) prescription.Notes = request.Notes;
-            if (!string.IsNullOrEmpty(request.Status)) prescription.Status = request.Status;
+            if (!string.IsNullOrEmpty(request.PrescriptionCode))
+            {
+                prescription.PrescriptionCode = request.PrescriptionCode;
+            }
 
-            prescription.UpdateAt = DateTime.Now;
+            if (!string.IsNullOrEmpty(request.DoctorName))
+            {
+                prescription.DoctorName = request.DoctorName;
+            }
+
+            if (!string.IsNullOrEmpty(request.HospitalName))
+            {
+                prescription.HospitalName = request.HospitalName;
+            }
+
+            if (request.PrescriptionDate.HasValue)
+            {
+                prescription.PrescriptionDate = request.PrescriptionDate.Value;
+            }
+
+            if (!string.IsNullOrEmpty(request.Notes))
+            {
+                prescription.Notes = request.Notes;
+            }
+
+            if (!string.IsNullOrEmpty(request.Status))
+            {
+                prescription.Status = request.Status;
+            }
+
+            prescription.UpdateAt = DateTime.UtcNow;
 
             // 4. Xử lý danh sách thuốc (Nếu có gửi list mới)
             if (request.Medicines != null)
@@ -197,8 +212,8 @@ namespace MediMateService.Services
                         Unit = med.Unit ?? "",
                         Quantity = med.Quantity,
                         Instructions = med.Instructions ?? "",
-                        CreatedAt = DateTime.Now,
-                        UpdatedAt = DateTime.Now
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
                     });
                 }
             }
@@ -213,10 +228,15 @@ namespace MediMateService.Services
         public async Task<ApiResponse<bool>> DeletePrescriptionAsync(Guid prescriptionId, Guid userId)
         {
             var prescription = await _unitOfWork.Repository<Prescriptions>().GetByIdAsync(prescriptionId);
-            if (prescription == null) return ApiResponse<bool>.Fail("Đơn thuốc không tồn tại.", 404);
+            if (prescription == null)
+            {
+                return ApiResponse<bool>.Fail("Đơn thuốc không tồn tại.", 404);
+            }
 
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
+            {
                 return ApiResponse<bool>.Fail("Không có quyền xóa.", 403);
+            }
 
             // Xóa cứng (Hard Delete) - EF Core sẽ tự Cascade xóa thuốc và ảnh liên quan nhờ cấu hình FluentAPI
             _unitOfWork.Repository<Prescriptions>().Remove(prescription);
@@ -226,15 +246,20 @@ namespace MediMateService.Services
         }
 
         // --- HÀM 3: UPLOAD ẢNH CHO ĐƠN THUỐC ĐÃ CÓ ---
-     //cần check lại
+        //cần check lại
         public async Task<ApiResponse<string>> AddImageToPrescriptionAsync(Guid prescriptionId, Guid userId, IFormFile file)
         {
-            
+
             var prescription = await _unitOfWork.Repository<Prescriptions>().GetByIdAsync(prescriptionId);
-            if (prescription == null) return ApiResponse<string>.Fail("Đơn thuốc không tồn tại.", 404);
+            if (prescription == null)
+            {
+                return ApiResponse<string>.Fail("Đơn thuốc không tồn tại.", 404);
+            }
 
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
+            {
                 return ApiResponse<string>.Fail("Không có quyền truy cập.", 403);
+            }
 
             try
             {
@@ -249,7 +274,7 @@ namespace MediMateService.Services
                     ImageUrl = uploadResult.OriginalUrl,
                     ThumbnailUrl = uploadResult.ThumbnailUrl, // Lưu thumbnail
                     IsProcessed = false,
-                    UploadedAt = DateTime.Now
+                    UploadedAt = DateTime.UtcNow
                 };
 
                 await _unitOfWork.Repository<PrescriptionImages>().AddAsync(newImage);
@@ -288,6 +313,6 @@ namespace MediMateService.Services
             };
         }
 
-       
+
     }
 }

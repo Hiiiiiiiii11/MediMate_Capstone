@@ -1,0 +1,68 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: medimate_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medimate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: MediMateDB
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - medimate_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medimate -d MediMateDB"]
+      interval: 15s
+      retries: 10
+      start_period: 20s
+      timeout: 5s
+
+  api:
+    image: ${DOCKERHUB_USERNAME}/medimate-api:latest
+    container_name: medimate_api_prod
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__MedimateDbConnection: "Host=postgres;Port=5432;Database=MediMateDB;Username=medimate;Password=${POSTGRES_PASSWORD}"
+      JWT__SecretKey: ${JWT_SECRET}
+      JWT__Issuer: ${JWT_ISSUER}
+      JWT__Audience: ${JWT_AUDIENCE}
+      JWT__ExpirationHours: "24"
+      CloudinarySettings__CloudName: ${CLOUDINARY_CLOUD_NAME}
+      CloudinarySettings__ApiKey: ${CLOUDINARY_API_KEY}
+      CloudinarySettings__ApiSecret: ${CLOUDINARY_API_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - medimate_network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: medimate_caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - medimate_network
+    depends_on:
+      - api
+
+volumes:
+  postgres_data_prod:
+  caddy_data:
+  caddy_config:
+
+networks:
+  medimate_network:
+    driver: bridge

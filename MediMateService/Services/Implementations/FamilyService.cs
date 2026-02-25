@@ -1,24 +1,12 @@
+using MediMateRepository.Model;
+using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
+using Share.Constants;
+using static MediMateRepository.Model.Families;
 
-namespace MediMateService.Services
+namespace MediMateService.Services.Implementations
 {
-    public interface IFamilyService
-    {
-        // Chế độ 1: Tạo quản lý cá nhân
-        Task<ApiResponse<FamilyResponse>> CreatePersonalFamilyAsync(Guid userId);
-
-        // Chế độ 2: Tạo quản lý gia đình
-        Task<ApiResponse<FamilyResponse>> CreateSharedFamilyAsync(Guid userId, CreateSharedFamilyRequest request);
-
-        // Lấy danh sách
-        Task<ApiResponse<IEnumerable<FamilyResponse>>> GetMyFamiliesAsync(Guid userId);
-        // bổ dung member vào family
-        Task<ApiResponse<FamilyResponse>> GetFamilyByIdAsync(Guid familyId, Guid userId);
-        Task<ApiResponse<FamilyResponse>> UpdateFamilyAsync(Guid familyId, Guid userId, UpdateFamilyRequest request);
-        Task<ApiResponse<bool>> DeleteFamilyAsync(Guid familyId, Guid userId);
-    }
-
     public class FamilyService : IFamilyService
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -32,7 +20,10 @@ namespace MediMateService.Services
         public async Task<ApiResponse<FamilyResponse>> CreatePersonalFamilyAsync(Guid userId)
         {
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
-            if (user == null) return ApiResponse<FamilyResponse>.Fail("User not found", 404);
+            if (user == null)
+            {
+                return ApiResponse<FamilyResponse>.Fail("User not found", 404);
+            }
 
             // 1. Tạo Family với Type = Personal
             var family = new Families
@@ -42,7 +33,7 @@ namespace MediMateService.Services
                 CreateBy = userId,
                 Type = FamilyType.Personal, // Đánh dấu là cá nhân
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             // 2. Tạo Member (Copy info từ User)
@@ -55,7 +46,7 @@ namespace MediMateService.Services
                 DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
-                Role = "Owner",
+                Role = Roles.Owner,
                 IsActive = true
             };
 
@@ -70,7 +61,10 @@ namespace MediMateService.Services
         public async Task<ApiResponse<FamilyResponse>> CreateSharedFamilyAsync(Guid userId, CreateSharedFamilyRequest request)
         {
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
-            if (user == null) return ApiResponse<FamilyResponse>.Fail("User not found", 404);
+            if (user == null)
+            {
+                return ApiResponse<FamilyResponse>.Fail("User not found", 404);
+            }
 
             // 1. Tạo Family với Type = Shared
             var family = new Families
@@ -80,7 +74,7 @@ namespace MediMateService.Services
                 CreateBy = userId,
                 Type = FamilyType.Shared, // Đánh dấu là gia đình
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             // 2. Tạo Member (Người tạo là Owner)
@@ -93,7 +87,7 @@ namespace MediMateService.Services
                 DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
-                Role = "Owner",
+                Role = Roles.Owner,
                 IsActive = true
             };
 
@@ -142,13 +136,19 @@ namespace MediMateService.Services
         public async Task<ApiResponse<FamilyResponse>> GetFamilyByIdAsync(Guid familyId, Guid userId)
         {
             var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
-            if (family == null) return ApiResponse<FamilyResponse>.Fail("Gia đình không tồn tại.", 404);
+            if (family == null)
+            {
+                return ApiResponse<FamilyResponse>.Fail("Gia đình không tồn tại.", 404);
+            }
 
             // Kiểm tra xem User có phải là thành viên của gia đình này không
             var isMember = (await _unitOfWork.Repository<Members>()
                 .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).Any();
 
-            if (!isMember) return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền xem gia đình này.", 403);
+            if (!isMember)
+            {
+                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền xem gia đình này.", 403);
+            }
 
             // Đếm số thành viên
             var count = (await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == familyId)).Count();
@@ -159,10 +159,16 @@ namespace MediMateService.Services
         public async Task<ApiResponse<FamilyResponse>> UpdateFamilyAsync(Guid familyId, Guid userId, UpdateFamilyRequest request)
         {
             var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
-            if (family == null) return ApiResponse<FamilyResponse>.Fail("Family not found", 404);
+            if (family == null)
+            {
+                return ApiResponse<FamilyResponse>.Fail("Family not found", 404);
+            }
 
             // Chỉ người tạo (Owner) mới được sửa
-            if (family.CreateBy != userId) return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa.", 403);
+            if (family.CreateBy != userId)
+            {
+                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa.", 403);
+            }
 
             family.FamilyName = request.FamilyName;
             _unitOfWork.Repository<Families>().Update(family);
@@ -174,9 +180,15 @@ namespace MediMateService.Services
         public async Task<ApiResponse<bool>> DeleteFamilyAsync(Guid familyId, Guid userId)
         {
             var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
-            if (family == null) return ApiResponse<bool>.Fail("Family not found", 404);
+            if (family == null)
+            {
+                return ApiResponse<bool>.Fail("Family not found", 404);
+            }
 
-            if (family.CreateBy != userId) return ApiResponse<bool>.Fail("Chỉ chủ gia đình mới được xóa.", 403);
+            if (family.CreateBy != userId)
+            {
+                return ApiResponse<bool>.Fail("Chỉ chủ gia đình mới được xóa.", 403);
+            }
 
             // Soft Delete: Xóa Family thì giải phóng tất cả thành viên (Set FamilyId = null)
             // Hoặc xóa hẳn bản ghi tùy nghiệp vụ của bạn. Ở đây tôi chọn giải phóng thành viên.

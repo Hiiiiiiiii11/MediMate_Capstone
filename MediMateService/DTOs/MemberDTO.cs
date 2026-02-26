@@ -12,15 +12,23 @@ namespace MediMateService.DTOs
         public string FullName { get; set; } = string.Empty;
         public DateTime DateOfBirth { get; set; }
         public string Gender { get; set; } = "Other";
+
+        // TH 1: Bố mẹ tạo (Đã login) -> Truyền ID gia đình muốn thêm vào
+        public Guid? TargetFamilyId { get; set; }
+
+        // TH 2: Người phụ thuộc tự tạo (Chưa login) -> Truyền mã JoinCode
+        public string? JoinCode { get; set; }
     }
 
-    // 2. Response: Trả về QR Code chứa IdentityCode
     public class InitDependentResponse
     {
         public Guid MemberId { get; set; }
+        public Guid FamilyId { get; set; }
         public string FullName { get; set; }
-        public string IdentityCode { get; set; } // Mã text (VD: MEM-1234)
-        public string QrCodeBase64 { get; set; } // Ảnh QR
+        public string FamilyName { get; set; }
+        public string AccessToken { get; set; }
+
+        // Đã xóa QrCodeUrl và IdentityCode vì không còn cần thiết
     }
     //request tạo lại qr
     public class MemberQrResponse
@@ -28,7 +36,7 @@ namespace MediMateService.DTOs
         public Guid MemberId { get; set; }
         public string FullName { get; set; }
         public string IdentityCode { get; set; }
-        public string QrCodeBase64 { get; set; }
+        public string QrCodeUrl { get; set; }
     }
 
     // 3. Request: Chủ Family quét mã để thêm người này vào nhà

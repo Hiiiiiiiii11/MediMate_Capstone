@@ -26,4 +26,6 @@ namespace MediMateService.Services
         // 3. Cập nhật bệnh án (Giữ giá trị cũ nếu không truyền)
         Task<ApiResponse<bool>> UpdateConditionAsync(Guid conditionId, Guid userId, UpdateConditionRequest request);
     }
+
+   
 }

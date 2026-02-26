@@ -32,41 +32,14 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-
-        [HttpPost("join-by-joincode")]
-        [AllowAnonymous] // Mở cửa cho tất cả
-        public async Task<IActionResult> JoinFamily([FromBody] JoinFamilyRequest request)
-        {
-            Guid? userId = null;
-
-            // Tự check Token thủ công (vì AllowAnonymous sẽ bỏ qua Authorize Middleware)
-            try
-            {
-                if (User.Identity != null && User.Identity.IsAuthenticated)
-                {
-                    // Lấy Claim thủ công để an toàn
-                    var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                    if (Guid.TryParse(userIdString, out var parsedId)) userId = parsedId;
-                }
-            }
-            catch
-            {
-                // Không có token hoặc token lỗi -> Coi như là Guest (Dependent)
-                userId = null;
-            }
-
-            var result = await _memberService.JoinFamilyUnifiedAsync(userId, request);
-
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
-        }
-        // API: Tạo hồ sơ phụ thuộc -> Nhận QR
-        [HttpPost("init-dependent")]
-        public async Task<IActionResult> InitDependent([FromBody] InitDependentRequest request)
+        [HttpPost("generate-logincode")]
+        public async Task<IActionResult> GenerateLoginCode(Guid memberId)
         {
             try
             {
-                var result = await _memberService.InitDependentProfileAsync(request);
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.GenerateLoginQrForDependentAsync(memberId, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -75,17 +48,64 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-
-        [HttpGet("{memberId}/qr/viewQr")]
-        public async Task<IActionResult> GetMemberQr(Guid memberId)
+        [Authorize]
+        [HttpPost("create-dependent")]
+        public async Task<IActionResult> CreateDependentByUser([FromBody] InitDependentRequest request)
         {
-            // userId lấy từ Token, dùng để check quyền nếu cần
-
-            var result = await _memberService.GetIdentityQrAsync(memberId);
-
+            var userId = _currentUserService.UserId;
+            // Bắt buộc request phải có TargetFamilyId
+            var result = await _memberService.InitDependentProfileAsync(request, userId);
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
         }
+        //[HttpPost("join-by-joincode")]
+        //[AllowAnonymous] // Mở cửa cho tất cả
+        //public async Task<IActionResult> JoinFamily([FromBody] JoinFamilyRequest request)
+        //{
+        //    Guid? userId = null;
+
+        //    // Tự check Token thủ công (vì AllowAnonymous sẽ bỏ qua Authorize Middleware)
+        //    try
+        //    {
+        //        if (User.Identity != null && User.Identity.IsAuthenticated)
+        //        {
+        //            // Lấy Claim thủ công để an toàn
+        //            var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        //            if (Guid.TryParse(userIdString, out var parsedId)) userId = parsedId;
+        //        }
+        //    }
+        //    catch
+        //    {
+        //        // Không có token hoặc token lỗi -> Coi như là Guest (Dependent)
+        //        userId = null;
+        //    }
+
+        //    var result = await _memberService.JoinFamilyUnifiedAsync(userId, request);
+
+        //    if (!result.Success) return StatusCode(result.Code, result);
+        //    return Ok(result);
+        //}
+        // API: Tạo hồ sơ phụ thuộc -> Nhận QR
+        [AllowAnonymous] // Không cần token
+        [HttpPost("dependent-join")]
+        public async Task<IActionResult> CreateDependentByCode([FromBody] InitDependentRequest request)
+        {
+            // Bắt buộc request phải có JoinCode, truyền null cho userId
+            var result = await _memberService.InitDependentProfileAsync(request, null);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+        //[HttpGet("{memberId}/qr/viewQr")]
+        //public async Task<IActionResult> GetMemberQr(Guid memberId)
+        //{
+        //    // userId lấy từ Token, dùng để check quyền nếu cần
+
+        //    var result = await _memberService.GetIdentityQrAsync(memberId);
+
+        //    if (!result.Success) return StatusCode(result.Code, result);
+        //    return Ok(result);
+        //}
 
         [HttpGet("family/{familyId}")]
         public async Task<IActionResult> GetMembersByFamily(Guid familyId)

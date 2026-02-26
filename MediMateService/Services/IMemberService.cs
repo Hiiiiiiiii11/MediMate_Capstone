@@ -6,8 +6,7 @@ namespace MediMateService.Services
     public interface IMemberService
     {
         Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember();
-        Task<ApiResponse<InitDependentResponse>> InitDependentProfileAsync(InitDependentRequest request);
-        Task<ApiResponse<bool>> AddMemberByIdentityQrAsync(Guid ownerId, AddMemberByIdentityRequest request);
+        Task<ApiResponse<InitDependentResponse>> InitDependentProfileAsync(InitDependentRequest request, Guid? currentUserId = null);
         Task<ApiResponse<IEnumerable<MemberResponse>>> GetMembersByFamilyIdAsync(Guid familyId, Guid userId);
 
         // Get Member Detail
@@ -18,7 +17,8 @@ namespace MediMateService.Services
 
         // Delete/Remove Member (Soft delete or Remove from family)
         Task<ApiResponse<bool>> RemoveMemberAsync(Guid memberId, Guid userId);
-        Task<ApiResponse<MemberQrResponse>> GetIdentityQrAsync(Guid memberId);
-        Task<ApiResponse<bool>> JoinFamilyUnifiedAsync(Guid? userId, JoinFamilyRequest request);
+        Task<ApiResponse<MemberQrResponse>> GenerateLoginQrForDependentAsync(Guid memberId, Guid currentUserId);
     }
+
+
 }

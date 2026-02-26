@@ -72,6 +72,9 @@ namespace MediMate
             builder.Services.AddScoped<IHealthService, HealthService>();
             builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
 
+
+            builder.Services.AddAutoMapper(typeof(Program));
+
             builder.Services.AddScoped<IMockDoctorRepository, MockDoctorRepository>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
             builder.Services.AddScoped<IMockRatingRepository, MockRatingRepository>();

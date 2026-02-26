@@ -80,6 +80,74 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng ký tài khoản thành công.");
         }
+        public async Task<ApiResponse<string>> LoginDependentByQrAsync(DependentQrLoginRequest request)
+        {
+            // 1. Validate định dạng mã
+            if (string.IsNullOrEmpty(request.QrData) || !request.QrData.StartsWith("LOGIN-"))
+            {
+                return ApiResponse<string>.Fail("Mã QR không hợp lệ.", 400);
+            }
+
+            // Tách lấy SyncToken thực tế
+            var syncToken = request.QrData.Substring(6); // Bỏ chữ "LOGIN-"
+
+            // 2. Tìm Member có SyncToken này
+            var member = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.SyncToken == syncToken)).FirstOrDefault();
+
+            if (member == null)
+            {
+                return ApiResponse<string>.Fail("Mã đăng nhập không chính xác hoặc đã được sử dụng.", 401);
+            }
+
+            // 3. Kiểm tra mã hết hạn chưa
+            if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.UtcNow)
+            {
+                return ApiResponse<string>.Fail("Mã QR đăng nhập đã hết hạn. Vui lòng tạo mã mới.", 401);
+            }
+
+            // 4. THÀNH CÔNG: Xóa SyncToken để tránh dùng lại
+            member.SyncToken = null;
+            member.SyncTokenExpireAt = null;
+            _unitOfWork.Repository<Members>().Update(member);
+            await _unitOfWork.CompleteAsync();
+
+            // 5. Sinh JWT Token đặc biệt cho Dependent
+            // Hàm này tương tự hàm GenerateToken cho User của bạn, nhưng dùng MemberId thay vì UserId
+            var token = GenerateJwtTokenForDependent(member,"dependent");
+
+            return ApiResponse<string>.Ok(token, $"Đăng nhập thành công với tư cách: {member.FullName}");
+        }
+
+
+        public string GenerateJwtTokenForDependent(Members member, string typeLogin)
+        {
+            var jwtSettings = _configuration.GetSection("JWT");
+            var secretKey = jwtSettings["SecretKey"];
+            var issuer = jwtSettings["Issuer"];
+            var audience = jwtSettings["Audience"];
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new List<Claim>
+            {
+        // Quan trọng: Gắn NameIdentifier là MemberId
+        new Claim("MemberId", member.MemberId.ToString()),
+        new Claim("Name", member.FullName ?? "Dependent"),
+        new Claim("Role", "Dependent"),
+        new Claim("typeLogin", typeLogin)// Gắn Role Dependent để phân biệt nếu cần
+             };
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddDays(30), // Dependent thường ít bị out, cho sống 30 ngày
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
 
         public async Task<ApiResponse<AutheticationResponse>> LoginUserAsync(LoginRequest request)
         {
@@ -148,5 +216,6 @@ namespace MediMateService.Services.Implementations
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
     }
 }

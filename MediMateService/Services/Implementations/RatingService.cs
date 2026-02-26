@@ -16,9 +16,9 @@ namespace MediMateService.Services.Implementations
             _doctorRepository = doctorRepository;
         }
 
-        public async Task<RatingDto> CreateRatingAsync(Guid sessionId, CreateRatingDto request)
+        public async Task<RatingDto> CreateRatingAsync(Guid userId, Guid sessionId, CreateRatingDto request)
         {
-            if (request.Score < 1 || request.Score > 5)
+            if (request.Score is < 1 or > 5)
             {
                 throw new BadRequestException("Score phải trong khoảng từ 1 đến 5.");
             }
@@ -29,7 +29,13 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy phiên khám.");
             }
 
-            if (!session.IsCompleted)
+            //check if this user is the person who have this consultation session
+            if (session.MemberId != userId)
+            {
+                throw new BadRequestException("Bạn không có quyền đánh giá phiên khám này.");
+            }
+
+            if (!string.Equals(session.Status, "Ended", StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException("Chỉ được đánh giá khi phiên khám đã hoàn tất.");
             }

@@ -116,7 +116,7 @@ namespace MediMate.Controllers
                 DayOfWeek = request.DayOfWeek,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
-                IsBooked = request.IsBooked
+                IsActive = request.IsActive
             });
 
             return Ok(ApiResponse<DoctorAvailabilityResponse>.Ok(MapAvailabilityResponse(data), "Cập nhật lịch làm việc thành công."));
@@ -143,7 +143,6 @@ namespace MediMate.Controllers
                 AverageRating = dto.AverageRating,
                 IsVerified = dto.IsVerified,
                 IsActive = dto.IsActive,
-                ApprovalStatus = dto.ApprovalStatus,
                 CreatedAt = dto.CreatedAt,
                 UserId = dto.UserId
             };
@@ -158,7 +157,7 @@ namespace MediMate.Controllers
                 DayOfWeek = dto.DayOfWeek,
                 StartTime = dto.StartTime,
                 EndTime = dto.EndTime,
-                IsBooked = dto.IsBooked
+                IsActive = dto.IsActive
             };
         }
     }

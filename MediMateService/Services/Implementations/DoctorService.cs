@@ -39,7 +39,9 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy bác sĩ.");
             }
 
-            var list = await _repo.GetAvailabilityByDoctorIdAsync(doctorId);
+            var list = (await _repo.GetAvailabilityByDoctorIdAsync(doctorId))
+                .Where(a => a.IsActive)
+                .ToList();
             return list.Select(MapToDto).ToList();
         }
 
@@ -107,8 +109,7 @@ namespace MediMateService.Services.Implementations
                 UserId = request.UserId,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true,
-                IsVerified = false,
-                ApprovalStatus = "Pending"
+                IsVerified = false
             };
 
             await _repo.AddDoctorAsync(doctor);
@@ -169,10 +170,10 @@ namespace MediMateService.Services.Implementations
             }
 
             var action = request.Action?.Trim().ToLowerInvariant();
-            doctor.ApprovalStatus = action switch
+            doctor.IsActive = action switch
             {
-                "approve" => "Approved",
-                "reject" => "Rejected",
+                "approve" => true,
+                "reject" => false,
                 _ => throw new BadRequestException("Action phải là 'approve' hoặc 'reject'.")
             };
 
@@ -199,7 +200,7 @@ namespace MediMateService.Services.Implementations
                 DayOfWeek = request.DayOfWeek,
                 StartTime = startTime,
                 EndTime = endTime,
-                IsBooked = false
+                IsActive = true
             };
 
             await _repo.AddAvailabilityAsync(availability);
@@ -221,7 +222,7 @@ namespace MediMateService.Services.Implementations
             availability.DayOfWeek = request.DayOfWeek;
             availability.StartTime = startTime;
             availability.EndTime = endTime;
-            availability.IsBooked = request.IsBooked;
+            availability.IsActive = request.IsActive;
 
             await _repo.UpdateAvailabilityAsync(availability);
             return MapToDto(availability);
@@ -252,7 +253,6 @@ namespace MediMateService.Services.Implementations
                 AverageRating = e.AverageRating,
                 IsVerified = e.IsVerified,
                 IsActive = e.IsActive,
-                ApprovalStatus = e.ApprovalStatus,
                 CreatedAt = e.CreatedAt,
                 UserId = e.UserId
             };
@@ -267,7 +267,7 @@ namespace MediMateService.Services.Implementations
                 DayOfWeek = e.DayOfWeek,
                 StartTime = $"{e.StartTime.Hours:D2}:{e.StartTime.Minutes:D2}",
                 EndTime = $"{e.EndTime.Hours:D2}:{e.EndTime.Minutes:D2}",
-                IsBooked = e.IsBooked
+                IsActive = e.IsActive
             };
         }
 

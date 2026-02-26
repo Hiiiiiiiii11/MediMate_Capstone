@@ -84,7 +84,7 @@ namespace MediMate.Controllers
                 DayOfWeek = dto.DayOfWeek,
                 StartTime = dto.StartTime,
                 EndTime = dto.EndTime,
-                IsBooked = dto.IsBooked
+                IsActive = dto.IsActive
             };
         }
 

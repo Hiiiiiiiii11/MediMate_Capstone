@@ -29,7 +29,7 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy phiên khám.");
             }
 
-            if (!session.IsCompleted)
+            if (!string.Equals(session.Status, "Ended", StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException("Chỉ được đánh giá khi phiên khám đã hoàn tất.");
             }

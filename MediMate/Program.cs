@@ -76,6 +76,9 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorService, DoctorService>();
             builder.Services.AddScoped<IMockRatingRepository, MockRatingRepository>();
             builder.Services.AddScoped<IRatingService, RatingService>();
+            builder.Services.AddScoped<IMockAppointmentRepository, MockAppointmentRepository>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IConsultationService, ConsultationService>();
 
             // Add services to the container.
             builder.Services.AddControllers()

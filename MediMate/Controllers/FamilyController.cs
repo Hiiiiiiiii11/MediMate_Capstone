@@ -69,24 +69,7 @@ public class FamilyController : ControllerBase
 
         }
     }
-    [HttpPost("add-member-qr")]
-    public async Task<IActionResult> AddMemberByQr([FromBody] AddMemberByIdentityRequest request)
-    {
-        try {
-            var ownerId = _currentUserService.UserId;
-            var result = await _memberService.AddMemberByIdentityQrAsync(ownerId, request);
-
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
-        }
-        catch(Exception ex)
-        {
-            // Log lỗi ex ở đây nếu cần
-            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
-        }
-
-        
-    }
+ 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetFamilyById(Guid id)
     {

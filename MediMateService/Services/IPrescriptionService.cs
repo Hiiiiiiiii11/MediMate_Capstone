@@ -23,4 +23,7 @@ namespace MediMateService.Services
         // 3. Upload thêm ảnh vào đơn thuốc đã có
         Task<ApiResponse<string>> AddImageToPrescriptionAsync(Guid prescriptionId, Guid userId, IFormFile file);
     }
+
+
+    
 }

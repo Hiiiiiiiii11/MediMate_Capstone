@@ -41,6 +41,7 @@ namespace MediMateService.Services.Implementations
         }
         public async Task<bool> CheckAccess(Guid memberId, Guid userId)
         {
+            if (memberId == userId) return true;
             var member = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
             if (member == null)
             {

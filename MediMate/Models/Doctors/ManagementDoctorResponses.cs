@@ -12,7 +12,6 @@ namespace MediMate.Models.Doctors
         public double AverageRating { get; set; }
         public bool IsVerified { get; set; }
         public bool IsActive { get; set; }
-        public string ApprovalStatus { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }

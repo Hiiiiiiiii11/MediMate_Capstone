@@ -73,6 +73,8 @@ jobs:
             CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
             CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
             CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+            SEED_ADMIN_MAIL=${{ secrets.SEED_ADMIN_MAIL }}
+            SEED_ADMIN_PASSWORD=${{ secrets.SEED_ADMIN_PASSWORD }}
             EOF
 
             docker compose -f docker-compose.prod.yml pull

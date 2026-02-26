@@ -71,10 +71,17 @@ namespace MediMate.Controllers
         [HttpPost("login-dependent")]
         public async Task<IActionResult> LoginDependent([FromBody] DependentQrLoginRequest request)
         {
-            var result = await _authenticationService.LoginDependentByQrAsync(request);
+            try
+            {
+                var result = await _authenticationService.LoginDependentByQrAsync(request);
 
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result); // Trả về JWT Token
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
         }
     }
 }

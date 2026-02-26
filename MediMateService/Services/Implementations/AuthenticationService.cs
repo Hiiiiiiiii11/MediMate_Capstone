@@ -114,25 +114,29 @@ namespace MediMateService.Services.Implementations
 
             // 5. Sinh JWT Token đặc biệt cho Dependent
             // Hàm này tương tự hàm GenerateToken cho User của bạn, nhưng dùng MemberId thay vì UserId
-            var token = GenerateJwtTokenForDependent(member);
+            var token = GenerateJwtTokenForDependent(member,"dependent");
 
             return ApiResponse<string>.Ok(token, $"Đăng nhập thành công với tư cách: {member.FullName}");
         }
 
 
-        private string GenerateJwtTokenForDependent(Members member)
+        public string GenerateJwtTokenForDependent(Members member, string typeLogin)
         {
-            var secretKey = _configuration["Jwt:Key"]; // Đọc từ appsettings.json
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+            var jwtSettings = _configuration.GetSection("JWT");
+            var secretKey = jwtSettings["SecretKey"];
+            var issuer = jwtSettings["Issuer"];
+            var audience = jwtSettings["Audience"];
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claims = new List<Claim>
             {
         // Quan trọng: Gắn NameIdentifier là MemberId
-        new Claim(ClaimTypes.NameIdentifier, member.MemberId.ToString()),
-        new Claim(ClaimTypes.Name, member.FullName ?? "Dependent"),
-        new Claim(ClaimTypes.Role, "Dependent") // Gắn Role Dependent để phân biệt nếu cần
-    };
+        new Claim("MemberId", member.MemberId.ToString()),
+        new Claim("Name", member.FullName ?? "Dependent"),
+        new Claim("Role", "Dependent"),
+        new Claim("typeLogin", typeLogin)// Gắn Role Dependent để phân biệt nếu cần
+             };
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
@@ -212,5 +216,6 @@ namespace MediMateService.Services.Implementations
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
     }
 }

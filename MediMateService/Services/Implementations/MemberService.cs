@@ -13,11 +13,19 @@ namespace MediMateService.Services.Implementations
         private readonly IUploadPhotoService _uploadPhotoService;
         private readonly ICurrentUserService _currentUserService;
 
-        public MemberService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService, ICurrentUserService currentUserService)
+        // 1. THÊM Auth Service
+        private readonly IAuthenticationService _authService;
+
+        public MemberService(
+            IUnitOfWork unitOfWork,
+            IUploadPhotoService uploadPhotoService,
+            ICurrentUserService currentUserService,
+            IAuthenticationService authService) // 2. Inject
         {
             _unitOfWork = unitOfWork;
             _uploadPhotoService = uploadPhotoService;
             _currentUserService = currentUserService;
+            _authService = authService; // 3. Gán
         }
         public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember()
         {
@@ -83,12 +91,11 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<InitDependentResponse>.Fail("Không thể thêm thành viên vào hồ sơ cá nhân.", 403);
             }
 
-            // 4. Tạo Member mới và gán thẳng vào Family
             var newMember = new Members
             {
                 MemberId = Guid.NewGuid(),
-                FamilyId = family.FamilyId, // Đã có nhà ngay từ lúc sinh ra
-                UserId = null,              // Vẫn là Dependent (chưa có tài khoản login chính thức)
+                FamilyId = family.FamilyId,
+                UserId = null,
                 FullName = request.FullName,
                 DateOfBirth = request.DateOfBirth,
                 Gender = request.Gender,
@@ -100,13 +107,25 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Members>().AddAsync(newMember);
             await _unitOfWork.CompleteAsync();
 
+            // --- LOGIC TỰ ĐỘNG ĐĂNG NHẬP Ở ĐÂY ---
+            string? accessToken = null;
             // 5. Trả về kết quả
+            if (!currentUserId.HasValue)
+            {
+                // Gọi sang AuthService để lấy Token
+                accessToken = _authService.GenerateJwtTokenForDependent(newMember,"dependent");
+            }
+
+            // Trả về kết quả kèm Token
             return ApiResponse<InitDependentResponse>.Ok(new InitDependentResponse
             {
                 MemberId = newMember.MemberId,
                 FamilyId = family.FamilyId,
                 FullName = newMember.FullName,
-                FamilyName = family.FamilyName
+                FamilyName = family.FamilyName,
+
+                AccessToken = accessToken // Frontend nhận cái này và lưu vào LocalStorage
+
             }, $"Tạo hồ sơ và thêm vào gia đình '{family.FamilyName}' thành công.");
         }
 

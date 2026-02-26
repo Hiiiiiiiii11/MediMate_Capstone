@@ -26,6 +26,7 @@ namespace MediMateService.DTOs
         public Guid FamilyId { get; set; }
         public string FullName { get; set; }
         public string FamilyName { get; set; }
+        public string AccessToken { get; set; }
 
         // Đã xóa QrCodeUrl và IdentityCode vì không còn cần thiết
     }

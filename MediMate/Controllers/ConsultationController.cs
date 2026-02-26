@@ -66,7 +66,8 @@ namespace MediMate.Controllers
         [Authorize(Roles = Roles.User)]
         public async Task<IActionResult> CreateRating(Guid sessionId, [FromBody] CreateRatingRequest request)
         {
-            var data = await _ratingService.CreateRatingAsync(sessionId, new CreateRatingDto
+            var currentUserId = _currentUserService.UserId;
+            var data = await _ratingService.CreateRatingAsync(currentUserId, sessionId, new CreateRatingDto
             {
                 Score = request.Score,
                 Comment = request.Comment

@@ -79,6 +79,9 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorService, DoctorService>();
             builder.Services.AddScoped<IMockRatingRepository, MockRatingRepository>();
             builder.Services.AddScoped<IRatingService, RatingService>();
+            builder.Services.AddScoped<IMockAppointmentRepository, MockAppointmentRepository>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IConsultationService, ConsultationService>();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -226,12 +229,34 @@ namespace MediMate
 
 
             app.MapControllers();
-
-            // Tự động chạy migration khi app khởi động
             using (var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<MediMateDbContext>();
                 db.Database.Migrate();
+                var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+                var adminMail = config["SEED_ADMIN_MAIL"];
+                var adminPassword = config["SEED_ADMIN_PASSWORD"];
+                var adminFullName = config["SEED_ADMIN_FULLNAME"] ?? "Administrator";
+
+                if (!string.IsNullOrEmpty(adminMail) && !string.IsNullOrEmpty(adminPassword))
+                {
+                    var exists = db.Users.Any(u => u.Email == adminMail);
+                    if (!exists)
+                    {
+                        db.Users.Add(new MediMateRepository.Model.User
+                        {
+                            UserId = Guid.NewGuid(),
+                            PhoneNumber = "0000000000",   // placeholder, required field
+                            Email = adminMail,
+                            FullName = adminFullName,
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
+                            Role = "Admin",
+                            IsActive = true,
+                            CreatedAt = DateTime.Now
+                        });
+                        db.SaveChanges();
+                    }
+                }
             }
 
             app.Run();

@@ -12,7 +12,6 @@ namespace MediMateService.DTOs
         public double AverageRating { get; set; }
         public bool IsVerified { get; set; }
         public bool IsActive { get; set; }
-        public string ApprovalStatus { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }
@@ -66,7 +65,7 @@ namespace MediMateService.DTOs
         public string DayOfWeek { get; set; } = string.Empty;
         public string StartTime { get; set; } = string.Empty;
         public string EndTime { get; set; } = string.Empty;
-        public bool IsBooked { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public class DoctorAvailabilityDto
@@ -76,7 +75,7 @@ namespace MediMateService.DTOs
         public string DayOfWeek { get; set; } = string.Empty;
         public string StartTime { get; set; } = string.Empty;
         public string EndTime { get; set; } = string.Empty;
-        public bool IsBooked { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public class DoctorAvailabilityExceptionDto

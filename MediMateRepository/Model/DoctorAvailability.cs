@@ -1,4 +1,4 @@
-﻿namespace MediMateRepository.Model
+namespace MediMateRepository.Model
 {
     public class DoctorAvailability
     {
@@ -7,7 +7,7 @@
         public string DayOfWeek { get; set; } = string.Empty;
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }
-        public bool IsBooked { get; set; } = false;
+        public bool IsActive { get; set; } = true;
         public virtual Doctors Doctor { get; set; } = null!;
     }
 }

@@ -23,22 +23,22 @@ namespace MediMate.Controllers
                 var result = await _authenticationService.RegisterAsync(request);
                 if (!result.Success)
                 {
-                    return StatusCode(result.Code, result); // Trả về lỗi 400/409 kèm message
+                    return StatusCode(result.Code, result);
                 }
-                return Ok(result); // Trả về 200 kèm data
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                // Log lỗi ex ở đây nếu cần
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+
+        [HttpPost("login/user")]
+        public async Task<IActionResult> LoginUser([FromBody] LoginRequest request)
         {
             try
             {
-                var result = await _authenticationService.LoginAsync(request);
+                var result = await _authenticationService.LoginUserAsync(request);
                 if (!result.Success)
                 {
                     return StatusCode(result.Code, result);
@@ -47,10 +47,26 @@ namespace MediMate.Controllers
             }
             catch (Exception ex)
             {
-                // Log lỗi ex ở đây nếu cần
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
+        }
 
+        [HttpPost("login/remain")]
+        public async Task<IActionResult> LoginRemain([FromBody] LoginRequest request)
+        {
+            try
+            {
+                var result = await _authenticationService.LoginRemainingAsync(request);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Code, result);
+                }
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
         }
         [HttpPost("login-dependent")]
         public async Task<IActionResult> LoginDependent([FromBody] DependentQrLoginRequest request)

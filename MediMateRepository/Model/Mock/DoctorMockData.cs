@@ -19,7 +19,6 @@ namespace MediMateRepository.Model.Mock
                 AverageRating = 4.8,
                 IsVerified = true,
                 IsActive = true,
-                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 1, 15, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000001")
             },
@@ -35,7 +34,6 @@ namespace MediMateRepository.Model.Mock
                 AverageRating = 4.9,
                 IsVerified = true,
                 IsActive = true,
-                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 2, 20, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000002")
             },
@@ -51,7 +49,6 @@ namespace MediMateRepository.Model.Mock
                 AverageRating = 4.7,
                 IsVerified = true,
                 IsActive = true,
-                ApprovalStatus = "Approved",
                 CreatedAt = new DateTime(2024, 3, 10, 0, 0, 0, DateTimeKind.Utc),
                 UserId = Guid.Parse("00000000-0000-0000-0000-000000000003")
             }
@@ -66,7 +63,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Monday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(11, 30, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -75,7 +72,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Monday",
                 StartTime = new TimeSpan(13, 0, 0),
                 EndTime = new TimeSpan(17, 0, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -84,7 +81,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Wednesday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(11, 30, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -93,7 +90,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Tuesday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(12, 0, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -102,7 +99,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Thursday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(12, 0, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -111,7 +108,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Monday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(17, 0, 0),
-                IsBooked = false
+                IsActive = true
             },
             new()
             {
@@ -120,7 +117,7 @@ namespace MediMateRepository.Model.Mock
                 DayOfWeek = "Friday",
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(12, 0, 0),
-                IsBooked = false
+                IsActive = true
             }
         };
 

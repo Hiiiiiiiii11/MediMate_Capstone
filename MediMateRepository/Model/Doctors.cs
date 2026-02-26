@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace MediMateRepository.Model
 {
@@ -14,6 +14,8 @@ namespace MediMateRepository.Model
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; } = 0.0;
         public bool IsVerified { get; set; } = false;
+        public bool IsActive { get; set; } = true;
+        public string ApprovalStatus { get; set; } = "Pending";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public Guid UserId { get; set; }
         public virtual User User { get; set; } = null!;

@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -23,7 +23,7 @@ namespace MediMate.Controllers
 
 
         [HttpGet]
-        // [Authorize(Roles = "Admin")] // Bỏ comment nếu muốn chỉ Admin mới xem được
+        // [Authorize(Roles = Roles.Admin)] // Bỏ comment nếu muốn chỉ Admin mới xem được
         public async Task<IActionResult> GetAllUsers()
         {
             try

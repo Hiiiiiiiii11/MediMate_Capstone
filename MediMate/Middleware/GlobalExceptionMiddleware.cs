@@ -1,4 +1,4 @@
-﻿using MediMateService.Shared;
+using MediMateService.Shared;
 using Share.Common;
 using System.Net;
 using System.Text.Json;
@@ -46,7 +46,7 @@ namespace MediMate.Middleware // Hoặc namespace phù hợp của bạn
 
             // Tạo response chuẩn theo format ApiResponse
             // Lưu ý: Có thể ẩn exception.Message khi chạy Prod để bảo mật
-            var response = ApiResponse<object>.Fail(exception.Message);
+            var response = ApiResponse<object>.Fail(exception.Message, (int)statusCode);
 
             var jsonOptions = new JsonSerializerOptions
             {

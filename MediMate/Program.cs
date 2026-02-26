@@ -1,10 +1,11 @@
-﻿
 using CloudinaryDotNet;
 using DotNetEnv;
 using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
+using MediMateRepository.Repositories.Implementations;
 using MediMateService.Services;
+using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,6 @@ using Microsoft.OpenApi.Models;
 using Share.Cloudinaries;
 using Share.Common;
 using Share.Jwt;
-using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 
@@ -71,6 +71,11 @@ namespace MediMate
             builder.Services.AddScoped<IMemberService, MemberService>();
             builder.Services.AddScoped<IHealthService, HealthService>();
             builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+
+            builder.Services.AddScoped<IMockDoctorRepository, MockDoctorRepository>();
+            builder.Services.AddScoped<IDoctorService, DoctorService>();
+            builder.Services.AddScoped<IMockRatingRepository, MockRatingRepository>();
+            builder.Services.AddScoped<IRatingService, RatingService>();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -207,7 +212,7 @@ namespace MediMate
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
 
-          
+
             app.UseSwagger();
             app.UseSwaggerUI();
 

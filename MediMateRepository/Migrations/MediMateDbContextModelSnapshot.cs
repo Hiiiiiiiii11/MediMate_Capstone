@@ -121,6 +121,146 @@ namespace MediMateRepository.Migrations
                     b.ToTable("HealthProfiles");
                 });
 
+            modelBuilder.Entity("MediMateRepository.Model.MedicationLogs", b =>
+                {
+                    b.Property<Guid>("LogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("LogDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ReminderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ScheduledTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("LogId");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("ReminderId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.ToTable("MedicationLogs");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.MedicationReminders", b =>
+                {
+                    b.Property<Guid>("ReminderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AcknowledgedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("ReminderDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("ReminderTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ScheduledAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("SentdAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("ReminderId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.ToTable("MedicationReminders");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.MedicationSchedules", b =>
+                {
+                    b.Property<Guid>("ScheduleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreateAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Dosage")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAiGenerated")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MedicineName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PrescriptionMedicineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SpecificTimes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("ScheduleId");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("PrescriptionMedicineId");
+
+                    b.ToTable("MedicationSchedules");
+                });
+
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>
                 {
                     b.Property<Guid>("MemberId")
@@ -387,6 +527,63 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Member");
                 });
 
+            modelBuilder.Entity("MediMateRepository.Model.MedicationLogs", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Members", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("MediMateRepository.Model.MedicationReminders", "Reminder")
+                        .WithMany()
+                        .HasForeignKey("ReminderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MediMateRepository.Model.MedicationSchedules", "Schedule")
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Member");
+
+                    b.Navigation("Reminder");
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.MedicationReminders", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.MedicationSchedules", "Schedule")
+                        .WithMany("MedicationReminders")
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.MedicationSchedules", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Members", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MediMateRepository.Model.PrescriptionMedicines", "PrescriptionMedicines")
+                        .WithMany()
+                        .HasForeignKey("PrescriptionMedicineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Member");
+
+                    b.Navigation("PrescriptionMedicines");
+                });
+
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>
                 {
                     b.HasOne("MediMateRepository.Model.Families", null)
@@ -440,6 +637,11 @@ namespace MediMateRepository.Migrations
             modelBuilder.Entity("MediMateRepository.Model.HealthProfiles", b =>
                 {
                     b.Navigation("Conditions");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.MedicationSchedules", b =>
+                {
+                    b.Navigation("MedicationReminders");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>

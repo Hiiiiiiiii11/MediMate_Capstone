@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Share.Constants;
 
 namespace MediMateRepository.Model
 {
@@ -24,7 +25,7 @@ namespace MediMateRepository.Model
         public string? Gender { get; set; }
         public string? AvatarUrl { get; set; }
         public bool IsActive { get; set; } = true;
-        public string? Role { get; set; } = "User";
+        public string? Role { get; set; } = Roles.User;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public int? VerifyCode { get; set; }
         public DateTime? ExpiriedAt { get; set; }

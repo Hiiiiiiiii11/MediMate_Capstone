@@ -8,5 +8,6 @@ namespace MediMateService.Services
         Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request);
         Task<ApiResponse<AutheticationResponse>> LoginUserAsync(LoginRequest request);
         Task<ApiResponse<AutheticationResponse>> LoginRemainingAsync(LoginRequest request);  
+       Task<ApiResponse<string>> LoginDependentByQrAsync(DependentQrLoginRequest request);
     }
 }

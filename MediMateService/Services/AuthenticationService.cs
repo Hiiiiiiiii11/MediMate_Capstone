@@ -17,15 +17,21 @@ namespace MediMateService.Services
     public interface IAuthenticationService
     {
         Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request);
-        Task<ApiResponse<AutheticationResponse>> LoginAsync(LoginRequest request);
+        Task<ApiResponse<AutheticationResponse>> LoginUserAsync(LoginRequest request);
+        Task<ApiResponse<AutheticationResponse>> LoginRemainingAsync(LoginRequest request);
     }
 
 
     public class AuthenticationService : IAuthenticationService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IAuthenticationRepository _authRepo; // Inject riêng Repo này để dùng hàm custom
+        private readonly IAuthenticationRepository _authRepo;
         private readonly IConfiguration _configuration;
+
+        private static readonly HashSet<string> RemainingRoles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Admin", "Doctor", "Staff"
+        };
 
         public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration)
         {
@@ -75,7 +81,7 @@ namespace MediMateService.Services
             await _unitOfWork.CompleteAsync(); // Commit transaction
 
             // 5. Tạo Token để user login luôn sau khi đăng ký
-            var token = GenerateJwtToken(newUser);
+            var token = GenerateJwtToken(newUser, "user");
 
             // 6. Trả về Response
             var responseData = new AutheticationResponse
@@ -86,48 +92,42 @@ namespace MediMateService.Services
             return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng ký tài khoản thành công.");
         }
 
-        public async Task<ApiResponse<AutheticationResponse>> LoginAsync(LoginRequest request)
+        public async Task<ApiResponse<AutheticationResponse>> LoginUserAsync(LoginRequest request)
         {
-            // 1. Tìm user theo Email HOẶC Phone
             var user = await _authRepo.GetUserByEmailOrPhoneAsync(request.Identifier);
-            if (!user.IsActive)
-            {
-                return ApiResponse<AutheticationResponse>.Fail("Tài khoản của bạn đã bị khóa hoặc vô hiệu hóa.", 403);
-            }
-            // 2. Kiểm tra user có tồn tại không
-            if (user == null)
-            {
+
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
-            }
 
-            // 3. Kiểm tra mật khẩu (So sánh hash)
-            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-            if (!isPasswordValid)
-            {
-                return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
-            }
-
-            // 4. Kiểm tra trạng thái hoạt động
             if (!user.IsActive)
-            {
-                return ApiResponse<AutheticationResponse>.Fail("Tài khoản của bạn đã bị khóa.", 403);
-            }
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản đã bị khóa hoặc vô hiệu hóa.", 403);
 
-            // 5. Tạo JWT Token
-            var token = GenerateJwtToken(user);
+            if (!string.Equals(user.Role, "User", StringComparison.OrdinalIgnoreCase))
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
 
-            // 6. Trả về kết quả
-            var responseData = new AutheticationResponse
-            {
-               
-                AccessToken = token
-            };
-
-            return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng nhập thành công.");
+            var token = GenerateJwtToken(user, "user");
+            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, "Đăng nhập thành công.");
         }
 
-        // --- HELPER: GENERATE JWT ---
-        private string GenerateJwtToken(User user)
+        public async Task<ApiResponse<AutheticationResponse>> LoginRemainingAsync(LoginRequest request)
+        {
+            var user = await _authRepo.GetUserByEmailOrPhoneAsync(request.Identifier);
+
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
+
+            if (!user.IsActive)
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản đã bị khóa hoặc vô hiệu hóa.", 403);
+
+            if (!RemainingRoles.Contains(user.Role ?? ""))
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
+
+            var token = GenerateJwtToken(user, "admin");
+            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, "Đăng nhập thành công.");
+        }
+
+       
+        private string GenerateJwtToken(User user, string typeLogin)
         {
             var jwtSettings = _configuration.GetSection("JWT");
             var secretKey = jwtSettings["SecretKey"];
@@ -142,10 +142,11 @@ namespace MediMateService.Services
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Role, user.Role ?? "User"),
+                new Claim("Id", user.UserId.ToString() ?? ""),
+                new Claim("Role", user.Role ?? ""),
                 new Claim("FullName", user.FullName ?? ""),
-                new Claim("Phone", user.PhoneNumber)
+                new Claim("Phone", user.PhoneNumber),
+                new Claim("typeLogin", typeLogin)
             };
 
             var token = new JwtSecurityToken(

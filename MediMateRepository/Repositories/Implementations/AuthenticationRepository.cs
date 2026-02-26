@@ -1,18 +1,9 @@
 ﻿using MediMateRepository.Data;
 using MediMateRepository.Model;
 using Microsoft.EntityFrameworkCore;
-using System.Threading.Tasks;
 
-namespace MediMateRepository.Repositories
+namespace MediMateRepository.Repositories.Implementations
 {
-    // 1. Cập nhật Interface
-    public interface IAuthenticationRepository : IGenericRepository<User>
-    {
-        Task<User?> GetUserByEmailOrPhoneAsync(string identifier);
-        Task<bool> IsUserExistsAsync(string phone, string email);
-    }
-
-    // 2. Cập nhật Implementation
     public class AuthenticationRepository : GenericRepository<User>, IAuthenticationRepository
     {
         public AuthenticationRepository(MediMateDbContext context) : base(context)

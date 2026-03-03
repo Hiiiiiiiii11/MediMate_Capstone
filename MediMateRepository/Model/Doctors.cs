@@ -15,7 +15,7 @@ namespace MediMateRepository.Model
         public double AverageRating { get; set; } = 0.0;
         public bool IsVerified { get; set; } = false;
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         public Guid UserId { get; set; }
         public virtual User User { get; set; } = null!;
     }

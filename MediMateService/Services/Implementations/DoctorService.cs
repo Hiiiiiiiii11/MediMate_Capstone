@@ -107,7 +107,7 @@ namespace MediMateService.Services.Implementations
                 YearsOfExperience = request.YearsOfExperience,
                 Bio = request.Bio,
                 UserId = request.UserId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 IsActive = true,
                 IsVerified = false
             };

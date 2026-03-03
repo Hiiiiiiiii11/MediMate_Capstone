@@ -101,7 +101,7 @@ namespace MediMateService.Services.Implementations
             }
 
             // 3. Kiểm tra mã hết hạn chưa
-            if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.UtcNow)
+            if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.Now)
             {
                 return ApiResponse<string>.Fail("Mã QR đăng nhập đã hết hạn. Vui lòng tạo mã mới.", 401);
             }
@@ -109,12 +109,19 @@ namespace MediMateService.Services.Implementations
             // 4. THÀNH CÔNG: Xóa SyncToken để tránh dùng lại
             member.SyncToken = null;
             member.SyncTokenExpireAt = null;
+
+
+            if (!string.IsNullOrEmpty(request.FcmToken))
+            {
+                member.FcmToken = request.FcmToken;
+            }
+
             _unitOfWork.Repository<Members>().Update(member);
             await _unitOfWork.CompleteAsync();
 
             // 5. Sinh JWT Token đặc biệt cho Dependent
             // Hàm này tương tự hàm GenerateToken cho User của bạn, nhưng dùng MemberId thay vì UserId
-            var token = GenerateJwtTokenForDependent(member,"dependent");
+            var token = GenerateJwtTokenForDependent(member, "dependent");
 
             return ApiResponse<string>.Ok(token, $"Đăng nhập thành công với tư cách: {member.FullName}");
         }
@@ -142,7 +149,7 @@ namespace MediMateService.Services.Implementations
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(30), // Dependent thường ít bị out, cho sống 30 ngày
+                expires: DateTime.Now.AddDays(300), // Dependent thường ít bị out, cho sống 30 ngày
                 signingCredentials: creds
             );
 
@@ -161,7 +168,14 @@ namespace MediMateService.Services.Implementations
 
             if (!string.Equals(user.Role, "User", StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
+            if (!string.IsNullOrEmpty(request.FcmToken))
+            {
+                user.FcmToken = request.FcmToken;
 
+                // Lưu vào DB (Tùy theo cấu trúc Repo của bạn, có thể dùng _authRepo hoặc _unitOfWork)
+                _unitOfWork.Repository<User>().Update(user);
+                await _unitOfWork.CompleteAsync();
+            }
             var token = GenerateJwtToken(user, "user");
             return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, "Đăng nhập thành công.");
         }
@@ -210,11 +224,40 @@ namespace MediMateService.Services.Implementations
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(expirationHours),
+                expires: DateTime.Now.AddHours(expirationHours),
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public async Task<ApiResponse<bool>> LogoutAsync(Guid accountId, string role)
+        {
+            if (role == "Dependent")
+            {
+                // Nếu là người phụ thuộc đăng xuất -> Xóa token ở bảng Members
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(accountId);
+                if (member != null)
+                {
+                    member.FcmToken = null;
+                    _unitOfWork.Repository<Members>().Update(member);
+                }
+            }
+            else
+            {
+                // Nếu là User, Admin, Doctor... đăng xuất -> Xóa token ở bảng User
+                var user = await _unitOfWork.Repository<User>().GetByIdAsync(accountId);
+                if (user != null)
+                {
+                    user.FcmToken = null;
+                    _unitOfWork.Repository<User>().Update(user);
+                }
+            }
+
+            // Lưu thay đổi vào Database
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Đăng xuất thành công.");
         }
 
     }

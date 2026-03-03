@@ -38,8 +38,8 @@ namespace MediMateService.Services.Implementations
                 PrescriptionDate = request.PrescriptionDate,
                 Notes = request.Notes,
                 Status = "Active",
-                CreateAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                CreateAt = DateTime.Now,
+                UpdateAt = DateTime.Now
             };
 
             // 3. Map dữ liệu Images (Bảng PrescriptionImages)
@@ -53,7 +53,7 @@ namespace MediMateService.Services.Implementations
             //            PrescriptionId = prescription.PrescriptionId,
             //            ImageUrl = img.ImageUrl,
             //            OcrRawData = img.OcrRawData ?? "",
-            //            UploadedAt = DateTime.UtcNow,
+            //            UploadedAt = DateTime.Now,
             //            IsProcessed = true // Vì UI đã xử lý rồi mới gửi xuống
             //        });
             //    }
@@ -73,7 +73,7 @@ namespace MediMateService.Services.Implementations
                         ThumbnailUrl = !string.IsNullOrEmpty(img.ThumbnailUrl) ? img.ThumbnailUrl : img.ImageUrl,
 
                         OcrRawData = img.OcrRawData ?? "",
-                        UploadedAt = DateTime.UtcNow,
+                        UploadedAt = DateTime.Now,
                         IsProcessed = true
                     });
                 }
@@ -93,8 +93,8 @@ namespace MediMateService.Services.Implementations
                         Unit = med.Unit ?? "",
                         Quantity = med.Quantity,
                         Instructions = med.Instructions ?? "",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now,
+                        UpdatedAt = DateTime.Now
                     });
                 }
             }
@@ -188,7 +188,7 @@ namespace MediMateService.Services.Implementations
                 prescription.Status = request.Status;
             }
 
-            prescription.UpdateAt = DateTime.UtcNow;
+            prescription.UpdateAt = DateTime.Now;
 
             // 4. Xử lý danh sách thuốc (Nếu có gửi list mới)
             if (request.Medicines != null)
@@ -212,8 +212,8 @@ namespace MediMateService.Services.Implementations
                         Unit = med.Unit ?? "",
                         Quantity = med.Quantity,
                         Instructions = med.Instructions ?? "",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now,
+                        UpdatedAt = DateTime.Now
                     });
                 }
             }
@@ -274,7 +274,7 @@ namespace MediMateService.Services.Implementations
                     ImageUrl = uploadResult.OriginalUrl,
                     ThumbnailUrl = uploadResult.ThumbnailUrl, // Lưu thumbnail
                     IsProcessed = false,
-                    UploadedAt = DateTime.UtcNow
+                    UploadedAt = DateTime.Now
                 };
 
                 await _unitOfWork.Repository<PrescriptionImages>().AddAsync(newImage);

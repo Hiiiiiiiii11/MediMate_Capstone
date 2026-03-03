@@ -15,8 +15,6 @@ namespace MediMateService.Services
 
         Task<DoctorDto> CreateDoctorAsync(CreateDoctorDto request);
         Task<DoctorDto> UpdateDoctorAsync(Guid doctorId, UpdateDoctorDto request);
-        Task<DoctorDto> ChangeDoctorStatusAsync(Guid doctorId, ChangeDoctorStatusDto request);
-        Task<DoctorDto> VerifyDoctorLicenseAsync(Guid doctorId, VerifyDoctorLicenseDto request);
         Task<DoctorDto> ApproveDoctorAsync(Guid doctorId, ApproveDoctorDto request);
         Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request);
         Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request);

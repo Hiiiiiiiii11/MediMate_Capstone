@@ -1,5 +1,6 @@
 using MediMateRepository.Model;
 using MediMateRepository.Model.Mock;
+using Share.Constants;
 
 namespace MediMateRepository.Repositories.Implementations
 {
@@ -13,7 +14,7 @@ namespace MediMateRepository.Repositories.Implementations
         public Task<List<Doctors>> GetPublicDoctorsAsync()
         {
             var list = DoctorMockData.Doctors
-                .Where(d => d.IsVerified)
+                .Where(d => string.Equals(d.Status, DoctorStatuses.Approved, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             return Task.FromResult(list);
         }
@@ -25,7 +26,8 @@ namespace MediMateRepository.Repositories.Implementations
 
         public Task<Doctors?> GetPublicDoctorByIdAsync(Guid doctorId)
         {
-            return Task.FromResult(DoctorMockData.Doctors.FirstOrDefault(d => d.DoctorId == doctorId && d.IsVerified));
+            return Task.FromResult(DoctorMockData.Doctors.FirstOrDefault(d =>
+                d.DoctorId == doctorId && string.Equals(d.Status, DoctorStatuses.Approved, StringComparison.OrdinalIgnoreCase)));
         }
 
         public Task AddDoctorAsync(Doctors doctor)

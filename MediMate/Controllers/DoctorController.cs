@@ -69,7 +69,7 @@ namespace MediMate.Controllers
                 YearsOfExperience = dto.YearsOfExperience,
                 Bio = dto.Bio,
                 AverageRating = dto.AverageRating,
-                IsVerified = dto.IsVerified,
+                Status = dto.Status,
                 CreatedAt = dto.CreatedAt,
                 UserId = dto.UserId
             };

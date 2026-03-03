@@ -60,7 +60,7 @@ namespace MediMateService.Services.Implementations
                 MemberId = session.MemberId,
                 Score = request.Score,
                 Comment = request.Comment?.Trim() ?? string.Empty,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             await _ratingRepository.AddRatingAsync(rating);

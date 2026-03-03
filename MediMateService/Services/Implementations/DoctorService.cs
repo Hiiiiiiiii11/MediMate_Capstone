@@ -2,6 +2,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -107,9 +108,8 @@ namespace MediMateService.Services.Implementations
                 YearsOfExperience = request.YearsOfExperience,
                 Bio = request.Bio,
                 UserId = request.UserId,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
-                IsVerified = false
+                CreatedAt = DateTime.Now,
+                Status = DoctorStatuses.Pending
             };
 
             await _repo.AddDoctorAsync(doctor);
@@ -135,32 +135,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        public async Task<DoctorDto> ChangeDoctorStatusAsync(Guid doctorId, ChangeDoctorStatusDto request)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null)
-            {
-                throw new NotFoundException("Không tìm thấy bác sĩ.");
-            }
-
-            doctor.IsActive = request.IsActive;
-            await _repo.UpdateDoctorAsync(doctor);
-            return MapToDto(doctor);
-        }
-
-        public async Task<DoctorDto> VerifyDoctorLicenseAsync(Guid doctorId, VerifyDoctorLicenseDto request)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null)
-            {
-                throw new NotFoundException("Không tìm thấy bác sĩ.");
-            }
-
-            doctor.IsVerified = request.IsVerified;
-            await _repo.UpdateDoctorAsync(doctor);
-            return MapToDto(doctor);
-        }
-
         public async Task<DoctorDto> ApproveDoctorAsync(Guid doctorId, ApproveDoctorDto request)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -170,10 +144,10 @@ namespace MediMateService.Services.Implementations
             }
 
             var action = request.Action?.Trim().ToLowerInvariant();
-            doctor.IsActive = action switch
+            doctor.Status = action switch
             {
-                "approve" => true,
-                "reject" => false,
+                "approve" => DoctorStatuses.Approved,
+                "reject" => DoctorStatuses.Rejected,
                 _ => throw new BadRequestException("Action phải là 'approve' hoặc 'reject'.")
             };
 
@@ -251,8 +225,7 @@ namespace MediMateService.Services.Implementations
                 YearsOfExperience = e.YearsOfExperience,
                 Bio = e.Bio,
                 AverageRating = e.AverageRating,
-                IsVerified = e.IsVerified,
-                IsActive = e.IsActive,
+                Status = e.Status,
                 CreatedAt = e.CreatedAt,
                 UserId = e.UserId
             };

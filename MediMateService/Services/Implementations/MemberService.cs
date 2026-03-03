@@ -328,7 +328,7 @@ namespace MediMateService.Services.Implementations
                     FamilyId = family.FamilyId,
                     UserId = userId.Value, // Link tài khoản
                     FullName = user.FullName,
-                    DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
+                    DateOfBirth = user.DateOfBirth ?? DateTime.Now,
                     Gender = user.Gender ?? "Other",
                     Role = Roles.Member,
                     AvatarUrl = user.AvatarUrl,
@@ -388,7 +388,7 @@ namespace MediMateService.Services.Implementations
             var syncToken = Guid.NewGuid().ToString("N");
 
             member.SyncToken = syncToken;
-            member.SyncTokenExpireAt = DateTime.UtcNow.AddMinutes(5); // Mã QR chỉ có hiệu lực 5 phút
+            member.SyncTokenExpireAt = DateTime.Now.AddMinutes(5); // Mã QR chỉ có hiệu lực 5 phút
 
             _unitOfWork.Repository<Members>().Update(member);
             await _unitOfWork.CompleteAsync();

@@ -65,7 +65,7 @@ namespace MediMateService.Services.Implementations
                 throw new ConflictException("Phiên tư vấn đã kết thúc trước đó.");
             }
 
-            session.EndedAt = request.EndedAt ?? DateTime.UtcNow;
+            session.EndedAt = request.EndedAt ?? DateTime.Now;
             session.Status = "Ended";
             await _appointmentRepository.UpdateSessionAsync(session);
 

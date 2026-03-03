@@ -41,30 +41,53 @@ namespace MediMateService.Services.Implementations
             // 3. Trả về kết quả
             return ApiResponse<IEnumerable<UserProfileResponse>>.Ok(userDtos, "Lấy danh sách người dùng thành công.");
         }
-        public async Task<ApiResponse<UserProfileResponse>> GetProfileAsync(Guid userId)
+        public async Task<ApiResponse<UserProfileResponse>> GetProfileAsync(Guid callerId)
         {
-            // 1. Lấy User từ DB
-            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            UserProfileResponse response = null;
 
-            if (user == null)
+            // --- TRƯỜNG HỢP 1: LÀ USER (BỐ/MẸ) ---
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(callerId);
+            if (user != null)
             {
-                return ApiResponse<UserProfileResponse>.Fail("Không tìm thấy người dùng.", 404);
+                response = new UserProfileResponse
+                {
+                    UserId = user.UserId,
+                    FullName = user.FullName,
+                    Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
+                    DateOfBirth = user.DateOfBirth, // Có thể null trong bảng User
+                    Gender = user.Gender,
+                    AvatarUrl = user.AvatarUrl, // Lấy avatar của User gốc
+                    Role = user.Role ?? "User",
+                    IsActive = user.IsActive,
+                };
+            }
+            // --- TRƯỜNG HỢP 2: LÀ DEPENDENT (CON CÁI/MEMBER) ---
+            else
+            {
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(callerId);
+                if (member != null)
+                {
+                    response = new UserProfileResponse
+                    {
+                        UserId = member.MemberId, // Trả về MemberId vào trường UserId để FE dùng thống nhất
+                        FullName = member.FullName,
+                        Email = null, // Member phụ thuộc thường không có email riêng
+                        PhoneNumber = null,
+                        DateOfBirth = member.DateOfBirth,
+                        Gender = member.Gender,
+                        AvatarUrl = member.AvatarUrl,
+                        Role = member.Role ?? "Member", // Thường là "Member" hoặc "Dependent"
+                        IsActive = member.IsActive,
+
+                    };
+                }
             }
 
-            // 2. Map sang DTO (Thủ công hoặc dùng AutoMapper)
-            var response = new UserProfileResponse
+            if (response == null)
             {
-                UserId = user.UserId,
-                PhoneNumber = user.PhoneNumber,
-                FullName = user.FullName,
-                Email = user.Email,
-                DateOfBirth = user.DateOfBirth,
-                Gender = user.Gender,
-                AvatarUrl = user.AvatarUrl,
-                Role = user.Role,
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
-            };
+                return ApiResponse<UserProfileResponse>.Fail("Không tìm thấy hồ sơ người dùng.", 404);
+            }
 
             return ApiResponse<UserProfileResponse>.Ok(response);
         }

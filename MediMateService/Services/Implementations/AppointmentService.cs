@@ -59,7 +59,7 @@ namespace MediMateService.Services.Implementations
                 AvailabilityId = request.AvailabilityId,
                 AppointmentDate = request.AppointmentDate,
                 Status = "Pending",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             await _appointmentRepository.AddAppointmentAsync(appointment);

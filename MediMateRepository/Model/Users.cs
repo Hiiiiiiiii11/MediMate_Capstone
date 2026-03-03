@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share.Constants;
 
 namespace MediMateRepository.Model
@@ -27,6 +28,7 @@ namespace MediMateRepository.Model
         public bool IsActive { get; set; } = true;
         public string? Role { get; set; } = Roles.User;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public string? FcmToken { get; set; } = string.Empty;
         public int? VerifyCode { get; set; }
         public DateTime? ExpiriedAt { get; set; }
         public virtual ICollection<Families> CreatedFamilies { get; set; } = new List<Families>();

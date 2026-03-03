@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Share.Constants;
 
 namespace MediMateRepository.Model
 {
@@ -13,8 +14,7 @@ namespace MediMateRepository.Model
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; } = 0.0;
-        public bool IsVerified { get; set; } = false;
-        public bool IsActive { get; set; } = true;
+        public string Status { get; set; } = DoctorStatuses.Pending;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public Guid UserId { get; set; }
         public virtual User User { get; set; } = null!;

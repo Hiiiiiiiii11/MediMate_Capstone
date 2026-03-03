@@ -61,28 +61,6 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapDoctorResponse(data), "Cập nhật hồ sơ bác sĩ thành công."));
         }
 
-        [HttpPatch("{doctorId}/status")]
-        public async Task<IActionResult> ChangeStatus(Guid doctorId, [FromBody] ChangeDoctorStatusRequest request)
-        {
-            var data = await _doctorService.ChangeDoctorStatusAsync(doctorId, new ChangeDoctorStatusDto
-            {
-                IsActive = request.IsActive
-            });
-
-            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapDoctorResponse(data), "Cập nhật trạng thái bác sĩ thành công."));
-        }
-
-        [HttpPost("{doctorId}/verify-license")]
-        public async Task<IActionResult> VerifyLicense(Guid doctorId, [FromBody] VerifyDoctorLicenseRequest request)
-        {
-            var data = await _doctorService.VerifyDoctorLicenseAsync(doctorId, new VerifyDoctorLicenseDto
-            {
-                IsVerified = request.IsVerified
-            });
-
-            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapDoctorResponse(data), "Cập nhật xác minh giấy phép thành công."));
-        }
-
         [HttpPost("{doctorId}/approve")]
         public async Task<IActionResult> ApproveDoctor(Guid doctorId, [FromBody] ApproveDoctorRequest request)
         {
@@ -141,8 +119,7 @@ namespace MediMate.Controllers
                 YearsOfExperience = dto.YearsOfExperience,
                 Bio = dto.Bio,
                 AverageRating = dto.AverageRating,
-                IsVerified = dto.IsVerified,
-                IsActive = dto.IsActive,
+                Status = dto.Status,
                 CreatedAt = dto.CreatedAt,
                 UserId = dto.UserId
             };

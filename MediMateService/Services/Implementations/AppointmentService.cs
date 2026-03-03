@@ -2,6 +2,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -39,7 +40,7 @@ namespace MediMateService.Services.Implementations
             }
 
             var doctor = await _doctorRepository.GetDoctorByIdAsync(request.DoctorId);
-            if (doctor == null || !doctor.IsActive || !doctor.IsVerified)
+            if (doctor == null || !string.Equals(doctor.Status, DoctorStatuses.Approved, StringComparison.OrdinalIgnoreCase))
             {
                 throw new NotFoundException("Không tìm thấy bác sĩ phù hợp để đặt lịch.");
             }

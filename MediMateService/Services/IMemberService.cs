@@ -18,6 +18,9 @@ namespace MediMateService.Services
         // Delete/Remove Member (Soft delete or Remove from family)
         Task<ApiResponse<bool>> RemoveMemberAsync(Guid memberId, Guid userId);
         Task<ApiResponse<MemberQrResponse>> GenerateLoginQrForDependentAsync(Guid memberId, Guid currentUserId);
+        Task<ApiResponse<MemberResponse>> AddUserMemberToFamilyAsync(AddUserMemberRequest request, Guid ownerUserId);
+        Task<ApiResponse<MemberResponse>> CreateDependentMemberAsync(CreateDependentRequest request, Guid ownerUserId);
+        Task<ApiResponse<bool>> JoinFamilyByJoinCodeAsync(JoinFamilyByCodeRequest request, Guid userId);
     }
 
 

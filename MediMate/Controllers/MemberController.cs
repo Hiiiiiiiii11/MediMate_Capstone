@@ -32,7 +32,61 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-        [HttpPost("generate-logincode")]
+        [Authorize]
+        [HttpPost("create-dependent-member")]
+        public async Task<IActionResult> CreateDependentMember([FromBody] CreateDependentRequest request)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.CreateDependentMemberAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpPost("add-user-member-by-phone")]
+        public async Task<IActionResult> AddUserMemberByPhone([FromBody] AddUserMemberRequest request)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.AddUserMemberToFamilyAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+        [Authorize]
+        [HttpPost("user-join")]
+        public async Task<IActionResult> UserJoinFamily([FromBody] JoinFamilyByCodeRequest request)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.JoinFamilyByJoinCodeAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpPost("generate-dependent-logincode")]
         public async Task<IActionResult> GenerateLoginCode(Guid memberId)
         {
             try
@@ -47,16 +101,6 @@ namespace MediMate.Controllers
                 // Log lỗi ex ở đây nếu cần
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
-        }
-        [Authorize]
-        [HttpPost("create-dependent")]
-        public async Task<IActionResult> CreateDependentByUser([FromBody] InitDependentRequest request)
-        {
-            var userId = _currentUserService.UserId;
-            // Bắt buộc request phải có TargetFamilyId
-            var result = await _memberService.InitDependentProfileAsync(request, userId);
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
         }
         //[HttpPost("join-by-joincode")]
         //[AllowAnonymous] // Mở cửa cho tất cả
@@ -179,5 +223,6 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        
     }
 }

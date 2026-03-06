@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,7 +29,6 @@ namespace MediMateService.DTOs
         public string FamilyName { get; set; }
         public string AccessToken { get; set; }
 
-        // Đã xóa QrCodeUrl và IdentityCode vì không còn cần thiết
     }
     //request tạo lại qr
     public class MemberQrResponse
@@ -76,5 +76,22 @@ namespace MediMateService.DTOs
 
         // Chỉ cần truyền nếu là Người phụ thuộc (Dependent) chưa có tài khoản
         public Guid? ExistingMemberId { get; set; }
+    }
+    public class AddUserMemberRequest
+    {
+        public Guid FamilyId { get; set; }
+        public string PhoneNumber { get; set; } // Tìm người qua SĐT
+    }
+    public class CreateDependentRequest
+    {
+        public Guid FamilyId { get; set; }
+        public string FullName { get; set; }
+        public DateTime DateOfBirth { get; set; }
+        public string Gender { get; set; }
+    }
+    public class JoinFamilyByCodeRequest
+    {
+        [Required(ErrorMessage = "Vui lòng nhập mã gia đình")]
+        public string JoinCode { get; set; }
     }
 }

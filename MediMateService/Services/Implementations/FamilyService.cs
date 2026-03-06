@@ -141,6 +141,8 @@ namespace MediMateService.Services.Implementations
                             FamilyId = family.FamilyId,
                             FamilyName = family.FamilyName,
                             Type = family.Type.ToString(),
+                            JoinCode = family.JoinCode,
+                            IsOpenJoin = family.IsOpenJoin,
                             MemberCount = count,
                             CreatedAt = family.CreatedAt
                         });
@@ -161,6 +163,7 @@ namespace MediMateService.Services.Implementations
                 FamilyName = family.FamilyName,
                 Type = family.Type.ToString(), // Trả về "Personal" hoặc "Shared"
                 JoinCode = family.JoinCode,
+                IsOpenJoin = family.IsOpenJoin,
                 MemberCount = count,
                 CreatedAt = family.CreatedAt
             };
@@ -192,21 +195,36 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<FamilyResponse>> UpdateFamilyAsync(Guid familyId, Guid userId, UpdateFamilyRequest request)
         {
             var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
+
             if (family == null)
             {
-                return ApiResponse<FamilyResponse>.Fail("Family not found", 404);
+                return ApiResponse<FamilyResponse>.Fail("Gia đình không tồn tại.", 404);
             }
 
-            // Chỉ người tạo (Owner) mới được sửa
+            // Kiểm tra quyền: Chỉ người tạo (CreateBy) hoặc Owner mới được sửa
+            // (Nếu logic của bạn dùng bảng Members để phân quyền Owner thì query bảng Members ở đây)
             if (family.CreateBy != userId)
             {
-                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa.", 403);
+                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa thông tin gia đình này.", 403);
             }
 
-            family.FamilyName = request.FamilyName;
+            // 1. Cập nhật Tên (nếu có gửi lên)
+            if (!string.IsNullOrEmpty(request.FamilyName))
+            {
+                family.FamilyName = request.FamilyName;
+            }
+
+            // 2. Cập nhật Trạng thái Mở/Đóng Join Code (nếu có gửi lên)
+            // .HasValue kiểm tra xem client có gửi trường này không
+            if (request.IsOpenJoin.HasValue)
+            {
+                family.IsOpenJoin = request.IsOpenJoin.Value;
+            }
+
             _unitOfWork.Repository<Families>().Update(family);
             await _unitOfWork.CompleteAsync();
 
+            // Trả về thông tin mới nhất
             return await GetFamilyByIdAsync(familyId, userId);
         }
 

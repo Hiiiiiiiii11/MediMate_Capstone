@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260304094803_addIsopenjoin")]
+    partial class addIsopenjoin
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,53 +24,6 @@ namespace MediMateRepository.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("MediMateRepository.Model.ActivityLogs", b =>
-                {
-                    b.Property<Guid>("LogId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ActionType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("EntityName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("FamilyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NewDataJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("OldDataJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("LogId");
-
-                    b.HasIndex("FamilyId");
-
-                    b.HasIndex("MemberId");
-
-                    b.ToTable("ActivityLogs");
-                });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
@@ -367,45 +323,6 @@ namespace MediMateRepository.Migrations
                     b.ToTable("Members");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>
-                {
-                    b.Property<Guid>("SettingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CustomSetting")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("EnableEmailNotification")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("EnableFamilyAlert")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("EnablePushNotification")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("EnableSmsNotification")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ReminderAdvanceMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("SettingId");
-
-                    b.HasIndex("MemberId")
-                        .IsUnique();
-
-                    b.ToTable("NotificationSettings");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>
                 {
                     b.Property<Guid>("ImageId")
@@ -592,25 +509,6 @@ namespace MediMateRepository.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ActivityLogs", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Families", "Family")
-                        .WithMany()
-                        .HasForeignKey("FamilyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Family");
-
-                    b.Navigation("Member");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
                     b.HasOne("MediMateRepository.Model.User", "Creator")
@@ -711,17 +609,6 @@ namespace MediMateRepository.Migrations
                     b.HasOne("MediMateRepository.Model.User", null)
                         .WithMany("MemberProfiles")
                         .HasForeignKey("UserId");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithOne()
-                        .HasForeignKey("MediMateRepository.Model.NotificationSetting", "MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>

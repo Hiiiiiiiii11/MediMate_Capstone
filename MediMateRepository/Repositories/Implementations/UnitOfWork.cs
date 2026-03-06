@@ -1,4 +1,5 @@
 ﻿using MediMateRepository.Data;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Collections;
 
 namespace MediMateRepository.Repositories.Implementations
@@ -57,5 +58,11 @@ namespace MediMateRepository.Repositories.Implementations
             Dispose(true);
             GC.SuppressFinalize(this);
         }
+        public async Task<IDbContextTransaction> BeginTransactionAsync()
+        {
+            // Gọi hàm Transaction có sẵn của Entity Framework Core
+            return await _context.Database.BeginTransactionAsync();
+        }
+
     }
 }

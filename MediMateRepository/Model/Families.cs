@@ -14,6 +14,7 @@ namespace MediMateRepository.Model
         public Guid CreateBy { get; set; }
         public FamilyType Type { get; set; } = FamilyType.Shared;
         public string? JoinCode { get; set; }
+        public bool IsOpenJoin { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         [ForeignKey("CreatedBy")]
         public virtual User? Creator { get; set; }

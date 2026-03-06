@@ -1,4 +1,6 @@
-﻿namespace MediMateRepository.Repositories
+﻿using Microsoft.EntityFrameworkCore.Storage;
+
+namespace MediMateRepository.Repositories
 {
     public interface IUnitOfWork : IDisposable
     {
@@ -7,5 +9,6 @@
 
         // Phương thức commit tất cả thay đổi xuống Database
         Task<int> CompleteAsync();
+        Task<IDbContextTransaction> BeginTransactionAsync();
     }
 }

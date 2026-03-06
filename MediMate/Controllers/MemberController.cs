@@ -189,6 +189,7 @@ namespace MediMate.Controllers
         }
 
         // PUT: api/v1/members/{id} -> Sửa thông tin
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateMember(Guid id, [FromForm] UpdateMemberRequest request)
         {
@@ -207,7 +208,8 @@ namespace MediMate.Controllers
         }
 
         // DELETE: api/v1/members/{id} -> Xóa/Rời nhóm
-        [HttpDelete("{id}")]
+        [Authorize]
+        [HttpPut("remove/{id}")]
         public async Task<IActionResult> RemoveMember(Guid id)
         {
             try
@@ -223,6 +225,23 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-        
+        [Authorize]
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> DeleteMember(Guid id)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.DeleteMemberAsync(id, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
     }
 }

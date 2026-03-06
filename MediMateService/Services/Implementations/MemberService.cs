@@ -306,6 +306,46 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<bool>.Ok(true, "Đã xóa thành viên khỏi gia đình.");
         }
+        public async Task<ApiResponse<bool>> DeleteMemberAsync(Guid memberId, Guid userId)
+        {
+            var memberToRemove = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (memberToRemove == null)
+            {
+                return ApiResponse<bool>.Fail("Member not found", 404);
+            }
+
+            // Check quyền
+            bool isSelf = memberToRemove.UserId == userId; // Tự rời nhóm
+            bool isOwner = false; // Chủ kick
+
+            if (memberToRemove.FamilyId != null)
+            {
+                var requester = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == memberToRemove.FamilyId && m.UserId == userId)).FirstOrDefault();
+                if (requester != null && requester.Role == Roles.Owner)
+                {
+                    isOwner = true;
+                }
+            }
+
+            if (!isSelf && !isOwner)
+            {
+                return ApiResponse<bool>.Fail("Không có quyền thực hiện.", 403);
+            }
+
+            // Logic Xóa:
+            // Cách 1: Xóa hẳn khỏi DB (Hard Delete)
+            _unitOfWork.Repository<Members>().Remove(memberToRemove);
+
+            //// Cách 2: Set FamilyId = null (Kick ra khỏi nhà, thành mồ côi) -> NÊN DÙNG
+            //memberToRemove.FamilyId = null;
+            //memberToRemove.IsActive = false; // Tạm thời unactive
+
+            //xóa vĩnh viễn khỏi DB 
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Đã xóa thành viên khỏi gia đình.");
+        }
 
 
 

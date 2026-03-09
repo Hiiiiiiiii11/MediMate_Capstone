@@ -2,6 +2,7 @@
 using MediMateRepository.Repositories;// Chứa ApiResponse
 using MediMateService.DTOs;
 using Share.Common;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -9,11 +10,13 @@ namespace MediMateService.Services.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IActivityLogService _activityLogService;
 
-        public HealthService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+        public HealthService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<HealthProfileResponse>> GetHealthProfileAsync(Guid memberId, Guid userId)
@@ -70,13 +73,32 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<HealthProfiles>().AddAsync(newProfile);
             await _unitOfWork.CompleteAsync();
 
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.HEALTHPROFILE,
+                        entityId: newProfile.HealthProfileId,
+                        description: $"Đã tạo hồ sơ sức khỏe cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+
             return ApiResponse<HealthProfileResponse>.Ok(MapToResponse(newProfile), "Tạo hồ sơ sức khỏe thành công.");
         }
         public async Task<ApiResponse<HealthProfileResponse>> UpdateHealthProfileAsync(Guid memberId, Guid userId, UpdateHealthProfileRequest request)
         {
             if (!await _currentUserService.CheckAccess(memberId, userId))
             {
-                return ApiResponse<HealthProfileResponse>.Fail("Access Denied", 403);
+                return ApiResponse<HealthProfileResponse>.Fail("Bạn không có quyền thực hiện", 403);
             }
 
             var profile = (await _unitOfWork.Repository<HealthProfiles>()
@@ -87,32 +109,64 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<HealthProfileResponse>.Fail(" Hồ sơ sức khỏe không tồn tại.", 404);
             }
+            var oldData = new { profile.BloodType, profile.Height, profile.Weight, profile.InsuranceNumber };
+            bool hasChanges = false;
 
             // Cập nhật dữ liệu
-            if (!string.IsNullOrEmpty(request.BloodType))
+            if (!string.IsNullOrEmpty(request.BloodType) && profile.BloodType != request.BloodType)
             {
                 profile.BloodType = request.BloodType;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.InsuranceNumber))
+            if (!string.IsNullOrEmpty(request.InsuranceNumber) && profile.InsuranceNumber != request.InsuranceNumber)
             {
                 profile.InsuranceNumber = request.InsuranceNumber;
+                hasChanges = true;
             }
 
-            if (request.Height > 0)
+            if (request.Height > 0 && profile.Height != request.Height)
             {
                 profile.Height = request.Height;
+                hasChanges = true;
             }
 
-            if (request.Weight > 0)
+            if (request.Weight > 0 && profile.Weight != request.Weight)
             {
                 profile.Weight = request.Weight;
+                hasChanges = true;
             }
 
             profile.UpdatedAt = DateTime.Now;
 
             _unitOfWork.Repository<HealthProfiles>().Update(profile);
             await _unitOfWork.CompleteAsync();
+
+            if (hasChanges)
+            {
+                var newData = new { profile.BloodType, profile.Height, profile.Weight, profile.InsuranceNumber };
+                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+
+                if (targetMember != null && targetMember.FamilyId.HasValue)
+                {
+                    var doer = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                    if (doer != null)
+                    {
+                        await _activityLogService.LogActivityAsync(
+                            familyId: targetMember.FamilyId.Value,
+                            memberId: doer.MemberId,
+                            actionType: ActivityActionTypes.UPDATE,
+                             entityName: ActivityEntityNames.HEALTHPROFILE,
+                            entityId: profile.HealthProfileId,
+                            description: $"Đã cập nhật chỉ số sức khỏe của '{targetMember.FullName}'.",
+                            oldData: oldData,
+                            newData: newData
+                        );
+                    }
+                }
+            }
 
             return await GetHealthProfileAsync(memberId, userId);
         }
@@ -144,6 +198,25 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<HealthConditions>().AddAsync(condition);
             await _unitOfWork.CompleteAsync();
 
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                         entityName: ActivityEntityNames.HEALTHCONDITION,
+                        entityId: condition.ConditionId,
+                        description: $"Đã thêm bệnh lý '{condition.ConditionName}' cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+
             return ApiResponse<bool>.Ok(true, "Thêm tình trạng bệnh thành công.");
         }
 
@@ -161,9 +234,30 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<bool>.Fail("Access Denied", 403);
             }
+            string conditionName = condition.ConditionName;
 
             _unitOfWork.Repository<HealthConditions>().Remove(condition);
             await _unitOfWork.CompleteAsync();
+
+
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(profile.MemberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.DELETE,
+                        entityName: ActivityEntityNames.HEALTHCONDITION,
+                        entityId: conditionId,
+                        description: $"Đã xóa bệnh án '{conditionName}' của '{targetMember.FullName}'."
+                    );
+                }
+            }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa.");
         }
@@ -283,30 +377,62 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<bool>.Fail("Không có quyền chỉnh sửa.", 403);
             }
 
+            var oldData = new { condition.ConditionName, condition.Description, condition.DiagnosedDate, condition.Status };
+            bool hasChanges = false;
             // --- LOGIC GIỮ GIÁ TRỊ CŨ NẾU NULL ---
 
-            if (!string.IsNullOrEmpty(request.ConditionName))
+            if (!string.IsNullOrEmpty(request.ConditionName) && condition.ConditionName != request.ConditionName)
             {
                 condition.ConditionName = request.ConditionName;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.Description))
+            if (!string.IsNullOrEmpty(request.Description) && condition.Description != request.Description)
             {
                 condition.Description = request.Description;
+                hasChanges = true;
             }
 
-            if (request.DiagnosedDate.HasValue)
+            if (request.DiagnosedDate.HasValue && condition.DiagnosedDate != request.DiagnosedDate)
             {
                 condition.DiagnosedDate = request.DiagnosedDate.Value;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.Status))
+            if (!string.IsNullOrEmpty(request.Status) && condition.Status != request.Status)
             {
                 condition.Status = request.Status;
+                hasChanges = true;
             }
 
             _unitOfWork.Repository<HealthConditions>().Update(condition);
             await _unitOfWork.CompleteAsync();
+
+            if (hasChanges)
+            {
+                var newData = new { condition.ConditionName, condition.Description, condition.DiagnosedDate, condition.Status };
+                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(profile.MemberId);
+
+                if (targetMember != null && targetMember.FamilyId.HasValue)
+                {
+                    var doer = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                    if (doer != null)
+                    {
+                        await _activityLogService.LogActivityAsync(
+                            familyId: targetMember.FamilyId.Value,
+                            memberId: doer.MemberId,
+                            actionType: ActivityActionTypes.UPDATE,
+                            entityName: ActivityEntityNames.HEALTHCONDITION,
+                            entityId: condition.ConditionId,
+                            description: $"Đã cập nhật tình trạng bệnh '{condition.ConditionName}' của '{targetMember.FullName}'.",
+                            oldData: oldData,
+                            newData: newData
+                        );
+                    }
+                }
+            }
 
             return ApiResponse<bool>.Ok(true, "Cập nhật bệnh án thành công.");
         }

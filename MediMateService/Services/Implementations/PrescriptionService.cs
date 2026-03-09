@@ -3,6 +3,7 @@ using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.AspNetCore.Http;
 using Share.Common;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -11,12 +12,14 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IUploadPhotoService _uploadPhotoService;
+        private readonly IActivityLogService _activityLogService;
 
-        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService)
+        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
@@ -103,6 +106,25 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
             await _unitOfWork.CompleteAsync();
 
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.PRESCIPTION,
+                        entityId: prescription.PrescriptionId,
+                        description: $"Đã thêm đơn thuốc mới của Bác sĩ '{prescription.DoctorName}' cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc thành công.");
         }
 
@@ -115,7 +137,7 @@ namespace MediMateService.Services.Implementations
 
             // Include cả Images và Medications
             var list = await _unitOfWork.Repository<Prescriptions>()
-                .FindAsync(p => p.MemberId == memberId, includeProperties: "PrescriptionImages,Medications");
+                .FindAsync(p => p.MemberId == memberId, includeProperties: "PrescriptionImages,PrescriptionMedicines");
 
             var response = list.OrderByDescending(p => p.PrescriptionDate)
                                .Select(p => MapToResponse(p));
@@ -126,7 +148,7 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<PrescriptionResponse>> GetPrescriptionByIdAsync(Guid prescriptionId, Guid userId)
         {
             var p = (await _unitOfWork.Repository<Prescriptions>()
-                .FindAsync(x => x.PrescriptionId == prescriptionId, includeProperties: "PrescriptionImages,Medications"))
+                .FindAsync(x => x.PrescriptionId == prescriptionId, includeProperties: "PrescriptionImages,PrescriptionMedicines"))
                 .FirstOrDefault();
 
             if (p == null)
@@ -156,36 +178,44 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền chỉnh sửa.", 403);
             }
+            var oldData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
+            bool hasChanges = false;
 
             // 3. Update từng trường (Giữ giá trị cũ nếu request null)
-            if (!string.IsNullOrEmpty(request.PrescriptionCode))
+            if (!string.IsNullOrEmpty(request.PrescriptionCode) && request.PrescriptionCode != prescription.PrescriptionCode)
             {
                 prescription.PrescriptionCode = request.PrescriptionCode;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.DoctorName))
+            if (!string.IsNullOrEmpty(request.DoctorName) && request.DoctorName != prescription.DoctorName)
             {
                 prescription.DoctorName = request.DoctorName;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.HospitalName))
+            if (!string.IsNullOrEmpty(request.HospitalName) && request.HospitalName != prescription.HospitalName)
             {
                 prescription.HospitalName = request.HospitalName;
+                hasChanges = true;
             }
 
-            if (request.PrescriptionDate.HasValue)
+            if (request.PrescriptionDate.HasValue && request.PrescriptionDate != prescription.PrescriptionDate)
             {
                 prescription.PrescriptionDate = request.PrescriptionDate.Value;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.Notes))
+            if (!string.IsNullOrEmpty(request.Notes) && request.Notes != prescription.Notes)
             {
                 prescription.Notes = request.Notes;
+                hasChanges = true;
             }
 
-            if (!string.IsNullOrEmpty(request.Status))
+            if (!string.IsNullOrEmpty(request.Status) && request.Status != prescription.Status)
             {
                 prescription.Status = request.Status;
+                hasChanges = true;
             }
 
             prescription.UpdateAt = DateTime.Now;
@@ -221,6 +251,32 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<Prescriptions>().Update(prescription);
             await _unitOfWork.CompleteAsync();
 
+            if (hasChanges)
+            {
+                var newData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
+                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
+
+                if (targetMember != null && targetMember.FamilyId.HasValue)
+                {
+                    var doer = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                    if (doer != null)
+                    {
+                        await _activityLogService.LogActivityAsync(
+                            familyId: targetMember.FamilyId.Value,
+                            memberId: doer.MemberId,
+                            actionType: ActivityActionTypes.UPDATE,
+                            entityName: ActivityEntityNames.PRESCIPTION,
+                            entityId: prescription.PrescriptionId,
+                            description: $"Đã cập nhật đơn thuốc của '{targetMember.FullName}'.",
+                            oldData: oldData,
+                            newData: newData
+                        );
+                    }
+                }
+            }
+
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc thành công.");
         }
 
@@ -237,10 +293,31 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<bool>.Fail("Không có quyền xóa.", 403);
             }
+            string doctorName = prescription.DoctorName ?? "";
+            Guid memberId = prescription.MemberId;
 
             // Xóa cứng (Hard Delete) - EF Core sẽ tự Cascade xóa thuốc và ảnh liên quan nhờ cấu hình FluentAPI
             _unitOfWork.Repository<Prescriptions>().Remove(prescription);
             await _unitOfWork.CompleteAsync();
+
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.DELETE,
+                       entityName: ActivityEntityNames.PRESCIPTION,
+                        entityId: prescriptionId, // ID vẫn lưu lại vết
+                        description: $"Đã xóa đơn thuốc của bác sĩ '{doctorName}' cấp cho '{targetMember.FullName}'."
+                    );
+                }
+            }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa đơn thuốc.");
         }

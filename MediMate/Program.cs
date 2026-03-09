@@ -89,6 +89,8 @@ namespace MediMate
             builder.Services.AddScoped<IMockAppointmentRepository, MockAppointmentRepository>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IConsultationService, ConsultationService>();
+            builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+            builder.Services.AddScoped<INotificationSettingService, NotificationSettingService>();
 
 
 

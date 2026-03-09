@@ -10,10 +10,12 @@ namespace MediMateService.Services.Implementations
     public class FamilyService : IFamilyService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IActivityLogService _activityLogService;
 
-        public FamilyService(IUnitOfWork unitOfWork)
+        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
+            _activityLogService = activityLogService;
         }
 
         // --- LOGIC 1: CHẾ ĐỘ CÁ NHÂN ---
@@ -53,6 +55,15 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Families>().AddAsync(family);
             await _unitOfWork.Repository<Members>().AddAsync(member);
             await _unitOfWork.CompleteAsync();
+
+            await _activityLogService.LogActivityAsync(
+                familyId: family.FamilyId,
+                memberId: member.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: ActivityEntityNames.FAMILY,
+                entityId: family.FamilyId,
+                description: "Đã khởi tạo hồ sơ cá nhân."
+            );
 
             return ApiResponse<FamilyResponse>.Ok(MapToResponse(family, 1));
         }
@@ -94,6 +105,15 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Families>().AddAsync(family);
             await _unitOfWork.Repository<Members>().AddAsync(member);
             await _unitOfWork.CompleteAsync();
+
+            await _activityLogService.LogActivityAsync(
+                familyId: family.FamilyId,
+                memberId: member.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: ActivityEntityNames.FAMILY,
+                entityId: family.FamilyId,
+                description: $"Đã tạo gia đình '{family.FamilyName}'."
+            );
 
             return ApiResponse<FamilyResponse>.Ok(MapToResponse(family, 1));
         }
@@ -207,11 +227,14 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa thông tin gia đình này.", 403);
             }
+            var oldData = new { family.FamilyName, family.IsOpenJoin };
+            bool hasChanges = false;
 
             // 1. Cập nhật Tên (nếu có gửi lên)
             if (!string.IsNullOrEmpty(request.FamilyName))
             {
                 family.FamilyName = request.FamilyName;
+                hasChanges = true;
             }
 
             // 2. Cập nhật Trạng thái Mở/Đóng Join Code (nếu có gửi lên)
@@ -219,10 +242,34 @@ namespace MediMateService.Services.Implementations
             if (request.IsOpenJoin.HasValue)
             {
                 family.IsOpenJoin = request.IsOpenJoin.Value;
+                hasChanges = true;
             }
 
             _unitOfWork.Repository<Families>().Update(family);
             await _unitOfWork.CompleteAsync();
+
+            if (hasChanges)
+            {
+                var newData = new { family.FamilyName, family.IsOpenJoin };
+
+                // Lấy thông tin người thực hiện để lưu MemberId
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: family.FamilyId,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.UPDATE,
+                        entityName: ActivityEntityNames.FAMILY,
+                        entityId: family.FamilyId,
+                        description: "Đã cập nhật thông tin chung của gia đình.",
+                        oldData: oldData,
+                        newData: newData
+                    );
+                }
+            }
 
             // Trả về thông tin mới nhất
             return await GetFamilyByIdAsync(familyId, userId);

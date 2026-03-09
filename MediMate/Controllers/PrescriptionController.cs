@@ -22,11 +22,18 @@ public class PrescriptionController : ControllerBase
     [HttpPost("member/{memberId}")]
     public async Task<IActionResult> CreatePrescription(Guid memberId, [FromBody] CreatePrescriptionRequest request)
     {
-        var userId = _currentUserService.UserId;
-        var result = await _prescriptionService.CreatePrescriptionAsync(memberId, userId, request);
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.CreatePrescriptionAsync(memberId, userId, request);
 
-        if (!result.Success) return StatusCode(result.Code, result);
-        return StatusCode(201, result);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return StatusCode(201, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
 
     // GET: api/v1/prescriptions/member/{memberId}
@@ -34,9 +41,16 @@ public class PrescriptionController : ControllerBase
     [HttpGet("member/{memberId}")]
     public async Task<IActionResult> GetByMember(Guid memberId)
     {
-        var userId = _currentUserService.UserId;
-        var result = await _prescriptionService.GetPrescriptionsByMemberAsync(memberId, userId);
-        return Ok(result);
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.GetPrescriptionsByMemberAsync(memberId, userId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
 
     // GET: api/v1/prescriptions/{id}
@@ -44,31 +58,51 @@ public class PrescriptionController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
-        var userId = _currentUserService.UserId;
-        var result = await _prescriptionService.GetPrescriptionByIdAsync(id, userId);
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.GetPrescriptionByIdAsync(id, userId);
 
-        if (!result.Success) return StatusCode(result.Code, result);
-        return Ok(result);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
-    [HttpPut("{id}")]
+        [HttpPut("{id}")]
     public async Task<IActionResult> UpdatePrescription(Guid id, [FromBody] UpdatePrescriptionRequest request)
     {
-        var userId = _currentUserService.UserId;
-        var result = await _prescriptionService.UpdatePrescriptionAsync(id, userId, request);
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.UpdatePrescriptionAsync(id, userId, request);
 
-        if (!result.Success) return StatusCode(result.Code, result);
-        return Ok(result);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
 
     // DELETE: api/v1/prescriptions/{id}
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletePrescription(Guid id)
     {
+        try { 
         var userId = _currentUserService.UserId;
         var result = await _prescriptionService.DeletePrescriptionAsync(id, userId);
 
         if (!result.Success) return StatusCode(result.Code, result);
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
 
     // POST: api/v1/prescriptions/{id}/images
@@ -76,10 +110,16 @@ public class PrescriptionController : ControllerBase
     [HttpPost("{id}/images")]
     public async Task<IActionResult> AddImage(Guid id, IFormFile file)
     {
+        try { 
         var userId = _currentUserService.UserId;
         var result = await _prescriptionService.AddImageToPrescriptionAsync(id, userId, file);
 
         if (!result.Success) return StatusCode(result.Code, result);
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
     }
 }

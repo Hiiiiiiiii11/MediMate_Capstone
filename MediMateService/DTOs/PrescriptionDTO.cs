@@ -65,4 +65,23 @@
         public List<PrescriptionMedicineDto> Medicines { get; set; }
     }
 
+    
+    public class OcrScanResponse
+    {
+        public string ImageUrl { get; set; } = string.Empty;       
+        public string ThumbnailUrl { get; set; } = string.Empty;   
+        public string RawText { get; set; } = string.Empty;        
+        public ExtractedPrescriptionData ExtractedData { get; set; } = new(); 
+    }
+
+   
+    public class ExtractedPrescriptionData
+    {
+        public string? DoctorName { get; set; }
+        public string? HospitalName { get; set; }
+        public string? PrescriptionCode { get; set; }
+        public string? PrescriptionDate { get; set; }  
+        public string? Notes { get; set; }
+        public List<PrescriptionMedicineDto> Medicines { get; set; } = new();
+    }
 }

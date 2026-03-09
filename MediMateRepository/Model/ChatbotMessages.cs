@@ -7,14 +7,21 @@ using System.Threading.Tasks;
 
 namespace MediMateRepository.Model
 {
-    
+
     public class ChatbotMessages
     {
         public Guid BotMessageId { get; set; }
         public Guid BotSessionId { get; set; }
-        public enum Role { User, Bot }
+        public ChatRole Role { get; set; }
         public string Content { get; set; }
-        public JsonArray Metadata { get; set; }
+        public string? MetadataJson { get; set; }
         public DateTime CreateAt { get; set; }
+
+        public virtual ChatbotSession? Session { get; set; }
+    }
+    public enum ChatRole
+    {
+        User = 0,
+        Bot = 1
     }
 }

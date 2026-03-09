@@ -22,6 +22,8 @@ namespace MediMateRepository.Data
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
+        public DbSet<ChatbotSession> ChatbotSessions { get; set; }
+        public DbSet<ChatbotMessages> ChatbotMessages { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -42,6 +44,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
+            modelBuilder.Entity<ChatbotSession>().HasKey(cs => cs.BotSessionId);
+            modelBuilder.Entity<ChatbotMessages>().HasKey(cm => cm.BotMessageId);
 
 
 
@@ -181,6 +185,18 @@ namespace MediMateRepository.Data
                 .HasForeignKey(al => al.MemberId)
                 .OnDelete(DeleteBehavior.NoAction); // QUAN TRỌNG: Dùng NoAction để tránh lỗi vòng lặp Cascade (Đụng độ với lệnh Xóa Family ở trên).
                                                     // Nếu Member bị xóa, Log vẫn còn giữ lại để chủ hộ biết "Ai đó đã từng làm gì", nhưng ta phải tự xử lý hiển thị MemberId bị null/mất tích trên UI.
+            modelBuilder.Entity<ChatbotSession>()
+                .HasOne(cs => cs.Member)
+                .WithMany() // Nếu bảng Members không có list Sessions thì để trống
+                .HasForeignKey(cs => cs.MemberId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Xóa tất cả các phiên chat của họ
+
+            // 2. Quan hệ 1-N: ChatbotSession -> ChatbotMessages
+            modelBuilder.Entity<ChatbotMessages>()
+                .HasOne(cm => cm.Session)
+                .WithMany(cs => cs.Messages) // Map ngược lại list Messages trong ChatbotSession
+                .HasForeignKey(cm => cm.BotSessionId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Session -> Xóa sạch tin nhắn trong session đó
         }
     }
 }

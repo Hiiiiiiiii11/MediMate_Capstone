@@ -12,6 +12,6 @@ namespace MediMateRepository.Model
         public DateTime AppointmentDate { get; set; }
         public string Status { get; set; } = "Pending";
         public string? CancelReason { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
     }
 }

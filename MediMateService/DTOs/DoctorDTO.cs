@@ -10,8 +10,7 @@ namespace MediMateService.DTOs
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; }
-        public bool IsVerified { get; set; }
-        public bool IsActive { get; set; }
+        public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }
@@ -35,16 +34,6 @@ namespace MediMateService.DTOs
         public string LicenseNumber { get; set; } = string.Empty;
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
-    }
-
-    public class ChangeDoctorStatusDto
-    {
-        public bool IsActive { get; set; }
-    }
-
-    public class VerifyDoctorLicenseDto
-    {
-        public bool IsVerified { get; set; } = true;
     }
 
     public class ApproveDoctorDto

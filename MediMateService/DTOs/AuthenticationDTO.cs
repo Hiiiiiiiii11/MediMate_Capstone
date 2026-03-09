@@ -28,6 +28,7 @@ namespace MediMateService.DTOs
 
         [Required(ErrorMessage = "Vui lòng nhập mật khẩu")]
         public string Password { get; set; } = string.Empty;
+        public string? FcmToken { get; set; }
     }
 
     // --- RESPONSE MODELS ---
@@ -41,5 +42,11 @@ namespace MediMateService.DTOs
         //public string Role { get; set; } = Roles.User;
         //public string? AvatarUrl { get; set; }
         public string AccessToken { get; set; } = string.Empty;
+    }
+
+    public class DependentQrLoginRequest
+    {
+        public string QrData { get; set; } // Dữ liệu quét được từ QR (VD: "LOGIN-abc123xyz...")
+        public string? FcmToken { get; set; }
     }
 }

@@ -4,6 +4,8 @@ services:
     image: postgres:16-alpine
     container_name: medimate_postgres_prod
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: medimate
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -33,6 +35,11 @@ services:
       CloudinarySettings__CloudName: ${CLOUDINARY_CLOUD_NAME}
       CloudinarySettings__ApiKey: ${CLOUDINARY_API_KEY}
       CloudinarySettings__ApiSecret: ${CLOUDINARY_API_SECRET}
+      SEED_ADMIN_MAIL: ${SEED_ADMIN_MAIL}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+      SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME}
+      GoogleVision__ApiKey: ${GoogleVision__ApiKey}
+      GroqSettings__ApiKey: ${GroqSettings__ApiKey}
     depends_on:
       postgres:
         condition: service_healthy

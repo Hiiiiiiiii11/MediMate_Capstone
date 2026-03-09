@@ -33,7 +33,7 @@ namespace MediMateService.Services.Implementations
                 CreateBy = userId,
                 Type = FamilyType.Personal, // Đánh dấu là cá nhân
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // 2. Tạo Member (Copy info từ User)
@@ -43,7 +43,7 @@ namespace MediMateService.Services.Implementations
                 FamilyId = family.FamilyId,
                 UserId = userId,
                 FullName = user.FullName,
-                DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
+                DateOfBirth = user.DateOfBirth ?? DateTime.Now,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
                 Role = Roles.Owner,
@@ -74,7 +74,7 @@ namespace MediMateService.Services.Implementations
                 CreateBy = userId,
                 Type = FamilyType.Shared, // Đánh dấu là gia đình
                 JoinCode = GenerateJoinCode(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // 2. Tạo Member (Người tạo là Owner)
@@ -84,7 +84,7 @@ namespace MediMateService.Services.Implementations
                 FamilyId = family.FamilyId,
                 UserId = userId,
                 FullName = user.FullName, // Mặc định lấy tên user, sau này có thể sửa biệt danh trong gia đình
-                DateOfBirth = user.DateOfBirth ?? DateTime.UtcNow,
+                DateOfBirth = user.DateOfBirth ?? DateTime.Now,
                 Gender = user.Gender ?? "Other",
                 AvatarUrl = user.AvatarUrl,
                 Role = Roles.Owner,
@@ -98,25 +98,60 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<FamilyResponse>.Ok(MapToResponse(family, 1));
         }
 
-        public async Task<ApiResponse<IEnumerable<FamilyResponse>>> GetMyFamiliesAsync(Guid userId)
+        public async Task<ApiResponse<IEnumerable<FamilyResponse>>> GetMyFamiliesAsync(Guid callerId)
         {
-            // Lấy danh sách Family mà user tham gia
-            var members = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == userId);
-            var result = new List<FamilyResponse>();
+            IEnumerable<Members> membersList;
 
-            foreach (var mem in members)
+            // 1. Thử tìm theo UserId (Trường hợp là User/Bố Mẹ)
+            // Một User có thể tham gia nhiều Family -> List Members
+            membersList = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == callerId);
+
+            // 2. Nếu không thấy (hoặc list rỗng), thử tìm theo MemberId (Trường hợp là Dependent)
+            if (!membersList.Any())
             {
-                var family = await _unitOfWork.Repository<Families>().GetByIdAsync(mem.FamilyId);
-                if (family != null)
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(callerId);
+                if (member != null)
                 {
-                    // Đếm số lượng thành viên thực tế (Optional)
-                    var count = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == family.FamilyId)).Count();
-
-                    result.Add(MapToResponse(family, count));
+                    membersList = new List<Members> { member };
                 }
             }
-            return ApiResponse<IEnumerable<FamilyResponse>>.Ok(result);
+
+            // Nếu vẫn không thấy ai -> Trả về rỗng
+            if (membersList == null || !membersList.Any())
+            {
+                return ApiResponse<IEnumerable<FamilyResponse>>.Ok(new List<FamilyResponse>(), "Không tìm thấy gia đình nào.");
+            }
+
+            var result = new List<FamilyResponse>();
+
+            // 3. Duyệt danh sách để lấy thông tin Family
+            foreach (var mem in membersList)
+            {
+                if (mem.FamilyId.HasValue) // Chỉ xử lý nếu đã join family
+                {
+                    var family = await _unitOfWork.Repository<Families>().GetByIdAsync(mem.FamilyId.Value);
+                    if (family != null)
+                    {
+                        // Đếm số thành viên
+                        var count = (await _unitOfWork.Repository<Members>()
+                            .FindAsync(m => m.FamilyId == family.FamilyId)).Count();
+
+                        result.Add(new FamilyResponse
+                        {
+                            FamilyId = family.FamilyId,
+                            FamilyName = family.FamilyName,
+                            Type = family.Type.ToString(),
+                            JoinCode = family.JoinCode,
+                            IsOpenJoin = family.IsOpenJoin,
+                            MemberCount = count,
+                            CreatedAt = family.CreatedAt
+                        });
+                    }
+                }
+            }
+
+            return ApiResponse<IEnumerable<FamilyResponse>>.Ok(result.DistinctBy(f => f.FamilyId));
+            // DistinctBy để tránh trường hợp 1 user có 2 member record trong cùng 1 family (lỗi data)
         }
 
         // Helper functions
@@ -128,6 +163,7 @@ namespace MediMateService.Services.Implementations
                 FamilyName = family.FamilyName,
                 Type = family.Type.ToString(), // Trả về "Personal" hoặc "Shared"
                 JoinCode = family.JoinCode,
+                IsOpenJoin = family.IsOpenJoin,
                 MemberCount = count,
                 CreatedAt = family.CreatedAt
             };
@@ -159,21 +195,36 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<FamilyResponse>> UpdateFamilyAsync(Guid familyId, Guid userId, UpdateFamilyRequest request)
         {
             var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
+
             if (family == null)
             {
-                return ApiResponse<FamilyResponse>.Fail("Family not found", 404);
+                return ApiResponse<FamilyResponse>.Fail("Gia đình không tồn tại.", 404);
             }
 
-            // Chỉ người tạo (Owner) mới được sửa
+            // Kiểm tra quyền: Chỉ người tạo (CreateBy) hoặc Owner mới được sửa
+            // (Nếu logic của bạn dùng bảng Members để phân quyền Owner thì query bảng Members ở đây)
             if (family.CreateBy != userId)
             {
-                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa.", 403);
+                return ApiResponse<FamilyResponse>.Fail("Bạn không có quyền chỉnh sửa thông tin gia đình này.", 403);
             }
 
-            family.FamilyName = request.FamilyName;
+            // 1. Cập nhật Tên (nếu có gửi lên)
+            if (!string.IsNullOrEmpty(request.FamilyName))
+            {
+                family.FamilyName = request.FamilyName;
+            }
+
+            // 2. Cập nhật Trạng thái Mở/Đóng Join Code (nếu có gửi lên)
+            // .HasValue kiểm tra xem client có gửi trường này không
+            if (request.IsOpenJoin.HasValue)
+            {
+                family.IsOpenJoin = request.IsOpenJoin.Value;
+            }
+
             _unitOfWork.Repository<Families>().Update(family);
             await _unitOfWork.CompleteAsync();
 
+            // Trả về thông tin mới nhất
             return await GetFamilyByIdAsync(familyId, userId);
         }
 

@@ -22,6 +22,53 @@ namespace MediMateRepository.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MediMateRepository.Model.ActivityLogs", b =>
+                {
+                    b.Property<Guid>("LogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewDataJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldDataJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("LogId");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("MemberId");
+
+                    b.ToTable("ActivityLogs");
+                });
+
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
                     b.Property<Guid>("FamilyId")
@@ -39,6 +86,9 @@ namespace MediMateRepository.Migrations
 
                     b.Property<string>("FamilyName")
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsOpenJoin")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("JoinCode")
                         .HasColumnType("text");
@@ -176,6 +226,9 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime>("AcknowledgedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<DateTime>("ReminderDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -276,6 +329,9 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid?>("FamilyId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("FcmToken")
+                        .HasColumnType("text");
+
                     b.Property<string>("FullName")
                         .HasColumnType("text");
 
@@ -309,6 +365,45 @@ namespace MediMateRepository.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Members");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>
+                {
+                    b.Property<Guid>("SettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CustomSetting")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("EnableEmailNotification")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("EnableFamilyAlert")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("EnablePushNotification")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("EnableSmsNotification")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ReminderAdvanceMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdateAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("SettingId");
+
+                    b.HasIndex("MemberId")
+                        .IsUnique();
+
+                    b.ToTable("NotificationSettings");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>
@@ -459,6 +554,9 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime?>("ExpiriedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("FcmToken")
+                        .HasColumnType("text");
+
                     b.Property<string>("FullName")
                         .HasColumnType("text");
 
@@ -492,6 +590,25 @@ namespace MediMateRepository.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.ActivityLogs", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Families", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MediMateRepository.Model.Members", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Family");
+
+                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
@@ -594,6 +711,17 @@ namespace MediMateRepository.Migrations
                     b.HasOne("MediMateRepository.Model.User", null)
                         .WithMany("MemberProfiles")
                         .HasForeignKey("UserId");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Members", "Member")
+                        .WithOne()
+                        .HasForeignKey("MediMateRepository.Model.NotificationSetting", "MemberId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.PrescriptionImages", b =>

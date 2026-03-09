@@ -1,5 +1,10 @@
+
 using CloudinaryDotNet;
 using DotNetEnv;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
+using Hangfire;
+using Hangfire.PostgreSql;
 using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
@@ -17,12 +22,14 @@ using Share.Jwt;
 using System.Text;
 using System.Text.Json;
 
+
 namespace MediMate
 {
     public class Program
     {
         public static void Main(string[] args)
         {
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             var builder = WebApplication.CreateBuilder(args);
             if (builder.Environment.IsDevelopment())
             {
@@ -53,9 +60,6 @@ namespace MediMate
             builder.Services.AddDbContext<MediMateDbContext>(options =>
             {
                 options.UseNpgsql(connectionString);
-
-                // Fix lỗi ngày giờ UTC của PostgreSQL
-                AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             });
 
             builder.Services.AddHttpContextAccessor();
@@ -71,6 +75,12 @@ namespace MediMate
             builder.Services.AddScoped<IMemberService, MemberService>();
             builder.Services.AddScoped<IHealthService, HealthService>();
             builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+            builder.Services.AddTransient<IReminderJobService, ReminderJobService>();
+            builder.Services.AddScoped<IMedicationSchedulesService, MedicationSchedulesService>();
+            builder.Services.AddScoped<IFirebaseNotificationService, FirebaseNotificationService>();
+
+
+            builder.Services.AddAutoMapper(typeof(Program));
 
             builder.Services.AddScoped<IMockDoctorRepository, MockDoctorRepository>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
@@ -79,6 +89,50 @@ namespace MediMate
             builder.Services.AddScoped<IMockAppointmentRepository, MockAppointmentRepository>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IConsultationService, ConsultationService>();
+
+            builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(builder.Configuration.GetConnectionString("MedimateDbConnection"))
+);
+
+
+            builder.Services.AddHangfireServer();
+
+
+            var projectId = Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID");
+            var clientEmail = Environment.GetEnvironmentVariable("FIREBASE_CLIENT_EMAIL");
+
+            // Fix lỗi format Private Key (đổi chuỗi "\n" dạng text thành ký tự xuống dòng thật)
+            var privateKey = Environment.GetEnvironmentVariable("FIREBASE_PRIVATE_KEY")?.Replace("\\n", "\n");
+
+            if (!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(clientEmail) && !string.IsNullOrEmpty(privateKey))
+            {
+                // Cấu trúc lại file JSON trực tiếp trên RAM
+                string firebaseJsonConfig = $$"""
+    {
+      "type": "service_account",
+      "project_id": "{{projectId}}",
+      "private_key": "{{privateKey}}",
+      "client_email": "{{clientEmail}}"
+    }
+    """;
+
+                FirebaseApp.Create(new AppOptions()
+                {
+                    Credential = GoogleCredential.FromJson(firebaseJsonConfig)
+                });
+
+                Console.WriteLine("Firebase initialized successfully from .env");
+            }
+            else
+            {
+                Console.WriteLine("Warning: Firebase configuration is missing in .env file.");
+            }
+
+            builder.Services.AddHttpClient(); 
+            builder.Services.AddScoped<IOcrService, OcrService>();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -214,6 +268,7 @@ namespace MediMate
                 });
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
+            app.UseHangfireDashboard("/hangfire");
 
 
             app.UseSwagger();

@@ -21,16 +21,6 @@ namespace MediMate.Models.Doctors
         public string Bio { get; set; } = string.Empty;
     }
 
-    public class ChangeDoctorStatusRequest
-    {
-        public bool IsActive { get; set; }
-    }
-
-    public class VerifyDoctorLicenseRequest
-    {
-        public bool IsVerified { get; set; } = true;
-    }
-
     public class ApproveDoctorRequest
     {
         public string Action { get; set; } = "approve";

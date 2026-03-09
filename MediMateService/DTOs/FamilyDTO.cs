@@ -12,7 +12,8 @@ namespace MediMateService.DTOs
     }
     public class UpdateFamilyRequest
     {
-        public string FamilyName { get; set; }
+        public string? FamilyName { get; set; }
+        public bool? IsOpenJoin { get; set; }
     }
 
     // Response chung cho cả 2 chế độ
@@ -21,7 +22,8 @@ namespace MediMateService.DTOs
         public Guid FamilyId { get; set; }
         public string FamilyName { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty; // "Personal" hoặc "Shared"
-        public string JoinCode { get; set; } = string.Empty;
+        public string JoinCode { get; set; } 
+        public bool IsOpenJoin { get; set; }
         public int MemberCount { get; set; }
         public DateTime CreatedAt { get; set; }
     }

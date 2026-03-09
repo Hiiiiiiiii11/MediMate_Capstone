@@ -32,41 +32,15 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
-
-        [HttpPost("join-by-joincode")]
-        [AllowAnonymous] // Mở cửa cho tất cả
-        public async Task<IActionResult> JoinFamily([FromBody] JoinFamilyRequest request)
-        {
-            Guid? userId = null;
-
-            // Tự check Token thủ công (vì AllowAnonymous sẽ bỏ qua Authorize Middleware)
-            try
-            {
-                if (User.Identity != null && User.Identity.IsAuthenticated)
-                {
-                    // Lấy Claim thủ công để an toàn
-                    var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                    if (Guid.TryParse(userIdString, out var parsedId)) userId = parsedId;
-                }
-            }
-            catch
-            {
-                // Không có token hoặc token lỗi -> Coi như là Guest (Dependent)
-                userId = null;
-            }
-
-            var result = await _memberService.JoinFamilyUnifiedAsync(userId, request);
-
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
-        }
-        // API: Tạo hồ sơ phụ thuộc -> Nhận QR
-        [HttpPost("init-dependent")]
-        public async Task<IActionResult> InitDependent([FromBody] InitDependentRequest request)
+        [Authorize]
+        [HttpPost("create-dependent-member")]
+        public async Task<IActionResult> CreateDependentMember([FromBody] CreateDependentRequest request)
         {
             try
             {
-                var result = await _memberService.InitDependentProfileAsync(request);
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.CreateDependentMemberAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -76,16 +50,106 @@ namespace MediMate.Controllers
             }
         }
 
-        [HttpGet("{memberId}/qr/viewQr")]
-        public async Task<IActionResult> GetMemberQr(Guid memberId)
+        [Authorize]
+        [HttpPost("add-user-member-by-phone")]
+        public async Task<IActionResult> AddUserMemberByPhone([FromBody] AddUserMemberRequest request)
         {
-            // userId lấy từ Token, dùng để check quyền nếu cần
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.AddUserMemberToFamilyAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+        [Authorize]
+        [HttpPost("user-join")]
+        public async Task<IActionResult> UserJoinFamily([FromBody] JoinFamilyByCodeRequest request)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.JoinFamilyByJoinCodeAsync(request, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
-            var result = await _memberService.GetIdentityQrAsync(memberId);
+        [Authorize]
+        [HttpPost("generate-dependent-logincode")]
+        public async Task<IActionResult> GenerateLoginCode(Guid memberId)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.GenerateLoginQrForDependentAsync(memberId, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+        //[HttpPost("join-by-joincode")]
+        //[AllowAnonymous] // Mở cửa cho tất cả
+        //public async Task<IActionResult> JoinFamily([FromBody] JoinFamilyRequest request)
+        //{
+        //    Guid? userId = null;
 
+        //    // Tự check Token thủ công (vì AllowAnonymous sẽ bỏ qua Authorize Middleware)
+        //    try
+        //    {
+        //        if (User.Identity != null && User.Identity.IsAuthenticated)
+        //        {
+        //            // Lấy Claim thủ công để an toàn
+        //            var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        //            if (Guid.TryParse(userIdString, out var parsedId)) userId = parsedId;
+        //        }
+        //    }
+        //    catch
+        //    {
+        //        // Không có token hoặc token lỗi -> Coi như là Guest (Dependent)
+        //        userId = null;
+        //    }
+
+        //    var result = await _memberService.JoinFamilyUnifiedAsync(userId, request);
+
+        //    if (!result.Success) return StatusCode(result.Code, result);
+        //    return Ok(result);
+        //}
+        // API: Tạo hồ sơ phụ thuộc -> Nhận QR
+        [AllowAnonymous] // Không cần token
+        [HttpPost("dependent-join")]
+        public async Task<IActionResult> CreateDependentByCode([FromBody] InitDependentRequest request)
+        {
+            // Bắt buộc request phải có JoinCode, truyền null cho userId
+            var result = await _memberService.InitDependentProfileAsync(request, null);
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
         }
+
+        //[HttpGet("{memberId}/qr/viewQr")]
+        //public async Task<IActionResult> GetMemberQr(Guid memberId)
+        //{
+        //    // userId lấy từ Token, dùng để check quyền nếu cần
+
+        //    var result = await _memberService.GetIdentityQrAsync(memberId);
+
+        //    if (!result.Success) return StatusCode(result.Code, result);
+        //    return Ok(result);
+        //}
 
         [HttpGet("family/{familyId}")]
         public async Task<IActionResult> GetMembersByFamily(Guid familyId)
@@ -125,6 +189,7 @@ namespace MediMate.Controllers
         }
 
         // PUT: api/v1/members/{id} -> Sửa thông tin
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateMember(Guid id, [FromForm] UpdateMemberRequest request)
         {
@@ -143,7 +208,8 @@ namespace MediMate.Controllers
         }
 
         // DELETE: api/v1/members/{id} -> Xóa/Rời nhóm
-        [HttpDelete("{id}")]
+        [Authorize]
+        [HttpPut("remove/{id}")]
         public async Task<IActionResult> RemoveMember(Guid id)
         {
             try
@@ -159,5 +225,23 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [Authorize]
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> DeleteMember(Guid id)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _memberService.DeleteMemberAsync(id, userId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ex ở đây nếu cần
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
     }
 }

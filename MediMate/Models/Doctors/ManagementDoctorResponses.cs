@@ -10,8 +10,7 @@ namespace MediMate.Models.Doctors
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; }
-        public bool IsVerified { get; set; }
-        public bool IsActive { get; set; }
+        public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }

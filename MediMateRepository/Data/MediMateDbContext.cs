@@ -20,6 +20,8 @@ namespace MediMateRepository.Data
         public DbSet<MedicationLogs> MedicationLogs { get; set; }
         public DbSet<MedicationSchedules> MedicationSchedules { get; set; }
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
+        public DbSet<NotificationSetting> NotificationSettings { get; set; }
+        public DbSet<ActivityLogs> ActivityLogs { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -38,6 +40,9 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<MedicationLogs>().HasKey(ml => ml.LogId);
             modelBuilder.Entity<MedicationSchedules>().HasKey(ms => ms.ScheduleId);
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
+            modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
+            modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
+
 
 
             // --- USER CONFIGURATION ---
@@ -154,6 +159,28 @@ namespace MediMateRepository.Data
                 .WithMany()
                 .HasForeignKey(ml => ml.ReminderId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa nhắc nhở -> Xóa log
+
+            // Quan hệ 1-1: Members <-> NotificationSetting
+            modelBuilder.Entity<NotificationSetting>()
+                .HasOne(ns => ns.Member)
+                .WithOne() // Nếu bảng Members bạn không khai báo `public virtual NotificationSetting Setting` thì để trống WithOne()
+                .HasForeignKey<NotificationSetting>(ns => ns.MemberId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Tự động xóa Cài đặt thông báo
+
+            // Quan hệ 1-N: Families -> ActivityLogs
+            modelBuilder.Entity<ActivityLogs>()
+                .HasOne(al => al.Family)
+                .WithMany()
+                .HasForeignKey(al => al.FamilyId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Family -> Xóa sạch lịch sử hoạt động của gia đình đó
+
+            // Quan hệ 1-N: Members -> ActivityLogs
+            modelBuilder.Entity<ActivityLogs>()
+                .HasOne(al => al.Member)
+                .WithMany()
+                .HasForeignKey(al => al.MemberId)
+                .OnDelete(DeleteBehavior.NoAction); // QUAN TRỌNG: Dùng NoAction để tránh lỗi vòng lặp Cascade (Đụng độ với lệnh Xóa Family ở trên).
+                                                    // Nếu Member bị xóa, Log vẫn còn giữ lại để chủ hộ biết "Ai đó đã từng làm gì", nhưng ta phải tự xử lý hiển thị MemberId bị null/mất tích trên UI.
         }
     }
 }

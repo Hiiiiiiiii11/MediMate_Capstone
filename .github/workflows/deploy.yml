@@ -75,6 +75,9 @@ jobs:
             CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
             SEED_ADMIN_MAIL=${{ secrets.SEED_ADMIN_MAIL }}
             SEED_ADMIN_PASSWORD=${{ secrets.SEED_ADMIN_PASSWORD }}
+            SEED_ADMIN_FULLNAME=${{ secrets.SEED_ADMIN_FULLNAME }}
+            GoogleVision__ApiKey=${{ secrets.GOOGLE_VISION_API_KEY }}
+            GroqSettings__ApiKey=${{ secrets.GROQ_API_KEY }}
             EOF
 
             docker compose -f docker-compose.prod.yml pull

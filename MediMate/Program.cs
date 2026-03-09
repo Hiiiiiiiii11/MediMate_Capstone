@@ -92,9 +92,6 @@ namespace MediMate
             builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
             builder.Services.AddScoped<INotificationSettingService, NotificationSettingService>();
 
-
-
-
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
@@ -136,6 +133,8 @@ namespace MediMate
                 Console.WriteLine("Warning: Firebase configuration is missing in .env file.");
             }
 
+            builder.Services.AddHttpClient(); 
+            builder.Services.AddScoped<IOcrService, OcrService>();
 
             // Add services to the container.
             builder.Services.AddControllers()

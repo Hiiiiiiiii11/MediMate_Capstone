@@ -6,35 +6,34 @@ using Share.Common;
 
 [Route("api/v1/upload")]
 [ApiController]
-[Authorize] // Vẫn cần đăng nhập mới được upload
+[Authorize]
 public class UploadController : ControllerBase
 {
     private readonly IUploadPhotoService _uploadPhotoService;
+    private readonly IOcrService _ocrService;
 
-    public UploadController(IUploadPhotoService uploadPhotoService)
+    public UploadController(IUploadPhotoService uploadPhotoService, IOcrService ocrService)
     {
         _uploadPhotoService = uploadPhotoService;
+        _ocrService = ocrService;
     }
 
-    // POST: api/v1/upload/prescription-scan
-    // API này dùng cho bước 1: Chụp ảnh -> Lấy link
+   
     [HttpPost("prescription-scan")]
     public async Task<IActionResult> UploadForScan(IFormFile file)
     {
         try
         {
-            var result = await _uploadPhotoService.UploadPhotoAsync(file);
-            // Trả về URL để FE gọi AI hoặc hiển thị
-            return Ok(new ApiResponse<FileUploadResult>
-            {
-                Success = true,
-                Data = result,
-                Message = "Upload thành công."
-            });
+            var result = await _ocrService.ScanPrescriptionAsync(file);
+            return Ok(ApiResponse<OcrScanResponse>.Ok(result, "Quét đơn thuốc thành công."));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<string>.Fail(ex.Message, 400));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new ApiResponse<string> { Success = false, Message = ex.Message });
+            return StatusCode(500, ApiResponse<string>.Fail($"Lỗi xử lý: {ex.Message}", 500));
         }
     }
 }

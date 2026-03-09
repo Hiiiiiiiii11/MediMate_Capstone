@@ -38,6 +38,8 @@ services:
       SEED_ADMIN_MAIL: ${SEED_ADMIN_MAIL}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
       SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME}
+      GoogleVision__ApiKey: ${GoogleVision__ApiKey}
+      GroqSettings__ApiKey: ${GroqSettings__ApiKey}
     depends_on:
       postgres:
         condition: service_healthy

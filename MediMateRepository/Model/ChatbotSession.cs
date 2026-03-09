@@ -15,5 +15,6 @@ namespace MediMateRepository.Model
         public DateTime LastMessageAt { get; set; }
         public bool IsActive { get; set; }
         public virtual Members Member { get; set; }
+        public virtual ICollection<ChatbotMessages> Messages { get; set; } = new List<ChatbotMessages>();
     }
 }

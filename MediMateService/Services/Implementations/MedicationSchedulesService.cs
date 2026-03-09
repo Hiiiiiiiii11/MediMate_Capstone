@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
+using Share.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,12 +17,14 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IActivityLogService _activityLogService;
 
-        public MedicationSchedulesService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IBackgroundJobClient backgroundJobClient)
+        public MedicationSchedulesService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _backgroundJobClient = backgroundJobClient;
+            _activityLogService = activityLogService;
         }
 
         public async Task<ApiResponse<ScheduleResponse>> CreateScheduleAsync(Guid memberId, Guid currentUserId, CreateScheduleRequest request)
@@ -81,6 +84,24 @@ namespace MediMateService.Services.Implementations
                     job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
                     new DateTimeOffset(reminder.EndTime) // Chạy đúng lúc EndTime
                 );
+            }
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
+                        entityId: schedule.ScheduleId,
+                        description: $"Đã thiết lập lịch uống thuốc '{schedule.MedicineName}' cho '{targetMember.FullName}'."
+                    );
+                }
             }
 
             return ApiResponse<ScheduleResponse>.Ok(new ScheduleResponse { ScheduleId = schedule.ScheduleId, MedicineName = schedule.MedicineName });
@@ -203,12 +224,14 @@ namespace MediMateService.Services.Implementations
 
             if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
                 return ApiResponse<ScheduleResponse>.Fail("Access Denied", 403);
-
+            var oldData = new { schedule.MedicineName, schedule.Dosage, schedule.SpecificTimes, schedule.EndDate };
+            bool hasChanges = false;
             // 2.1 Cập nhật thông tin cơ bản
-            schedule.MedicineName = request.MedicineName;
-            schedule.Dosage = request.Dosage;
-            schedule.SpecificTimes = request.SpecificTimes;
-            schedule.EndDate = request.EndDate?.Date;
+            if (schedule.MedicineName != request.MedicineName) { schedule.MedicineName = request.MedicineName; hasChanges = true; }
+            if (schedule.Dosage != request.Dosage) { schedule.Dosage = request.Dosage; hasChanges = true; }
+            if (schedule.SpecificTimes != request.SpecificTimes) { schedule.SpecificTimes = request.SpecificTimes; hasChanges = true; }
+            if (schedule.EndDate != request.EndDate?.Date) { schedule.EndDate = request.EndDate?.Date; hasChanges = true; }
+
             schedule.Instructions = request.Instructions;
             schedule.UpdatedAt = DateTime.Now;
 
@@ -264,6 +287,32 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+            if (hasChanges)
+            {
+                var newData = new { schedule.MedicineName, schedule.Dosage, schedule.SpecificTimes, schedule.EndDate };
+                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(schedule.MemberId);
+
+                if (targetMember != null && targetMember.FamilyId.HasValue)
+                {
+                    var doer = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
+
+                    if (doer != null)
+                    {
+                        await _activityLogService.LogActivityAsync(
+                            familyId: targetMember.FamilyId.Value,
+                            memberId: doer.MemberId,
+                            actionType: ActivityActionTypes.UPDATE,
+                            entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
+                            entityId: schedule.ScheduleId,
+                            description: $"Đã điều chỉnh lịch uống thuốc '{schedule.MedicineName}' của '{targetMember.FullName}'.",
+                            oldData: oldData,
+                            newData: newData
+                        );
+                    }
+                }
+            }
+
             return ApiResponse<ScheduleResponse>.Ok(new ScheduleResponse
             {
                 ScheduleId = schedule.ScheduleId,
@@ -297,6 +346,25 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<MedicationSchedules>().Update(schedule);
 
             await _unitOfWork.CompleteAsync();
+
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(schedule.MemberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.DELETE, // Có thể cân nhắc thêm một hằng số STOP/DEACTIVATE
+                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
+                        entityId: schedule.ScheduleId,
+                        description: $"Đã dừng lịch nhắc uống thuốc '{schedule.MedicineName}' của '{targetMember.FullName}'."
+                    );
+                }
+            }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa lịch uống thuốc.");
         }

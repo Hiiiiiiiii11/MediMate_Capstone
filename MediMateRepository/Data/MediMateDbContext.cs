@@ -1,4 +1,4 @@
-using MediMateRepository.Model;
+Ôªøusing MediMateRepository.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediMateRepository.Data
@@ -22,6 +22,8 @@ namespace MediMateRepository.Data
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
+        public DbSet<ChatbotSession> ChatbotSessions { get; set; }
+        public DbSet<ChatbotMessages> ChatbotMessages { get; set; }
         // Doctor Booking
         public DbSet<Doctors> Doctors { get; set; }
         public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
@@ -54,6 +56,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
+            modelBuilder.Entity<ChatbotSession>().HasKey(cs => cs.BotSessionId);
+            modelBuilder.Entity<ChatbotMessages>().HasKey(cm => cm.BotMessageId);
             // Doctor
             modelBuilder.Entity<Doctors>().HasKey(d => d.DoctorId);
             modelBuilder.Entity<DoctorAvailability>().HasKey(da => da.DoctorAvailabilityId);
@@ -72,25 +76,25 @@ namespace MediMateRepository.Data
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.PhoneNumber)
-                .IsUnique(); // S–T l‡ duy nh?t
+                .IsUnique(); // SƒêT l√† duy nh?t
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
             // --- MEMBER CONFIGURATION ---
             // Quan h? 1-1: User <-> Member
             //modelBuilder.Entity<Members>()
-            //    .HasOne<User>() // Member cÛ th? liÍn k?t v?i User (khÙng c?n property navigation ng˝?c l?i ? User n?u khÙng mu?n)
-            //    .WithOne(u => u.MemberProfile) // User cÛ 1 MemberProfile
-            //    .HasForeignKey<Members>(m => m.UserId) // KhÛa ngo?i l‡ UserId trong b?ng Members
-            //    .IsRequired(false) // UserId cÛ th? null (cho ng˝?i gi‡/tr? em)
-            //    .OnDelete(DeleteBehavior.SetNull); // XÛa User th? set UserId v? null
+            //    .HasOne<User>() // Member c√≥ th? li√™n k?t v?i User (kh√¥ng c?n property navigation ng∆∞?c l?i ? User n?u kh√¥ng mu?n)
+            //    .WithOne(u => u.MemberProfile) // User c√≥ 1 MemberProfile
+            //    .HasForeignKey<Members>(m => m.UserId) // Kh√≥a ngo?i l√† UserId trong b?ng Members
+            //    .IsRequired(false) // UserId c√≥ th? null (cho ng∆∞?i gi√†/tr? em)
+            //    .OnDelete(DeleteBehavior.SetNull); // X√≥a User th? set UserId v? null
 
             // Quan h? 1-N: Family -> Members
             modelBuilder.Entity<Members>()
-                .HasOne<Families>() // Member thu?c v? 1 Family (d˘ng shadow navigation ho?c thÍm prop Family v‡o Member n?u c?n)
-                .WithMany(f => f.FamilyMembers) // Family cÛ nhi?u Member
+                .HasOne<Families>() // Member thu?c v? 1 Family (d√πng shadow navigation ho?c th√™m prop Family v√†o Member n?u c?n)
+                .WithMany(f => f.FamilyMembers) // Family c√≥ nhi?u Member
                 .HasForeignKey(m => m.FamilyId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa Family -> XÛa h?t Member
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Family -> X√≥a h?t Member
 
             // --- FAMILY CONFIGURATION ---
             // Quan h? 1-N: User -> Created Families
@@ -98,13 +102,13 @@ namespace MediMateRepository.Data
                 .HasOne(f => f.Creator)
                 .WithMany(u => u.CreatedFamilies)
                 .HasForeignKey(f => f.CreateBy)
-                .OnDelete(DeleteBehavior.Restrict); // XÛa User khÙng xÛa Family ? gi? l?ch s?
+                .OnDelete(DeleteBehavior.Restrict); // X√≥a User kh√¥ng x√≥a Family ƒë? gi? l?ch s?
 
             modelBuilder.Entity<Members>()
         .HasOne(m => m.HealthProfile)
         .WithOne(hp => hp.Member)
         .HasForeignKey<HealthProfiles>(hp => hp.MemberId)
-        .OnDelete(DeleteBehavior.Cascade); // XÛa Member th? xÛa luÙn HealthProfile
+        .OnDelete(DeleteBehavior.Cascade); // X√≥a Member th? x√≥a lu√¥n HealthProfile
 
             // C?u h?nh 1-N: HealthProfile - HealthConditions
             modelBuilder.Entity<HealthProfiles>()
@@ -117,38 +121,38 @@ namespace MediMateRepository.Data
             // 1. Members 1-N Prescriptions
             modelBuilder.Entity<Prescriptions>()
                 .HasOne(p => p.Member)
-                .WithMany() // N?u Member khÙng c?n list Prescriptions th? ? tr?ng, ho?c thÍm prop v‡o Member
+                .WithMany() // N?u Member kh√¥ng c?n list Prescriptions th? ƒë? tr?ng, ho?c th√™m prop v√†o Member
                 .HasForeignKey(p => p.MemberId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa Member -> XÛa ın thu?c
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Member -> X√≥a ƒë∆°n thu?c
 
             // 2. Prescriptions 1-N Images
             modelBuilder.Entity<PrescriptionImages>()
                 .HasOne(img => img.Prescription)
                 .WithMany(p => p.PrescriptionImages)
                 .HasForeignKey(img => img.PrescriptionId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa ın -> XÛa ?nh
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a ƒë∆°n -> X√≥a ?nh
 
             // 3. Prescriptions 1-N Medicines
             modelBuilder.Entity<PrescriptionMedicines>()
                 .HasOne(pm => pm.Prescription)
-                .WithMany(p => p.PrescriptionMedicines) // Mapping v?i property Medications ? s?a ? B1
+                .WithMany(p => p.PrescriptionMedicines) // Mapping v?i property Medications ƒë? s?a ? B1
                 .HasForeignKey(pm => pm.PrescriptionId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa ın -> XÛa danh s·ch thu?c
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a ƒë∆°n -> X√≥a danh s√°ch thu?c
 
 
 
-            // 1. MedicationSchedules - PrescriptionMedicines (1-1 ho?c 1-N t˘y logic)
-            // ? ‚y b?n ang ? 1 Schedule ?ng v?i 1 PrescriptionMedicineId
+            // 1. MedicationSchedules - PrescriptionMedicines (1-1 ho?c 1-N t√πy logic)
+            // ? ƒë√¢y b?n ƒëang ƒë? 1 Schedule ?ng v?i 1 PrescriptionMedicineId
             modelBuilder.Entity<MedicationSchedules>()
                 .HasOne(ms => ms.PrescriptionMedicines)
-                .WithMany() // M?t lo?i thu?c trong ın cÛ th? cÛ nhi?u l?ch u?ng (ho?c 1, t˘y b?n)
+                .WithMany() // M?t lo?i thu?c trong ƒë∆°n c√≥ th? c√≥ nhi?u l?ch u?ng (ho?c 1, t√πy b?n)
                 .HasForeignKey(ms => ms.PrescriptionMedicineId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa thu?c trong ın -> XÛa l?ch u?ng
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a thu?c trong ƒë∆°n -> X√≥a l?ch u?ng
 
             // 2. MedicationSchedules - Members (1-N)
             modelBuilder.Entity<MedicationSchedules>()
                 .HasOne(ms => ms.Member)
-                .WithMany() // Member cÛ nhi?u l?ch u?ng
+                .WithMany() // Member c√≥ nhi?u l?ch u?ng
                 .HasForeignKey(ms => ms.MemberId)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -157,9 +161,9 @@ namespace MediMateRepository.Data
             // 1. MedicationSchedules - MedicationReminders (1-N)
             modelBuilder.Entity<MedicationReminders>()
                 .HasOne(mr => mr.Schedule)
-                .WithMany(ms => ms.MedicationReminders) // Mapping ng˝?c l?i
+                .WithMany(ms => ms.MedicationReminders) // Mapping ng∆∞?c l?i
                 .HasForeignKey(mr => mr.ScheduleId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa l?ch -> XÛa c·c nh?c nh? con
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a l?ch -> X√≥a c√°c nh?c nh? con
 
             // --- MEDICATION LOGS CONFIGURATION ---
 
@@ -168,41 +172,55 @@ namespace MediMateRepository.Data
                 .HasOne(ml => ml.Member)
                 .WithMany()
                 .HasForeignKey(ml => ml.MemberId)
-                .OnDelete(DeleteBehavior.NoAction); // Tr·nh v?ng l?p cascade (Member -> Log)
+                .OnDelete(DeleteBehavior.NoAction); // Tr√°nh v?ng l?p cascade (Member -> Log)
 
             // 2. MedicationLogs - MedicationSchedules (1-N)
             modelBuilder.Entity<MedicationLogs>()
                 .HasOne(ml => ml.Schedule)
                 .WithMany()
                 .HasForeignKey(ml => ml.ScheduleId)
-                .OnDelete(DeleteBehavior.NoAction); // Tr·nh v?ng l?p cascade
+                .OnDelete(DeleteBehavior.NoAction); // Tr√°nh v?ng l?p cascade
 
             // 3. MedicationLogs - MedicationReminders (1-N)
             modelBuilder.Entity<MedicationLogs>()
                 .HasOne(ml => ml.Reminder)
                 .WithMany()
                 .HasForeignKey(ml => ml.ReminderId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa nh?c nh? -> XÛa log
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a nh?c nh? -> X√≥a log
 
             // Quan h? 1-1: Members <-> NotificationSetting
             modelBuilder.Entity<NotificationSetting>()
                 .HasOne(ns => ns.Member)
-                .WithOne() // N?u b?ng Members b?n khÙng khai b·o `public virtual NotificationSetting Setting` th? ? tr?ng WithOne()
+                .WithOne() // N?u b?ng Members b?n kh√¥ng khai b√°o `public virtual NotificationSetting Setting` th? ƒë? tr?ng WithOne()
                 .HasForeignKey<NotificationSetting>(ns => ns.MemberId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa Member -> T? ?ng xÛa C‡i ?t thÙng b·o
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Member -> T? ƒë?ng x√≥a C√†i ƒë?t th√¥ng b√°o
 
             // Quan h? 1-N: Families -> ActivityLogs
             modelBuilder.Entity<ActivityLogs>()
                 .HasOne(al => al.Family)
                 .WithMany()
                 .HasForeignKey(al => al.FamilyId)
-                .OnDelete(DeleteBehavior.Cascade); // XÛa Family -> XÛa s?ch l?ch s? ho?t ?ng c?a gia ?nh Û
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Family -> X√≥a s?ch l?ch s? ho?t ƒë?ng c?a gia ƒë?nh ƒë√≥
 
             // Quan h? 1-N: Members -> ActivityLogs
             modelBuilder.Entity<ActivityLogs>()
                 .HasOne(al => al.Member)
                 .WithMany()
                 .HasForeignKey(al => al.MemberId)
+                .OnDelete(DeleteBehavior.NoAction); // QUAN TR·ªåNG: D√πng NoAction ƒë·ªÉ tr√°nh l·ªói v√≤ng l·∫∑p Cascade (ƒê·ª•ng ƒë·ªô v·ªõi l·ªánh X√≥a Family ·ªü tr√™n).
+                                                    // N·∫øu Member b·ªã x√≥a, Log v·∫´n c√≤n gi·ªØ l·∫°i ƒë·ªÉ ch·ªß h·ªô bi·∫øt "Ai ƒë√≥ ƒë√£ t·ª´ng l√†m g√¨", nh∆∞ng ta ph·∫£i t·ª± x·ª≠ l√Ω hi·ªÉn th·ªã MemberId b·ªã null/m·∫•t t√≠ch tr√™n UI.
+            modelBuilder.Entity<ChatbotSession>()
+                .HasOne(cs => cs.Member)
+                .WithMany() // N·∫øu b·∫£ng Members kh√¥ng c√≥ list Sessions th√¨ ƒë·ªÉ tr·ªëng
+                .HasForeignKey(cs => cs.MemberId)
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Member -> X√≥a t·∫•t c·∫£ c√°c phi√™n chat c·ªßa h·ªç
+
+            // 2. Quan h·ªá 1-N: ChatbotSession -> ChatbotMessages
+            modelBuilder.Entity<ChatbotMessages>()
+                .HasOne(cm => cm.Session)
+                .WithMany(cs => cs.Messages) // Map ng∆∞·ª£c l·∫°i list Messages trong ChatbotSession
+                .HasForeignKey(cm => cm.BotSessionId)
+                .OnDelete(DeleteBehavior.Cascade); // X√≥a Session -> X√≥a s·∫°ch tin nh·∫Øn trong session ƒë√≥
                 .OnDelete(DeleteBehavior.NoAction);
 
             // ==========================================

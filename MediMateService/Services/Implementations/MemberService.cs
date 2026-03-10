@@ -15,17 +15,20 @@ namespace MediMateService.Services.Implementations
 
         // 1. THÊM Auth Service
         private readonly IAuthenticationService _authService;
+        private readonly IActivityLogService _activityLogService;
 
         public MemberService(
             IUnitOfWork unitOfWork,
             IUploadPhotoService uploadPhotoService,
             ICurrentUserService currentUserService,
-            IAuthenticationService authService) // 2. Inject
+            IAuthenticationService authService,
+            IActivityLogService activityLogService) // 2. Inject
         {
             _unitOfWork = unitOfWork;
             _uploadPhotoService = uploadPhotoService;
             _currentUserService = currentUserService;
             _authService = authService; // 3. Gán
+            _activityLogService = activityLogService;
         }
         public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember()
         {
@@ -55,6 +58,7 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<InitDependentResponse>> InitDependentProfileAsync(InitDependentRequest request, Guid? currentUserId = null)
         {
             Families family = null;
+            Members requester = null;
 
             // --- TRƯỜNG HỢP 1: USER ĐÃ ĐĂNG NHẬP (BỐ MẸ TẠO CHO CON) ---
             if (currentUserId.HasValue && request.TargetFamilyId.HasValue)
@@ -62,8 +66,7 @@ namespace MediMateService.Services.Implementations
                 family = await _unitOfWork.Repository<Families>().GetByIdAsync(request.TargetFamilyId.Value);
                 if (family == null) return ApiResponse<InitDependentResponse>.Fail("Gia đình không tồn tại.", 404);
 
-                // Check quyền: Người tạo phải thuộc gia đình này (tốt nhất là Owner)
-                var requester = (await _unitOfWork.Repository<Members>()
+                requester = (await _unitOfWork.Repository<Members>()
                     .FindAsync(m => m.FamilyId == family.FamilyId && m.UserId == currentUserId.Value)).FirstOrDefault();
 
                 if (requester == null || requester.Role != Roles.Owner)
@@ -71,7 +74,6 @@ namespace MediMateService.Services.Implementations
                     return ApiResponse<InitDependentResponse>.Fail("Chỉ Chủ gia đình mới có quyền tạo thêm thành viên.", 403);
                 }
             }
-            // --- TRƯỜNG HỢP 2: DEPENDENT CHƯA ĐĂNG NHẬP (TỰ TẠO BẰNG MÃ JOIN CODE) ---
             else if (!string.IsNullOrWhiteSpace(request.JoinCode))
             {
                 family = (await _unitOfWork.Repository<Families>()
@@ -79,17 +81,16 @@ namespace MediMateService.Services.Implementations
 
                 if (family == null) return ApiResponse<InitDependentResponse>.Fail("Mã gia đình không chính xác.", 404);
             }
-            // --- NẾU KHÔNG CÓ CẢ 2 ---
             else
             {
                 return ApiResponse<InitDependentResponse>.Fail("Vui lòng cung cấp mã gia đình hoặc ID gia đình đích.", 400);
             }
 
-            if (!family.IsOpenJoin)
+            if (!family.IsOpenJoin && requester == null) // Bỏ qua check mã nếu là owner tự tạo con
             {
                 return ApiResponse<InitDependentResponse>.Fail("Gia đình này đang tạm khóa tính năng tham gia bằng mã.", 403);
             }
-            // 3. Kiểm tra loại gia đình (Dùng chung cho cả 2 trường hợp)
+
             if (family.Type == FamilyType.Personal)
             {
                 return ApiResponse<InitDependentResponse>.Fail("Không thể thêm thành viên vào hồ sơ cá nhân.", 403);
@@ -123,6 +124,15 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Members>().AddAsync(newMember);
             await _unitOfWork.CompleteAsync();
 
+            Guid doerId = requester != null ? requester.MemberId : newMember.MemberId;
+            await _activityLogService.LogActivityAsync(
+                familyId: family.FamilyId,
+                memberId: doerId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: ActivityEntityNames.MEMBER,
+                entityId: newMember.MemberId,
+                description: $"Đã thêm thành viên mới: {newMember.FullName}."
+            );
             // --- LOGIC TỰ ĐỘNG ĐĂNG NHẬP Ở ĐÂY ---
             string? accessToken = null;
             // 5. Trả về kết quả
@@ -215,12 +225,9 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<MemberResponse>.Fail("Member not found", 404);
             }
-
-            // Check quyền: 
-            // 1. Chính chủ (UserId khớp)
-            // 2. Hoặc là Owner của Family đó
             bool isSelf = member.UserId == userId;
             bool isOwner = false;
+            Members doer = null;
 
             if (member.FamilyId != null)
             {
@@ -236,32 +243,34 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<MemberResponse>.Fail("Bạn không có quyền sửa thông tin này.", 403);
             }
-
+            var oldData = new { member.FullName, member.DateOfBirth, member.Gender, member.AvatarUrl };
             // Update logic
-            member.FullName = request.FullName;
-            if (request.DateOfBirth.HasValue)
-            {
-                member.DateOfBirth = request.DateOfBirth.Value;
-            }
+            member.FullName = request.FullName ?? member.FullName;
+            if (request.DateOfBirth.HasValue) member.DateOfBirth = request.DateOfBirth.Value;
+            if (!string.IsNullOrEmpty(request.Gender)) member.Gender = request.Gender;
 
-            member.Gender = request.Gender;
-
-            // Chỉ Owner mới được quyền đổi Role người khác (VD: Thăng chức vợ lên làm Owner)
-            //if (isOwner && !string.IsNullOrEmpty(request.Role))
-            //{
-            //    member.Role = request.Role;
-            //}if (request.AvatarFile != null)
+            if (request.AvatarFile != null)
             {
-                // Gọi hàm upload mới
                 var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
-
-                // Lưu link vào DB
-                // Với Avatar, ta thường dùng OriginalUrl (đã được crop face ở service)
                 member.AvatarUrl = uploadResult.OriginalUrl;
             }
 
             _unitOfWork.Repository<Members>().Update(member);
             await _unitOfWork.CompleteAsync();
+            if (doer != null && member.FamilyId.HasValue)
+            {
+                var newData = new { member.FullName, member.DateOfBirth, member.Gender, member.AvatarUrl };
+                await _activityLogService.LogActivityAsync(
+                    familyId: member.FamilyId.Value,
+                    memberId: doer.MemberId,
+                    actionType: ActivityActionTypes.UPDATE,
+                    entityName: ActivityEntityNames.MEMBER,
+                    entityId: member.MemberId,
+                    description: $"Đã cập nhật thông tin của thành viên '{member.FullName}'.",
+                    oldData: oldData,
+                    newData: newData
+                );
+            }
 
             return await GetMemberByIdAsync(memberId, userId);
         }
@@ -273,25 +282,24 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<bool>.Fail("Member not found", 404);
             }
-
+            Guid familyId = memberToRemove.FamilyId.Value;
             // Check quyền
             bool isSelf = memberToRemove.UserId == userId; // Tự rời nhóm
             bool isOwner = false; // Chủ kick
+            Members doer = null;
 
-            if (memberToRemove.FamilyId != null)
+            var requester = (await _unitOfWork.Repository<Members>()
+                 .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+
+            if (requester != null)
             {
-                var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == memberToRemove.FamilyId && m.UserId == userId)).FirstOrDefault();
-                if (requester != null && requester.Role == Roles.Owner)
-                {
-                    isOwner = true;
-                }
+                doer = requester;
+                if (requester.Role == Roles.Owner) isOwner = true;
             }
 
             if (!isSelf && !isOwner)
-            {
                 return ApiResponse<bool>.Fail("Không có quyền thực hiện.", 403);
-            }
+
 
             // Logic Xóa:
             // Cách 1: Xóa hẳn khỏi DB (Hard Delete)
@@ -303,6 +311,20 @@ namespace MediMateService.Services.Implementations
 
             _unitOfWork.Repository<Members>().Update(memberToRemove);
             await _unitOfWork.CompleteAsync();
+            if (doer != null)
+            {
+                string actionType = isSelf ? ActivityActionTypes.LEAVE : ActivityActionTypes.KICK;
+                string desc = isSelf ? $"Đã rời khỏi gia đình." : $"Đã mời '{memberToRemove.FullName}' ra khỏi gia đình.";
+
+                await _activityLogService.LogActivityAsync(
+                    familyId: familyId,
+                    memberId: doer.MemberId,
+                    actionType: actionType,
+                    entityName: ActivityEntityNames.MEMBER,
+                    entityId: memberToRemove.MemberId,
+                    description: desc
+                );
+            }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa thành viên khỏi gia đình.");
         }
@@ -317,22 +339,24 @@ namespace MediMateService.Services.Implementations
             // Check quyền
             bool isSelf = memberToRemove.UserId == userId; // Tự rời nhóm
             bool isOwner = false; // Chủ kick
+            Members doer = null;
+            Guid? familyId = memberToRemove.FamilyId;
 
-            if (memberToRemove.FamilyId != null)
+            if (familyId != null)
             {
                 var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == memberToRemove.FamilyId && m.UserId == userId)).FirstOrDefault();
-                if (requester != null && requester.Role == Roles.Owner)
+                    .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+
+                if (requester != null)
                 {
-                    isOwner = true;
+                    doer = requester;
+                    if (requester.Role == Roles.Owner) isOwner = true;
                 }
             }
 
             if (!isSelf && !isOwner)
-            {
                 return ApiResponse<bool>.Fail("Không có quyền thực hiện.", 403);
-            }
-
+            string memberName = memberToRemove.FullName;
             // Logic Xóa:
             // Cách 1: Xóa hẳn khỏi DB (Hard Delete)
             _unitOfWork.Repository<Members>().Remove(memberToRemove);
@@ -343,6 +367,18 @@ namespace MediMateService.Services.Implementations
 
             //xóa vĩnh viễn khỏi DB 
             await _unitOfWork.CompleteAsync();
+
+            if (doer != null && familyId.HasValue)
+            {
+                await _activityLogService.LogActivityAsync(
+                    familyId: familyId.Value,
+                    memberId: doer.MemberId,
+                    actionType: ActivityActionTypes.DELETE,
+                    entityName: ActivityEntityNames.MEMBER,
+                    entityId: memberId,
+                    description: $"Đã xóa vĩnh viễn hồ sơ của '{memberName}'."
+                );
+            }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa thành viên khỏi gia đình.");
         }
@@ -436,6 +472,15 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<Members>().AddAsync(newMember);
             await _unitOfWork.CompleteAsync();
+
+            await _activityLogService.LogActivityAsync(
+                familyId: request.FamilyId,
+                memberId: ownerMember.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: ActivityEntityNames.MEMBER,
+                entityId: newMember.MemberId,
+                description: $"Đã thêm tài khoản '{newMember.FullName}' vào gia đình qua SĐT."
+            );
 
             return ApiResponse<MemberResponse>.Ok(new MemberResponse
             {
@@ -558,6 +603,15 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<Members>().AddAsync(newMember);
             await _unitOfWork.CompleteAsync();
+
+            await _activityLogService.LogActivityAsync(
+                familyId: family.FamilyId,
+                memberId: newMember.MemberId,
+                actionType: ActivityActionTypes.JOIN,
+                entityName: ActivityEntityNames.MEMBER,
+                entityId: newMember.MemberId,
+                description: $"Đã tham gia gia đình bằng Mã mời."
+            );
 
             return ApiResponse<bool>.Ok(true, $"Tham gia gia đình '{family.FamilyName}' thành công.");
         }

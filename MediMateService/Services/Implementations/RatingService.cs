@@ -7,10 +7,10 @@ namespace MediMateService.Services.Implementations
 {
     public class RatingService : IRatingService
     {
-        private readonly IMockRatingRepository _ratingRepository;
-        private readonly IMockDoctorRepository _doctorRepository;
+        private readonly IRatingRepository _ratingRepository;
+        private readonly IDoctorRepository _doctorRepository;
 
-        public RatingService(IMockRatingRepository ratingRepository, IMockDoctorRepository doctorRepository)
+        public RatingService(IRatingRepository ratingRepository, IDoctorRepository doctorRepository)
         {
             _ratingRepository = ratingRepository;
             _doctorRepository = doctorRepository;

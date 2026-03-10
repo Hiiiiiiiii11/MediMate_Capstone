@@ -7,6 +7,7 @@ namespace MediMate.Models.Doctors
         public string Specialty { get; set; } = string.Empty;
         public string CurrentHospitalName { get; set; } = string.Empty;
         public string LicenseNumber { get; set; } = string.Empty;
+        public string? LicenseImage { get; set; }
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; }

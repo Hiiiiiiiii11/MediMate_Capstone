@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediMateRepository.Data
@@ -22,6 +22,18 @@ namespace MediMateRepository.Data
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
+        // Doctor Booking
+        public DbSet<Doctors> Doctors { get; set; }
+        public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
+        public DbSet<Appointments> Appointments { get; set; }
+        public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
+        public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
+        public DbSet<Ratings> Ratings { get; set; }
+        // Payment
+        public DbSet<MembershipPackages> MembershipPackages { get; set; }
+        public DbSet<FamilySubscriptions> FamilySubscriptions { get; set; }
+        public DbSet<Payments> Payments { get; set; }
+        public DbSet<Transactions> Transactions { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -42,47 +54,59 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
+            // Doctor
+            modelBuilder.Entity<Doctors>().HasKey(d => d.DoctorId);
+            modelBuilder.Entity<DoctorAvailability>().HasKey(da => da.DoctorAvailabilityId);
+            modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
+            modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.SessionId);
+            modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
+            modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
+            // Payment
+            modelBuilder.Entity<MembershipPackages>().HasKey(mp => mp.PackageId);
+            modelBuilder.Entity<FamilySubscriptions>().HasKey(fs => fs.SubscriptionId);
+            modelBuilder.Entity<Payments>().HasKey(p => p.PaymentId);
+            modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
 
 
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.PhoneNumber)
-                .IsUnique(); // SĐT là duy nhất
+                .IsUnique(); // S�T l� duy nh?t
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
             // --- MEMBER CONFIGURATION ---
-            // Quan hệ 1-1: User <-> Member
+            // Quan h? 1-1: User <-> Member
             //modelBuilder.Entity<Members>()
-            //    .HasOne<User>() // Member có thể liên kết với User (không cần property navigation ngược lại ở User nếu không muốn)
-            //    .WithOne(u => u.MemberProfile) // User có 1 MemberProfile
-            //    .HasForeignKey<Members>(m => m.UserId) // Khóa ngoại là UserId trong bảng Members
-            //    .IsRequired(false) // UserId có thể null (cho người già/trẻ em)
-            //    .OnDelete(DeleteBehavior.SetNull); // Xóa User thì set UserId về null
+            //    .HasOne<User>() // Member c� th? li�n k?t v?i User (kh�ng c?n property navigation ng�?c l?i ? User n?u kh�ng mu?n)
+            //    .WithOne(u => u.MemberProfile) // User c� 1 MemberProfile
+            //    .HasForeignKey<Members>(m => m.UserId) // Kh�a ngo?i l� UserId trong b?ng Members
+            //    .IsRequired(false) // UserId c� th? null (cho ng�?i gi�/tr? em)
+            //    .OnDelete(DeleteBehavior.SetNull); // X�a User th? set UserId v? null
 
-            // Quan hệ 1-N: Family -> Members
+            // Quan h? 1-N: Family -> Members
             modelBuilder.Entity<Members>()
-                .HasOne<Families>() // Member thuộc về 1 Family (dùng shadow navigation hoặc thêm prop Family vào Member nếu cần)
-                .WithMany(f => f.FamilyMembers) // Family có nhiều Member
+                .HasOne<Families>() // Member thu?c v? 1 Family (d�ng shadow navigation ho?c th�m prop Family v�o Member n?u c?n)
+                .WithMany(f => f.FamilyMembers) // Family c� nhi?u Member
                 .HasForeignKey(m => m.FamilyId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Family -> Xóa hết Member
+                .OnDelete(DeleteBehavior.Cascade); // X�a Family -> X�a h?t Member
 
             // --- FAMILY CONFIGURATION ---
-            // Quan hệ 1-N: User -> Created Families
+            // Quan h? 1-N: User -> Created Families
             modelBuilder.Entity<Families>()
                 .HasOne(f => f.Creator)
                 .WithMany(u => u.CreatedFamilies)
                 .HasForeignKey(f => f.CreateBy)
-                .OnDelete(DeleteBehavior.Restrict); // Xóa User không xóa Family để giữ lịch sử
+                .OnDelete(DeleteBehavior.Restrict); // X�a User kh�ng x�a Family �? gi? l?ch s?
 
             modelBuilder.Entity<Members>()
         .HasOne(m => m.HealthProfile)
         .WithOne(hp => hp.Member)
         .HasForeignKey<HealthProfiles>(hp => hp.MemberId)
-        .OnDelete(DeleteBehavior.Cascade); // Xóa Member thì xóa luôn HealthProfile
+        .OnDelete(DeleteBehavior.Cascade); // X�a Member th? x�a lu�n HealthProfile
 
-            // Cấu hình 1-N: HealthProfile - HealthConditions
+            // C?u h?nh 1-N: HealthProfile - HealthConditions
             modelBuilder.Entity<HealthProfiles>()
                 .HasMany(hp => hp.Conditions)
                 .WithOne(c => c.HealthProfile)
@@ -93,38 +117,38 @@ namespace MediMateRepository.Data
             // 1. Members 1-N Prescriptions
             modelBuilder.Entity<Prescriptions>()
                 .HasOne(p => p.Member)
-                .WithMany() // Nếu Member không cần list Prescriptions thì để trống, hoặc thêm prop vào Member
+                .WithMany() // N?u Member kh�ng c?n list Prescriptions th? �? tr?ng, ho?c th�m prop v�o Member
                 .HasForeignKey(p => p.MemberId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Xóa đơn thuốc
+                .OnDelete(DeleteBehavior.Cascade); // X�a Member -> X�a ��n thu?c
 
             // 2. Prescriptions 1-N Images
             modelBuilder.Entity<PrescriptionImages>()
                 .HasOne(img => img.Prescription)
                 .WithMany(p => p.PrescriptionImages)
                 .HasForeignKey(img => img.PrescriptionId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn -> Xóa ảnh
+                .OnDelete(DeleteBehavior.Cascade); // X�a ��n -> X�a ?nh
 
             // 3. Prescriptions 1-N Medicines
             modelBuilder.Entity<PrescriptionMedicines>()
                 .HasOne(pm => pm.Prescription)
-                .WithMany(p => p.PrescriptionMedicines) // Mapping với property Medications đã sửa ở B1
+                .WithMany(p => p.PrescriptionMedicines) // Mapping v?i property Medications �? s?a ? B1
                 .HasForeignKey(pm => pm.PrescriptionId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn -> Xóa danh sách thuốc
+                .OnDelete(DeleteBehavior.Cascade); // X�a ��n -> X�a danh s�ch thu?c
 
 
 
-            // 1. MedicationSchedules - PrescriptionMedicines (1-1 hoặc 1-N tùy logic)
-            // Ở đây bạn đang để 1 Schedule ứng với 1 PrescriptionMedicineId
+            // 1. MedicationSchedules - PrescriptionMedicines (1-1 ho?c 1-N t�y logic)
+            // ? ��y b?n �ang �? 1 Schedule ?ng v?i 1 PrescriptionMedicineId
             modelBuilder.Entity<MedicationSchedules>()
                 .HasOne(ms => ms.PrescriptionMedicines)
-                .WithMany() // Một loại thuốc trong đơn có thể có nhiều lịch uống (hoặc 1, tùy bạn)
+                .WithMany() // M?t lo?i thu?c trong ��n c� th? c� nhi?u l?ch u?ng (ho?c 1, t�y b?n)
                 .HasForeignKey(ms => ms.PrescriptionMedicineId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa thuốc trong đơn -> Xóa lịch uống
+                .OnDelete(DeleteBehavior.Cascade); // X�a thu?c trong ��n -> X�a l?ch u?ng
 
             // 2. MedicationSchedules - Members (1-N)
             modelBuilder.Entity<MedicationSchedules>()
                 .HasOne(ms => ms.Member)
-                .WithMany() // Member có nhiều lịch uống
+                .WithMany() // Member c� nhi?u l?ch u?ng
                 .HasForeignKey(ms => ms.MemberId)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -133,9 +157,9 @@ namespace MediMateRepository.Data
             // 1. MedicationSchedules - MedicationReminders (1-N)
             modelBuilder.Entity<MedicationReminders>()
                 .HasOne(mr => mr.Schedule)
-                .WithMany(ms => ms.MedicationReminders) // Mapping ngược lại
+                .WithMany(ms => ms.MedicationReminders) // Mapping ng�?c l?i
                 .HasForeignKey(mr => mr.ScheduleId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa lịch -> Xóa các nhắc nhở con
+                .OnDelete(DeleteBehavior.Cascade); // X�a l?ch -> X�a c�c nh?c nh? con
 
             // --- MEDICATION LOGS CONFIGURATION ---
 
@@ -144,43 +168,127 @@ namespace MediMateRepository.Data
                 .HasOne(ml => ml.Member)
                 .WithMany()
                 .HasForeignKey(ml => ml.MemberId)
-                .OnDelete(DeleteBehavior.NoAction); // Tránh vòng lặp cascade (Member -> Log)
+                .OnDelete(DeleteBehavior.NoAction); // Tr�nh v?ng l?p cascade (Member -> Log)
 
             // 2. MedicationLogs - MedicationSchedules (1-N)
             modelBuilder.Entity<MedicationLogs>()
                 .HasOne(ml => ml.Schedule)
                 .WithMany()
                 .HasForeignKey(ml => ml.ScheduleId)
-                .OnDelete(DeleteBehavior.NoAction); // Tránh vòng lặp cascade
+                .OnDelete(DeleteBehavior.NoAction); // Tr�nh v?ng l?p cascade
 
             // 3. MedicationLogs - MedicationReminders (1-N)
             modelBuilder.Entity<MedicationLogs>()
                 .HasOne(ml => ml.Reminder)
                 .WithMany()
                 .HasForeignKey(ml => ml.ReminderId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa nhắc nhở -> Xóa log
+                .OnDelete(DeleteBehavior.Cascade); // X�a nh?c nh? -> X�a log
 
-            // Quan hệ 1-1: Members <-> NotificationSetting
+            // Quan h? 1-1: Members <-> NotificationSetting
             modelBuilder.Entity<NotificationSetting>()
                 .HasOne(ns => ns.Member)
-                .WithOne() // Nếu bảng Members bạn không khai báo `public virtual NotificationSetting Setting` thì để trống WithOne()
+                .WithOne() // N?u b?ng Members b?n kh�ng khai b�o `public virtual NotificationSetting Setting` th? �? tr?ng WithOne()
                 .HasForeignKey<NotificationSetting>(ns => ns.MemberId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Tự động xóa Cài đặt thông báo
+                .OnDelete(DeleteBehavior.Cascade); // X�a Member -> T? �?ng x�a C�i �?t th�ng b�o
 
-            // Quan hệ 1-N: Families -> ActivityLogs
+            // Quan h? 1-N: Families -> ActivityLogs
             modelBuilder.Entity<ActivityLogs>()
                 .HasOne(al => al.Family)
                 .WithMany()
                 .HasForeignKey(al => al.FamilyId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Family -> Xóa sạch lịch sử hoạt động của gia đình đó
+                .OnDelete(DeleteBehavior.Cascade); // X�a Family -> X�a s?ch l?ch s? ho?t �?ng c?a gia �?nh ��
 
-            // Quan hệ 1-N: Members -> ActivityLogs
+            // Quan h? 1-N: Members -> ActivityLogs
             modelBuilder.Entity<ActivityLogs>()
                 .HasOne(al => al.Member)
                 .WithMany()
                 .HasForeignKey(al => al.MemberId)
-                .OnDelete(DeleteBehavior.NoAction); // QUAN TRỌNG: Dùng NoAction để tránh lỗi vòng lặp Cascade (Đụng độ với lệnh Xóa Family ở trên).
-                                                    // Nếu Member bị xóa, Log vẫn còn giữ lại để chủ hộ biết "Ai đó đã từng làm gì", nhưng ta phải tự xử lý hiển thị MemberId bị null/mất tích trên UI.
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // ==========================================
+            // DOCTOR BOOKING RELATIONSHIPS
+            // ==========================================
+
+            // Doctors 1-N DoctorAvailability
+            modelBuilder.Entity<DoctorAvailability>()
+                .HasOne<Doctors>()
+                .WithMany()
+                .HasForeignKey(da => da.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Doctors 1-N Appointments
+            modelBuilder.Entity<Appointments>()
+                .HasOne<Doctors>()
+                .WithMany()
+                .HasForeignKey(a => a.DoctorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Members 1-N Appointments
+            modelBuilder.Entity<Appointments>()
+                .HasOne<Members>()
+                .WithMany()
+                .HasForeignKey(a => a.MemberId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments 1-1 ConsultationSessions
+            modelBuilder.Entity<ConsultationSessions>()
+                .HasOne<Appointments>()
+                .WithMany()
+                .HasForeignKey(cs => cs.AppointmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ConsultationSessions 1-N PrescriptionsByDoctor
+            modelBuilder.Entity<PrescriptionsByDoctor>()
+                .HasOne(pd => pd.Session)
+                .WithMany()
+                .HasForeignKey(pd => pd.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ConsultationSessions 1-N Ratings
+            modelBuilder.Entity<Ratings>()
+                .HasOne<ConsultationSessions>()
+                .WithMany()
+                .HasForeignKey(r => r.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Doctors 1-1 Users
+            modelBuilder.Entity<Doctors>()
+                .HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ==========================================
+            // PAYMENT RELATIONSHIPS
+            // ==========================================
+
+            // Families 1-N FamilySubscriptions
+            modelBuilder.Entity<FamilySubscriptions>()
+                .HasOne(fs => fs.Family)
+                .WithMany()
+                .HasForeignKey(fs => fs.FamilyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // MembershipPackages 1-N FamilySubscriptions
+            modelBuilder.Entity<FamilySubscriptions>()
+                .HasOne(fs => fs.Package)
+                .WithMany()
+                .HasForeignKey(fs => fs.PackageId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // FamilySubscriptions 1-N Payments
+            modelBuilder.Entity<Payments>()
+                .HasOne(p => p.Subscription)
+                .WithMany()
+                .HasForeignKey(p => p.SubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Payments 1-N Transactions
+            modelBuilder.Entity<Transactions>()
+                .HasOne(t => t.Payment)
+                .WithMany()
+                .HasForeignKey(t => t.PaymentId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

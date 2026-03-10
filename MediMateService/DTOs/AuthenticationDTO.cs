@@ -21,6 +21,16 @@ namespace MediMateService.DTOs
         public string? Email { get; set; } // Optional
     }
 
+    public class VerifyOtpRequest
+    {
+        [Required(ErrorMessage = "Vui lòng nhập Email")]
+        [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập mã OTP")]
+        public int VerifyCode { get; set; }
+    }
+
     public class LoginRequest
     {
         [Required(ErrorMessage = "Vui lòng nhập Email hoặc Số điện thoại")]

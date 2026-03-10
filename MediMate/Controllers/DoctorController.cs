@@ -5,6 +5,7 @@ using MediMate.Models.Ratings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Share.Common;
+using Share.Constants;
 
 namespace MediMate.Controllers
 {
@@ -14,11 +15,13 @@ namespace MediMate.Controllers
     {
         private readonly IDoctorService _doctorService;
         private readonly IRatingService _ratingService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public DoctorController(IDoctorService doctorService, IRatingService ratingService)
+        public DoctorController(IDoctorService doctorService, IRatingService ratingService, IUploadPhotoService uploadPhotoService)
         {
             _doctorService = doctorService;
             _ratingService = ratingService;
+            _uploadPhotoService = uploadPhotoService;
         }
 
         [HttpGet]
@@ -57,6 +60,81 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<List<DoctorReviewResponse>>.Ok(response, "Lấy đánh giá bác sĩ thành công."));
         }
 
+        // ───────────────────────────────────────────────
+        // DOCTOR SELF-MANAGEMENT
+        // ───────────────────────────────────────────────
+
+        [HttpGet("me")]
+        [Authorize(Roles = Roles.Doctor)]
+        public async Task<IActionResult> GetMyProfile()
+        {
+            var userId = GetCurrentUserId();
+            var data = await _doctorService.GetMyProfileAsync(userId);
+            return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Lấy hồ sơ cá nhân thành công."));
+        }
+
+        // Đã bỏ endpoint PUT /api/v1/doctors/me theo yêu cầu của user,
+        // profile chỉ được update khi gọi POST /submit.
+        // Cập nhật mật khẩu được thực hiện qua AuthController hoặc UserController.
+
+        [HttpPost("me/submit")]
+        [Authorize(Roles = Roles.Doctor)]
+        public async Task<IActionResult> SubmitProfile([FromForm] SubmitDoctorRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var doc = await _doctorService.GetMyProfileAsync(userId);
+            
+            string? licenseImageUrl = doc.LicenseImage;
+            if (request.LicenseImage != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.LicenseImage);
+                licenseImageUrl = uploadResult.OriginalUrl;
+            }
+
+            var data = await _doctorService.SubmitPendingAsync(doc.DoctorId, new SubmitDoctorDto
+            {
+                FullName = request.FullName,
+                Specialty = request.Specialty,
+                CurrentHospitalName = request.CurrentHospitalName,
+                LicenseNumber = request.LicenseNumber,
+                LicenseImage = licenseImageUrl,
+                YearsOfExperience = request.YearsOfExperience,
+                Bio = request.Bio
+            });
+            return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Đã nộp hồ sơ, chờ xét duyệt."));
+        }
+
+        [HttpPatch("me/online")]
+        [Authorize(Roles = Roles.Doctor)]
+        public async Task<IActionResult> Heartbeat()
+        {
+            var userId = GetCurrentUserId();
+            var doc = await _doctorService.GetMyProfileAsync(userId);
+
+            await _doctorService.HeartbeatAsync(doc.DoctorId);
+            return Ok(ApiResponse<bool>.Ok(true, "Heartbeat updated."));
+        }
+
+        public class ActivateDoctorRequest
+        {
+            public Guid DoctorId { get; set; }
+            public int VerifyCode { get; set; }
+        }
+
+        [HttpPost("activate")]
+        public async Task<IActionResult> Activate([FromBody] ActivateDoctorRequest request)
+        {
+            var data = await _doctorService.ActivateDoctorAsync(request.DoctorId, request.VerifyCode);
+            return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Kích hoạt tài khoản thành công."));
+        }
+
+        private Guid GetCurrentUserId()
+        {
+            var userIdClaim = User.FindFirst("Id")?.Value;
+            if (Guid.TryParse(userIdClaim, out var userId)) return userId;
+            throw new UnauthorizedAccessException("Không tìm thấy UserId trong token.");
+        }
+
         private static DoctorResponse MapDoctorResponse(DoctorDto dto)
         {
             return new DoctorResponse
@@ -66,6 +144,7 @@ namespace MediMate.Controllers
                 Specialty = dto.Specialty,
                 CurrentHospitalName = dto.CurrentHospitalName,
                 LicenseNumber = dto.LicenseNumber,
+                LicenseImage = dto.LicenseImage,
                 YearsOfExperience = dto.YearsOfExperience,
                 Bio = dto.Bio,
                 AverageRating = dto.AverageRating,

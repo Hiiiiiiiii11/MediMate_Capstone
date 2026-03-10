@@ -1,14 +1,19 @@
+using Microsoft.AspNetCore.Http;
+
 namespace MediMate.Models.Doctors
 {
     public class CreateDoctorRequest
     {
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
-        public string LicenseNumber { get; set; } = string.Empty;
-        public int YearsOfExperience { get; set; }
-        public string Bio { get; set; } = string.Empty;
-        public Guid UserId { get; set; }
+    }
+
+    public class CreateDoctorManagerRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
     }
 
     public class UpdateDoctorRequest
@@ -17,6 +22,7 @@ namespace MediMate.Models.Doctors
         public string Specialty { get; set; } = string.Empty;
         public string CurrentHospitalName { get; set; } = string.Empty;
         public string LicenseNumber { get; set; } = string.Empty;
+        public IFormFile? LicenseImage { get; set; }
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
     }
@@ -40,5 +46,21 @@ namespace MediMate.Models.Doctors
         public string StartTime { get; set; } = string.Empty;
         public string EndTime { get; set; } = string.Empty;
         public bool IsActive { get; set; }
+    }
+
+    public class RejectDoctorRequest
+    {
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    public class SubmitDoctorRequest
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string Specialty { get; set; } = string.Empty;
+        public string CurrentHospitalName { get; set; } = string.Empty;
+        public string LicenseNumber { get; set; } = string.Empty;
+        public IFormFile? LicenseImage { get; set; }
+        public int YearsOfExperience { get; set; }
+        public string Bio { get; set; } = string.Empty;
     }
 }

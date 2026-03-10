@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310164153_UpdateUserModel_LastSeenAt")]
+    partial class UpdateUserModel_LastSeenAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -231,64 +234,6 @@ namespace MediMateRepository.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Doctors");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotMessages", b =>
-                {
-                    b.Property<Guid>("BotMessageId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BotSessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("MetadataJson")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.HasKey("BotMessageId");
-
-                    b.HasIndex("BotSessionId");
-
-                    b.ToTable("ChatbotMessages");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
-                {
-                    b.Property<Guid>("BotSessionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("LastMessageAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SessionTitle")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("StartAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("BotSessionId");
-
-                    b.HasIndex("MemberId");
-
-                    b.ToTable("ChatbotSessions");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
@@ -1090,28 +1035,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotMessages", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.ChatbotSession", "Session")
-                        .WithMany("Messages")
-                        .HasForeignKey("BotSessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Session");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Member");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
                     b.HasOne("MediMateRepository.Model.User", "Creator")
@@ -1333,11 +1256,6 @@ namespace MediMateRepository.Migrations
                         .IsRequired();
 
                     b.Navigation("Payment");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
-                {
-                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>

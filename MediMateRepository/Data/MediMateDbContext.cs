@@ -221,7 +221,6 @@ namespace MediMateRepository.Data
                 .WithMany(cs => cs.Messages) // Map ngược lại list Messages trong ChatbotSession
                 .HasForeignKey(cm => cm.BotSessionId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa Session -> Xóa sạch tin nhắn trong session đó
-                .OnDelete(DeleteBehavior.NoAction);
 
             // ==========================================
             // DOCTOR BOOKING RELATIONSHIPS

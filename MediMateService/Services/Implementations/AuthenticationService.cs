@@ -16,17 +16,19 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuthenticationRepository _authRepo;
         private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
 
         private static readonly HashSet<string> RemainingRoles = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Admin", "Doctor", "Staff"
+            "Admin", "Doctor", "Staff", "DoctorManager"
         };
 
-        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration)
+        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
             _authRepo = authRepo;
             _configuration = configuration;
+            _emailService = emailService;
         }
 
         public async Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request)
@@ -52,7 +54,10 @@ namespace MediMateService.Services.Implementations
             // 2. Hash mật khẩu
             string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
-            // 3. Tạo Entity
+            // 3. Sinh OTP
+            int otp = new Random().Next(100000, 999999);
+
+            // 4. Tạo Entity
             var newUser = new User
             {
                 UserId = Guid.NewGuid(),
@@ -61,25 +66,95 @@ namespace MediMateService.Services.Implementations
                 FullName = request.FullName,
                 PasswordHash = passwordHash,
                 Role = "User",
-                IsActive = true,
-                CreatedAt = DateTime.Now
+                IsActive = false, // Vô hiệu hóa cho đến khi verify
+                VerifyCode = otp,
+                ExpiriedAt = DateTime.UtcNow.AddMinutes(30),
+                CreatedAt = DateTime.UtcNow
             };
 
-            // 4. Lưu vào DB
+            // 5. Lưu vào DB
             await _authRepo.AddAsync(newUser);
-            await _unitOfWork.CompleteAsync(); // Commit transaction
+            await _unitOfWork.CompleteAsync();
 
-            // 5. Tạo Token để user login luôn sau khi đăng ký
-            var token = GenerateJwtToken(newUser, "user");
+            // 6. Gửi Email OTP
+            if (!string.IsNullOrEmpty(newUser.Email))
+            {
+                string subject = "Xác thực tài khoản MediMate+";
+                string body = $@"
+<!DOCTYPE html>
+<html lang=""en"">
+<head>
+  <meta charset=""UTF-8"" />
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
+  <title>OTP Verification</title>
+  <link href=""https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap"" rel=""stylesheet"" />
+</head>
+<body style=""margin: 0; font-family: 'Poppins', sans-serif; background: #ffffff; font-size: 14px;"">
+  <div style=""max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url(https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661497957196_595865/email-template-background-banner); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; color: #434343;"">
+    <main style=""margin: 0; margin-top: 70px; padding: 92px 30px 115px; background: #ffffff; border-radius: 30px; text-align: center;"">
+      <div style=""width: 100%; max-width: 489px; margin: 0 auto;"">
+        <h1 style=""margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f;"">Xác thực OTP</h1>
+        <p style=""margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500;"">Xin chào {newUser.FullName},</p>
+        <p style=""margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px;"">
+          Cảm ơn bạn đã lựa chọn MediMate+. Mã xác nhận để kích hoạt tài khoản của bạn là mã dưới đây, có hiệu lực trong <strong>30 phút</strong>. Vui lòng không chia sẻ mã này cho người khác.
+        </p>
+        <p style=""margin: 0; margin-top: 60px; font-size: 40px; font-weight: 600; letter-spacing: 12px; color: #ba3d4f;"">
+          {otp}
+        </p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>";
 
-            // 6. Trả về Response
+                await _emailService.SendEmailAsync(newUser.Email, subject, body);
+            }
+
+            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse(), "Đăng ký thành công. Vui lòng kiểm tra email để nhận mã OTP xác thực tài khoản.");
+        }
+
+        public async Task<ApiResponse<AutheticationResponse>> VerifyOtpAsync(VerifyOtpRequest request)
+        {
+            var user = await _authRepo.GetUserByEmailOrPhoneAsync(request.Email);
+            
+            if (user == null)
+            {
+                return ApiResponse<AutheticationResponse>.Fail("Không tìm thấy người dùng này.", 404);
+            }
+
+            if (user.IsActive)
+            {
+                return ApiResponse<AutheticationResponse>.Fail("Tài khoản đã được kích hoạt trước đó.", 400);
+            }
+
+            if (user.VerifyCode != request.VerifyCode)
+            {
+                return ApiResponse<AutheticationResponse>.Fail("Mã xác thực không chính xác.", 400);
+            }
+
+            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.UtcNow)
+            {
+                return ApiResponse<AutheticationResponse>.Fail("Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới.", 400);
+            }
+
+            // Thành công -> Kích hoạt tài khoản
+            user.IsActive = true;
+            user.VerifyCode = null;
+            user.ExpiriedAt = null;
+
+            _unitOfWork.Repository<User>().Update(user);
+            await _unitOfWork.CompleteAsync();
+
+            // Sinh Token đăng nhập luôn
+            var token = GenerateJwtToken(user, "user");
             var responseData = new AutheticationResponse
             {
                 AccessToken = token
             };
 
-            return ApiResponse<AutheticationResponse>.Ok(responseData, "Đăng ký tài khoản thành công.");
+            return ApiResponse<AutheticationResponse>.Ok(responseData, "Kích hoạt tài khoản thành công.");
         }
+
         public async Task<ApiResponse<string>> LoginDependentByQrAsync(DependentQrLoginRequest request)
         {
             // 1. Validate định dạng mã
@@ -164,7 +239,11 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
 
             if (!user.IsActive)
+            {
+                if (user.VerifyCode != null)
+                    return ApiResponse<AutheticationResponse>.Fail("Vui lòng kích hoạt tài khoản của bạn. Kiểm tra email để lấy mã OTP.", 403);
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản đã bị khóa hoặc vô hiệu hóa.", 403);
+            }
 
             if (!string.Equals(user.Role, "User", StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
@@ -187,13 +266,17 @@ namespace MediMateService.Services.Implementations
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản hoặc mật khẩu không chính xác.", 401);
 
-            if (!user.IsActive)
+            if (!user.IsActive && !string.Equals(user.Role, Roles.Doctor, StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản đã bị khóa hoặc vô hiệu hóa.", 403);
 
             if (!RemainingRoles.Contains(user.Role ?? ""))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
 
-            var token = GenerateJwtToken(user, "admin");
+            var typeLogin = string.Equals(user.Role, Roles.DoctorManager, StringComparison.OrdinalIgnoreCase) 
+                ? "doctormanager" 
+                : "admin";
+
+            var token = GenerateJwtToken(user, typeLogin);
             return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, "Đăng nhập thành công.");
         }
 

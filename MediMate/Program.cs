@@ -82,11 +82,11 @@ namespace MediMate
 
             builder.Services.AddAutoMapper(typeof(Program));
 
-            builder.Services.AddScoped<IMockDoctorRepository, MockDoctorRepository>();
+            builder.Services.AddScoped<IDoctorRepository, DoctorRepository>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
-            builder.Services.AddScoped<IMockRatingRepository, MockRatingRepository>();
+            builder.Services.AddScoped<IRatingRepository, RatingRepository>();
             builder.Services.AddScoped<IRatingService, RatingService>();
-            builder.Services.AddScoped<IMockAppointmentRepository, MockAppointmentRepository>();
+            builder.Services.AddScoped<IAppointmentRepository, AppointmentRepository>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IConsultationService, ConsultationService>();
             builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
@@ -135,6 +135,7 @@ namespace MediMate
 
             builder.Services.AddHttpClient(); 
             builder.Services.AddScoped<IOcrService, OcrService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -224,7 +225,8 @@ namespace MediMate
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = jwtSettings.Issuer,
                         ValidAudience = jwtSettings.Audience,
-                        IssuerSigningKey = new SymmetricSecurityKey(key)
+                        IssuerSigningKey = new SymmetricSecurityKey(key),
+                        RoleClaimType = "Role"
                     };
                     options.Events = new JwtBearerEvents
                     {

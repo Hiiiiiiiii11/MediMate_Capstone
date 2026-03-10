@@ -7,6 +7,10 @@ namespace MediMateService.Services
     public interface IUserService
     {
         Task<ApiResponse<IEnumerable<UserProfileResponse>>> GetAllUsersAsync();
+        
+        // Admin tạo Doctor Manager
+        Task<ApiResponse<UserProfileResponse>> CreateDoctorManagerAsync(CreateDoctorManagerDto request);
+
         // Lấy thông tin cá nhân
         Task<ApiResponse<UserProfileResponse>> GetProfileAsync(Guid userId);
 

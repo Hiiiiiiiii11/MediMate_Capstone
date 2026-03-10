@@ -6,13 +6,13 @@ namespace MediMateService.Services.Implementations
 {
     public class ConsultationService : IConsultationService
     {
-        private readonly IMockAppointmentRepository _appointmentRepository;
-        private readonly IMockDoctorRepository _doctorRepository;
+        private readonly IAppointmentRepository _appointmentRepository;
+        private readonly IDoctorRepository _doctorRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public ConsultationService(
-            IMockAppointmentRepository appointmentRepository,
-            IMockDoctorRepository doctorRepository,
+            IAppointmentRepository appointmentRepository,
+            IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork)
         {
             _appointmentRepository = appointmentRepository;

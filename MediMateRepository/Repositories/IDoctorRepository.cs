@@ -2,7 +2,7 @@ using MediMateRepository.Model;
 
 namespace MediMateRepository.Repositories
 {
-    public interface IMockDoctorRepository
+    public interface IDoctorRepository
     {
         Task<List<Doctors>> GetAllDoctorsAsync();
         Task<List<Doctors>> GetPublicDoctorsAsync();

@@ -60,10 +60,7 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<List<DoctorReviewResponse>>.Ok(response, "Lấy đánh giá bác sĩ thành công."));
         }
 
-        // ───────────────────────────────────────────────
-        // DOCTOR SELF-MANAGEMENT
-        // ───────────────────────────────────────────────
-
+    
         [HttpGet("me")]
         [Authorize(Roles = Roles.Doctor)]
         public async Task<IActionResult> GetMyProfile()
@@ -73,9 +70,7 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Lấy hồ sơ cá nhân thành công."));
         }
 
-        // Đã bỏ endpoint PUT /api/v1/doctors/me theo yêu cầu của user,
-        // profile chỉ được update khi gọi POST /submit.
-        // Cập nhật mật khẩu được thực hiện qua AuthController hoặc UserController.
+     
 
         [HttpPost("me/submit")]
         [Authorize(Roles = Roles.Doctor)]

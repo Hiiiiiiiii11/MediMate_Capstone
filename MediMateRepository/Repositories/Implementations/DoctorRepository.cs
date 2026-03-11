@@ -51,8 +51,6 @@ namespace MediMateRepository.Repositories.Implementations
             await _context.SaveChangesAsync();
         }
 
-        // ─── DoctorAvailability ───
-
         public async Task<List<DoctorAvailability>> GetAvailabilityByDoctorIdAsync(Guid doctorId)
         {
             return await _context.DoctorAvailabilities
@@ -89,7 +87,7 @@ namespace MediMateRepository.Repositories.Implementations
             await _context.SaveChangesAsync();
         }
 
-        // ─── DoctorAvailabilityExceptions ───
+ 
 
         public async Task<List<DoctorAvailabilityExceptions>> GetExceptionsByDoctorIdAsync(Guid doctorId)
         {

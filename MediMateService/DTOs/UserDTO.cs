@@ -18,6 +18,13 @@ namespace MediMateService.DTOs
         public DateTime CreatedAt { get; set; }
     }
 
+    public class CreateDoctorManagerDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+    }
+
     // --- REQUEST: Cập nhật thông tin ---
     public class UpdateProfileRequest
     {

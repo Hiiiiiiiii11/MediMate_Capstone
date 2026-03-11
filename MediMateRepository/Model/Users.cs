@@ -31,6 +31,8 @@ namespace MediMateRepository.Model
         public string? FcmToken { get; set; } = string.Empty;
         public int? VerifyCode { get; set; }
         public DateTime? ExpiriedAt { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public bool IsOnline { get; set; } = false;
         public virtual ICollection<Families> CreatedFamilies { get; set; } = new List<Families>();
         public virtual ICollection<Members> MemberProfiles { get; set; } = new List<Members>();
     }

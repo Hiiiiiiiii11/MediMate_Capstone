@@ -1,20 +1,21 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using MediMateService.Shared;
 using Share.Common;
-
-
 namespace MediMateService.Services.Implementations
 {
     public class UserService : IUserService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IUploadPhotoService _uploadPhotoService;
+        private readonly IEmailService _emailService;
 
-        public UserService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService)
+        public UserService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
             _uploadPhotoService = uploadPhotoService;
+            _emailService = emailService;
         }
         public async Task<ApiResponse<IEnumerable<UserProfileResponse>>> GetAllUsersAsync()
         {
@@ -40,6 +41,42 @@ namespace MediMateService.Services.Implementations
 
             // 3. Trả về kết quả
             return ApiResponse<IEnumerable<UserProfileResponse>>.Ok(userDtos, "Lấy danh sách người dùng thành công.");
+        }
+
+        public async Task<ApiResponse<UserProfileResponse>> CreateDoctorManagerAsync(CreateDoctorManagerDto request)
+        {
+            var userRepo = _unitOfWork.Repository<User>();
+            var exists = (await userRepo.GetAllAsync())
+                .Any(u => u.Email == request.Email || u.PhoneNumber == request.PhoneNumber);
+            if (exists) throw new ConflictException("Email hoặc số điện thoại đã tồn tại.");
+
+            var newUser = new User
+            {
+                UserId = Guid.NewGuid(),
+                FullName = request.FullName,
+                Email = request.Email,
+                PhoneNumber = request.PhoneNumber,
+                Role = Share.Constants.Roles.DoctorManager,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678aA@")
+            };
+
+            await userRepo.AddAsync(newUser);
+            await _unitOfWork.CompleteAsync();
+
+            var dto = new UserProfileResponse
+            {
+                UserId = newUser.UserId,
+                PhoneNumber = newUser.PhoneNumber,
+                FullName = newUser.FullName,
+                Email = newUser.Email,
+                Role = newUser.Role,
+                IsActive = newUser.IsActive,
+                CreatedAt = newUser.CreatedAt
+            };
+
+            return ApiResponse<UserProfileResponse>.Ok(dto, "Tạo tài khoản Doctor Manager thành công.");
         }
         public async Task<ApiResponse<UserProfileResponse>> GetProfileAsync(Guid callerId)
         {

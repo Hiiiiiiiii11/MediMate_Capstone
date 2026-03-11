@@ -2,7 +2,7 @@ using MediMateRepository.Model;
 
 namespace MediMateRepository.Repositories
 {
-    public interface IMockRatingRepository
+    public interface IRatingRepository
     {
         Task<ConsultationSessions?> GetSessionByIdAsync(Guid sessionId);
         Task<Ratings?> GetRatingBySessionIdAsync(Guid sessionId);

@@ -24,6 +24,9 @@ namespace MediMateRepository.Data
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
         public DbSet<ChatbotSession> ChatbotSessions { get; set; }
         public DbSet<ChatbotMessages> ChatbotMessages { get; set; }
+        public DbSet<ConsultantSession> consultantSessions { get; set; }
+        public DbSet<ChatDoctorMessage> chatDoctorMessages { get; set; }
+
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -46,6 +49,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
             modelBuilder.Entity<ChatbotSession>().HasKey(cs => cs.BotSessionId);
             modelBuilder.Entity<ChatbotMessages>().HasKey(cm => cm.BotMessageId);
+            modelBuilder.Entity<ConsultantSession>().HasKey(cs => cs.ConsultanSessionId);
+            modelBuilder.Entity<ChatDoctorMessage>().HasKey(cm => cm.ChatDoctorMessageId);
 
 
 

@@ -92,6 +92,7 @@ namespace MediMate
             builder.Services.AddScoped<IConsultationService, ConsultationService>();
             builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
             builder.Services.AddScoped<INotificationSettingService, NotificationSettingService>();
+            builder.Services.AddScoped<IMembershipPackageService, MembershipPackageService>();
 
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

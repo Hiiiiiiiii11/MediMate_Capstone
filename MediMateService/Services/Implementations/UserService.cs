@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
@@ -58,7 +58,7 @@ namespace MediMateService.Services.Implementations
                 PhoneNumber = request.PhoneNumber,
                 Role = Share.Constants.Roles.DoctorManager,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678aA@")
             };
 

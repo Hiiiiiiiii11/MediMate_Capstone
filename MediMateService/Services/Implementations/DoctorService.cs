@@ -26,10 +26,6 @@ namespace MediMateService.Services.Implementations
             _config = config;
         }
 
-        // ============================
-        // PUBLIC ENDPOINTS
-        // ============================
-
         public async Task<List<DoctorDto>> GetPublicDoctorsAsync(string? specialty = null)
         {
             var list = await _repo.GetPublicDoctorsAsync();
@@ -51,10 +47,6 @@ namespace MediMateService.Services.Implementations
             var list = (await _repo.GetAvailabilityByDoctorIdAsync(doctorId)).Where(a => a.IsActive).ToList();
             return list.Select(MapToDto).ToList();
         }
-
-        // ============================
-        // MANAGEMENT - READ
-        // ============================
 
         public async Task<List<DoctorDto>> GetDoctorsAsync(string? specialty = null, string? status = null)
         {
@@ -88,19 +80,12 @@ namespace MediMateService.Services.Implementations
             return list.Select(MapToDto).ToList();
         }
 
-        // ============================
-        // ADMIN: TẠO HỒ SƠ BÁC SĨ
-        // ============================
-
         public async Task<DoctorDto> CreateDoctorAsync(CreateDoctorDto request)
         {
-            // 1. Kiểm tra Email/Phone tồn tại trong bảng User
             var userRepo = _unitOfWork.Repository<User>();
             var exists = (await userRepo.GetAllAsync())
                 .Any(u => u.Email == request.Email || u.PhoneNumber == request.PhoneNumber);
             if (exists) throw new ConflictException("Email hoặc số điện thoại đã tồn tại.");
-
-            // 2. Tạo User Account với vai trò Doctor
             var newUserId = Guid.NewGuid();
             var newUser = new User
             {
@@ -111,27 +96,25 @@ namespace MediMateService.Services.Implementations
                 Gender = request.Gender,
                 DateOfBirth = request.DateOfBirth,
                 Role = Roles.Doctor,
-                IsActive = false, // Sẽ true khi Doctor được Activate
-                CreatedAt = DateTime.UtcNow,
+                IsActive = false,
+                CreatedAt = DateTime.Now,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678aA@") // Mật khẩu mặc định hoặc bắt buộc họ đổi sau
             };
 
             await userRepo.AddAsync(newUser);
             await _unitOfWork.CompleteAsync();
 
-            // 3. Tạo profile Doctor Inactive
             var doctor = new Doctors
             {
                 DoctorId = Guid.NewGuid(),
                 FullName = request.FullName,
                 UserId = newUserId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 Status = DoctorStatuses.Inactive
             };
 
             await _repo.AddDoctorAsync(doctor);
 
-            // 4. Gửi email thông báo tài khoản + MK mặc định
             if (!string.IsNullOrEmpty(request.Email))
             {
                 string subject = "Tài khoản Bác sĩ MediMate+ của bạn đã được tạo";
@@ -163,10 +146,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        // ============================
-        // DOCTOR: TỰ XEM & CẬP NHẬT HỒ SƠ
-        // ============================
-
         public async Task<DoctorDto> GetMyProfileAsync(Guid userId)
         {
             var doctors = await _repo.GetAllDoctorsAsync();
@@ -194,11 +173,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        // ============================
-        // STATUS TRANSITIONS
-        // ============================
-
-        /// <summary>Inactive → Pending: Doctor tự submit đầy đủ hồ sơ</summary>
         public async Task<DoctorDto> SubmitPendingAsync(Guid doctorId, SubmitDoctorDto dto)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -220,7 +194,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        /// <summary>Pending → Verified: Doctor Manager xác minh bằng cấp</summary>
         public async Task<DoctorDto> VerifyDoctorAsync(Guid doctorId)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -233,7 +206,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        /// <summary>Verified → Approved: Doctor Manager phê duyệt</summary>
         public async Task<DoctorDto> ApproveDoctorAsync(Guid doctorId)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -241,22 +213,19 @@ namespace MediMateService.Services.Implementations
             if (doctor.Status != DoctorStatuses.Verified)
                 throw new BadRequestException($"Chỉ có thể approve khi trạng thái là Verified. Hiện tại: {doctor.Status}");
 
-            // 1. Chuyển trạng thái
             doctor.Status = DoctorStatuses.Approved;
             await _repo.UpdateDoctorAsync(doctor);
 
-            // 2. Sinh OTP (6 số ngẫu nhiên) và lưu vào User
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);
             if (user != null)
             {
                 var otp = new Random().Next(100000, 999999);
                 user.VerifyCode = otp;
-                user.ExpiriedAt = DateTime.UtcNow.AddMinutes(30);
+                user.ExpiriedAt = DateTime.Now.AddMinutes(30);
                 userRepo.Update(user);
                 await _unitOfWork.CompleteAsync();
 
-                // 3. Gửi Email thông báo + OTP
                 if (!string.IsNullOrEmpty(user.Email))
                 {
                     string subject = "Tài khoản Bác sĩ của bạn đã được duyệt";
@@ -295,7 +264,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        /// <summary>Approved → Active: Sau OTP xác thực email. Sync User.IsActive = true</summary>
         public async Task<DoctorDto> ActivateDoctorAsync(Guid doctorId, int verifyCode)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -307,21 +275,18 @@ namespace MediMateService.Services.Implementations
             var user = await userRepo.GetByIdAsync(doctor.UserId);
             if (user == null) throw new NotFoundException("Không tìm thấy tài khoản User liên kết.");
 
-            // Kiểm tra mã OTP
             if (user.VerifyCode != verifyCode)
                 throw new BadRequestException("Mã xác thực không chính xác.");
 
-            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.UtcNow)
+            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.Now)
                 throw new BadRequestException("Mã xác thực đã hết hạn.");
 
-            // Xóa mã OTP
             user.VerifyCode = null;
             user.ExpiriedAt = null;
 
             doctor.Status = DoctorStatuses.Active;
             await _repo.UpdateDoctorAsync(doctor);
 
-            // Sync User.IsActive = true
             user.IsActive = true;
             userRepo.Update(user);
             await _unitOfWork.CompleteAsync();
@@ -329,7 +294,6 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        /// <summary>any → Rejected: Doctor Manager từ chối. Sync User.IsActive = false</summary>
         public async Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
@@ -341,38 +305,28 @@ namespace MediMateService.Services.Implementations
             doctor.RejectionReason = reason;
             await _repo.UpdateDoctorAsync(doctor);
 
-            // Sync User.IsActive = false
             await SyncUserIsActiveAsync(doctor.UserId, isActive: false);
 
             return MapToDto(doctor);
         }
-
-        // ============================
-        // HEARTBEAT (ONLINE STATUS)
-        // ============================
 
         public async Task HeartbeatAsync(Guid doctorId)
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
 
-            doctor.LastSeenAt = DateTime.UtcNow;
+            doctor.LastSeenAt = DateTime.Now;
             await _repo.UpdateDoctorAsync(doctor);
 
-            // Cũng cập nhật User.LastSeenAt
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);
             if (user != null)
             {
-                user.LastSeenAt = DateTime.UtcNow;
+                user.LastSeenAt = DateTime.Now;
                 userRepo.Update(user);
                 await _unitOfWork.CompleteAsync();
             }
         }
-
-        // ============================
-        // AVAILABILITY
-        // ============================
 
         public async Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request)
         {
@@ -421,10 +375,6 @@ namespace MediMateService.Services.Implementations
             if (availability == null) throw new NotFoundException("Không tìm thấy lịch làm việc.");
             await _repo.DeleteAvailabilityAsync(availability);
         }
-
-        // ============================
-        // PRIVATE HELPERS
-        // ============================
 
         private async Task SyncUserIsActiveAsync(Guid userId, bool isActive)
         {

@@ -56,7 +56,7 @@ namespace MediMateRepository.Repositories.Implementations
         public async Task<ConsultationSessions?> GetSessionByIdAsync(Guid sessionId)
         {
             return await _context.ConsultationSessions
-                .FirstOrDefaultAsync(s => s.SessionId == sessionId);
+                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
         }
 
         public async Task AddSessionAsync(ConsultationSessions session)

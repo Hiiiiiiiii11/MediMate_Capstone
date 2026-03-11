@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260311181347_FixAppointmentConflict")]
+    partial class FixAppointmentConflict
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -118,6 +121,9 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("ConsultanSessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ConsultantSessionConsultanSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
@@ -136,7 +142,7 @@ namespace MediMateRepository.Migrations
 
                     b.HasKey("ChatDoctorMessageId");
 
-                    b.HasIndex("ConsultanSessionId");
+                    b.HasIndex("ConsultantSessionConsultanSessionId");
 
                     b.HasIndex("SenderId");
 
@@ -259,6 +265,9 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("DoctorId1")
+                        .HasColumnType("uuid");
+
                     b.Property<TimeSpan>("EndTime")
                         .HasColumnType("interval");
 
@@ -272,39 +281,9 @@ namespace MediMateRepository.Migrations
 
                     b.HasIndex("DoctorId");
 
+                    b.HasIndex("DoctorId1");
+
                     b.ToTable("DoctorAvailabilities");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.DoctorAvailabilityExceptions", b =>
-                {
-                    b.Property<Guid>("ExceptionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<Guid>("DoctorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<TimeSpan?>("EndTime")
-                        .HasColumnType("interval");
-
-                    b.Property<bool>("IsAvailableOverride")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<TimeSpan?>("StartTime")
-                        .HasColumnType("interval");
-
-                    b.HasKey("ExceptionId");
-
-                    b.HasIndex("DoctorId");
-
-                    b.ToTable("DoctorAvailabilityExceptions");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
@@ -942,9 +921,6 @@ namespace MediMateRepository.Migrations
                     b.Property<string>("Advice")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("ConsultanSessionId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -960,13 +936,12 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("DigitalPrescriptionId");
 
-                    b.HasIndex("ConsultanSessionId");
-
-                    b.HasIndex("DoctorId");
-
-                    b.HasIndex("MemberId");
+                    b.HasIndex("SessionId");
 
                     b.ToTable("PrescriptionsByDoctor");
                 });
@@ -984,6 +959,9 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("ConsultanSessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ConsultationSessionConsultanSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -999,6 +977,8 @@ namespace MediMateRepository.Migrations
                     b.HasKey("RatingId");
 
                     b.HasIndex("ConsultanSessionId");
+
+                    b.HasIndex("ConsultationSessionConsultanSessionId");
 
                     b.HasIndex("DoctorId");
 
@@ -1122,28 +1102,24 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Appointments", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
-                        .WithMany("Appointments")
+                    b.HasOne("MediMateRepository.Model.Doctors", null)
+                        .WithMany()
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
+                    b.HasOne("MediMateRepository.Model.Members", null)
                         .WithMany()
                         .HasForeignKey("MemberId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Doctor");
-
-                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.ChatDoctorMessages", b =>
                 {
                     b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultantSession")
                         .WithMany("Messages")
-                        .HasForeignKey("ConsultanSessionId")
+                        .HasForeignKey("ConsultantSessionConsultanSessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1215,20 +1191,15 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.DoctorAvailability", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
-                        .WithMany("Availabilities")
+                    b.HasOne("MediMateRepository.Model.Doctors", null)
+                        .WithMany()
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Doctor");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.DoctorAvailabilityExceptions", b =>
-                {
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany()
-                        .HasForeignKey("DoctorId")
+                        .HasForeignKey("DoctorId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1442,47 +1413,37 @@ namespace MediMateRepository.Migrations
                 {
                     b.HasOne("MediMateRepository.Model.ConsultationSessions", "Session")
                         .WithMany()
-                        .HasForeignKey("ConsultanSessionId")
+                        .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
-                        .WithMany()
-                        .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Doctor");
-
-                    b.Navigation("Member");
 
                     b.Navigation("Session");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Ratings", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultationSession")
+                    b.HasOne("MediMateRepository.Model.ConsultationSessions", null)
                         .WithMany()
                         .HasForeignKey("ConsultanSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultationSession")
+                        .WithMany()
+                        .HasForeignKey("ConsultationSessionConsultanSessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany()
                         .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("MediMateRepository.Model.Members", "Member")
                         .WithMany()
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("ConsultationSession");
@@ -1511,13 +1472,6 @@ namespace MediMateRepository.Migrations
             modelBuilder.Entity("MediMateRepository.Model.ConsultationSessions", b =>
                 {
                     b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
-                {
-                    b.Navigation("Appointments");
-
-                    b.Navigation("Availabilities");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>

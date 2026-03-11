@@ -55,7 +55,7 @@ namespace MediMateService.Services.Implementations
             var rating = new Ratings
             {
                 RatingId = Guid.NewGuid(),
-                SessionId = session.SessionId,
+                ConsultanSessionId = session.ConsultanSessionId,
                 DoctorId = session.DoctorId,
                 MemberId = session.MemberId,
                 Score = request.Score,
@@ -89,7 +89,7 @@ namespace MediMateService.Services.Implementations
             return new RatingDto
             {
                 RatingId = rating.RatingId,
-                SessionId = rating.SessionId,
+                SessionId = rating.ConsultanSessionId,
                 DoctorId = rating.DoctorId,
                 MemberId = rating.MemberId,
                 Score = rating.Score,
@@ -103,7 +103,7 @@ namespace MediMateService.Services.Implementations
             return new DoctorReviewDto
             {
                 RatingId = rating.RatingId,
-                SessionId = rating.SessionId,
+                SessionId = rating.ConsultanSessionId,
                 MemberId = rating.MemberId,
                 Score = rating.Score,
                 Comment = rating.Comment,

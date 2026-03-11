@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MediMateRepository.Model
 {
-    public class ChatDoctorMessage
+    public class ChatDoctorMessages
     {
         public Guid ChatDoctorMessageId { get; set; }
         public Guid ConsultanSessionId { get; set; }
@@ -16,7 +16,7 @@ namespace MediMateRepository.Model
         public string? AttachmentUrl { get; set; }
         public bool IsRead { get; set; }
         public DateTime SendAt { get; set; }
-        public virtual ConsultantSession ConsultantSession { get; set; }
+        public virtual ConsultationSessions ConsultantSession { get; set; }
         public virtual Members Sender { get; set; }
         public virtual Doctors DoctorSender { get; set; }
     }

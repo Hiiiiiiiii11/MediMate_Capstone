@@ -96,9 +96,9 @@ namespace MediMateService.Services.Implementations
                 Gender = request.Gender,
                 DateOfBirth = request.DateOfBirth,
                 Role = Roles.Doctor,
-                IsActive = false, 
-                CreatedAt = DateTime.UtcNow,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678aA@") 
+                IsActive = false,
+                CreatedAt = DateTime.Now,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678aA@") // Mật khẩu mặc định hoặc bắt buộc họ đổi sau
             };
 
             await userRepo.AddAsync(newUser);
@@ -109,7 +109,7 @@ namespace MediMateService.Services.Implementations
                 DoctorId = Guid.NewGuid(),
                 FullName = request.FullName,
                 UserId = newUserId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 Status = DoctorStatuses.Inactive
             };
 
@@ -222,7 +222,7 @@ namespace MediMateService.Services.Implementations
             {
                 var otp = new Random().Next(100000, 999999);
                 user.VerifyCode = otp;
-                user.ExpiriedAt = DateTime.UtcNow.AddMinutes(30);
+                user.ExpiriedAt = DateTime.Now.AddMinutes(30);
                 userRepo.Update(user);
                 await _unitOfWork.CompleteAsync();
 
@@ -278,7 +278,7 @@ namespace MediMateService.Services.Implementations
             if (user.VerifyCode != verifyCode)
                 throw new BadRequestException("Mã xác thực không chính xác.");
 
-            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.UtcNow)
+            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.Now)
                 throw new BadRequestException("Mã xác thực đã hết hạn.");
 
             user.VerifyCode = null;
@@ -315,14 +315,14 @@ namespace MediMateService.Services.Implementations
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
 
-            doctor.LastSeenAt = DateTime.UtcNow;
+            doctor.LastSeenAt = DateTime.Now;
             await _repo.UpdateDoctorAsync(doctor);
 
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);
             if (user != null)
             {
-                user.LastSeenAt = DateTime.UtcNow;
+                user.LastSeenAt = DateTime.Now;
                 userRepo.Update(user);
                 await _unitOfWork.CompleteAsync();
             }

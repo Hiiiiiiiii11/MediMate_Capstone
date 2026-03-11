@@ -13,5 +13,7 @@ namespace MediMateRepository.Model
         public string Status { get; set; } = "Pending";
         public string? CancelReason { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public virtual Doctors Doctor { get; set; } = null!;
+        public virtual Members Member { get; set; } = null!;
     }
 }

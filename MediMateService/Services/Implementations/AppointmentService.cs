@@ -66,14 +66,14 @@ namespace MediMateService.Services.Implementations
 
             var session = new ConsultationSessions
             {
-                SessionId = Guid.NewGuid(),
+                ConsultanSessionId = Guid.NewGuid(),
                 AppointmentId = appointment.AppointmentId,
                 DoctorId = appointment.DoctorId,
                 MemberId = appointment.MemberId,
                 StartedAt = appointment.AppointmentDate,
                 EndedAt = null,
                 Status = "Active",
-                DoctorNotes = null
+                DoctorNote = null
             };
             await _appointmentRepository.AddSessionAsync(session);
 

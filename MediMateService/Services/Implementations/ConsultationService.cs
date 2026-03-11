@@ -94,9 +94,9 @@ namespace MediMateService.Services.Implementations
             }
 
             var prefix = $"Prescription:{request.PrescriptionId}";
-            session.DoctorNotes = string.IsNullOrWhiteSpace(session.DoctorNotes)
+            session.DoctorNote = string.IsNullOrWhiteSpace(session.DoctorNote)
                 ? prefix
-                : $"{session.DoctorNotes}; {prefix}";
+                : $"{session.DoctorNote}; {prefix}";
             await _appointmentRepository.UpdateSessionAsync(session);
 
             return MapSession(session);
@@ -106,14 +106,14 @@ namespace MediMateService.Services.Implementations
         {
             return new ConsultationSessionDto
             {
-                SessionId = item.SessionId,
+                ConsultanSessionId = item.ConsultanSessionId,
                 AppointmentId = item.AppointmentId,
                 DoctorId = item.DoctorId,
                 MemberId = item.MemberId,
                 StartedAt = item.StartedAt,
                 EndedAt = item.EndedAt,
                 Status = item.Status,
-                DoctorNotes = item.DoctorNotes
+                DoctorNote = item.DoctorNote
             };
         }
     }

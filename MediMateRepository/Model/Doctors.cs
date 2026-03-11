@@ -21,5 +21,7 @@ namespace MediMateRepository.Model
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public Guid UserId { get; set; }
         public virtual User User { get; set; } = null!;
+        public virtual ICollection<DoctorAvailability> Availabilities { get; set; } = new List<DoctorAvailability>();
+        public virtual ICollection<Appointments> Appointments { get; set; } = new List<Appointments>();
     }
 }

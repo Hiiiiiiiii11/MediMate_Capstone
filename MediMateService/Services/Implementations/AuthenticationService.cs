@@ -68,8 +68,8 @@ namespace MediMateService.Services.Implementations
                 Role = "User",
                 IsActive = false, // Vô hiệu hóa cho đến khi verify
                 VerifyCode = otp,
-                ExpiriedAt = DateTime.UtcNow.AddMinutes(30),
-                CreatedAt = DateTime.UtcNow
+                ExpiriedAt = DateTime.Now.AddMinutes(30),
+                CreatedAt = DateTime.Now
             };
 
             // 5. Lưu vào DB
@@ -132,7 +132,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<AutheticationResponse>.Fail("Mã xác thực không chính xác.", 400);
             }
 
-            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.UtcNow)
+            if (user.ExpiriedAt.HasValue && user.ExpiriedAt.Value < DateTime.Now)
             {
                 return ApiResponse<AutheticationResponse>.Fail("Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới.", 400);
             }

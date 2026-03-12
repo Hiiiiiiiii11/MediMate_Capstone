@@ -78,6 +78,7 @@ namespace MediMate
             builder.Services.AddTransient<IReminderJobService, ReminderJobService>();
             builder.Services.AddScoped<IMedicationSchedulesService, MedicationSchedulesService>();
             builder.Services.AddScoped<IFirebaseNotificationService, FirebaseNotificationService>();
+            builder.Services.AddScoped<IChatDoctorService, ChatDoctorService>();
 
 
             builder.Services.AddAutoMapper(typeof(Program));

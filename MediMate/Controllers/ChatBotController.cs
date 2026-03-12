@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace MediMateApi.Controllers
 {
-    [Route("api/chatbot")]
+    [Route("api/v1/chatbot")]
     [ApiController]
     [Authorize] // Bắt buộc phải có Token (Bearer)
     public class ChatbotController : ControllerBase

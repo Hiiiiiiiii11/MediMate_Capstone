@@ -16,13 +16,13 @@ namespace MediMateRepository.Repositories.Implementations
         public async Task<ConsultationSessions?> GetSessionByIdAsync(Guid sessionId)
         {
             return await _context.ConsultationSessions
-                .FirstOrDefaultAsync(s => s.SessionId == sessionId);
+                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
         }
 
         public async Task<Ratings?> GetRatingBySessionIdAsync(Guid sessionId)
         {
             return await _context.Ratings
-                .FirstOrDefaultAsync(r => r.SessionId == sessionId);
+                .FirstOrDefaultAsync(r => r.ConsultanSessionId == sessionId);
         }
 
         public async Task<List<Ratings>> GetRatingsByDoctorIdAsync(Guid doctorId)

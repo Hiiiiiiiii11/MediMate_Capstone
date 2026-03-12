@@ -28,7 +28,7 @@ namespace MediMateRepository.Data
         public DbSet<Doctors> Doctors { get; set; }
         public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
         public DbSet<Appointments> Appointments { get; set; }
-        public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
+        
         public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
         public DbSet<Ratings> Ratings { get; set; }
         // Payment
@@ -36,6 +36,9 @@ namespace MediMateRepository.Data
         public DbSet<FamilySubscriptions> FamilySubscriptions { get; set; }
         public DbSet<Payments> Payments { get; set; }
         public DbSet<Transactions> Transactions { get; set; }
+        public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
+        public DbSet<ChatDoctorMessages> ChatDoctorMessages { get; set; }
+
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -61,8 +64,8 @@ namespace MediMateRepository.Data
             // Doctor
             modelBuilder.Entity<Doctors>().HasKey(d => d.DoctorId);
             modelBuilder.Entity<DoctorAvailability>().HasKey(da => da.DoctorAvailabilityId);
+            modelBuilder.Entity<DoctorAvailabilityExceptions>().HasKey(da => da.ExceptionId);
             modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
-            modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.SessionId);
             modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
             modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
             // Payment
@@ -70,6 +73,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<FamilySubscriptions>().HasKey(fs => fs.SubscriptionId);
             modelBuilder.Entity<Payments>().HasKey(p => p.PaymentId);
             modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
+            modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.ConsultanSessionId);
+            modelBuilder.Entity<ChatDoctorMessages>().HasKey(cm => cm.ChatDoctorMessageId);
 
 
 
@@ -228,45 +233,61 @@ namespace MediMateRepository.Data
 
             // Doctors 1-N DoctorAvailability
             modelBuilder.Entity<DoctorAvailability>()
-                .HasOne<Doctors>()
-                .WithMany()
-                .HasForeignKey(da => da.DoctorId)
-                .OnDelete(DeleteBehavior.Cascade);
+                 .HasOne(da => da.Doctor)
+                 .WithMany(d => d.Availabilities)
+                 .HasForeignKey(da => da.DoctorId)
+                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<DoctorAvailabilityExceptions>()
+                .HasOne(dae => dae.Doctor)
+                .WithMany()
+                .HasForeignKey(dae => dae.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
             // Doctors 1-N Appointments
             modelBuilder.Entity<Appointments>()
-                .HasOne<Doctors>()
-                .WithMany()
+                .HasOne(a => a.Doctor)
+                .WithMany(d => d.Appointments)
                 .HasForeignKey(a => a.DoctorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Members 1-N Appointments
             modelBuilder.Entity<Appointments>()
-                .HasOne<Members>()
-                .WithMany()
-                .HasForeignKey(a => a.MemberId)
-                .OnDelete(DeleteBehavior.Cascade);
+                 .HasOne(a => a.Member)
+                 .WithMany()
+                 .HasForeignKey(a => a.MemberId)
+                 .OnDelete(DeleteBehavior.Cascade);
 
             // Appointments 1-1 ConsultationSessions
             modelBuilder.Entity<ConsultationSessions>()
-                .HasOne<Appointments>()
-                .WithMany()
-                .HasForeignKey(cs => cs.AppointmentId)
+                .HasOne(cs => cs.Appointment) // Chỉ định rõ Navigation Property
+                .WithOne()                    // Sửa WithMany() thành WithOne() vì đây là quan hệ 1-1
+                .HasForeignKey<ConsultationSessions>(cs => cs.AppointmentId) // Phải xác định rõ Type chứa Khóa ngoại
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ConsultationSessions 1-N PrescriptionsByDoctor
             modelBuilder.Entity<PrescriptionsByDoctor>()
                 .HasOne(pd => pd.Session)
                 .WithMany()
-                .HasForeignKey(pd => pd.SessionId)
+                .HasForeignKey(pd => pd.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // ConsultationSessions 1-N Ratings
             modelBuilder.Entity<Ratings>()
-                .HasOne<ConsultationSessions>()
+                .HasOne(r => r.ConsultationSession)
                 .WithMany()
-                .HasForeignKey(r => r.SessionId)
+                .HasForeignKey(r => r.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Ratings>()
+                .HasOne(r => r.Doctor)
+                .WithMany()
+                .HasForeignKey(r => r.DoctorId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Ratings>()
+                .HasOne(r => r.Member)
+                .WithMany()
+                .HasForeignKey(r => r.MemberId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             // Doctors 1-1 Users
             modelBuilder.Entity<Doctors>()
@@ -305,6 +326,26 @@ namespace MediMateRepository.Data
                 .HasOne(t => t.Payment)
                 .WithMany()
                 .HasForeignKey(t => t.PaymentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ChatDoctorMessages>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ChatDoctorMessages>()
+                .HasOne(m => m.DoctorSender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ChatDoctorMessages>()
+                .HasOne(m => m.ConsultantSession)
+                .WithMany(cs => cs.Messages) // Map vào ICollection trong Session
+                .HasForeignKey(m => m.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

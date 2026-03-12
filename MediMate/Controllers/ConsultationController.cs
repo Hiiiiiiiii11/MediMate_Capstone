@@ -94,14 +94,14 @@ namespace MediMate.Controllers
         {
             return new ConsultationSessionResponse
             {
-                SessionId = dto.SessionId,
+                SessionId = dto.ConsultanSessionId,
                 AppointmentId = dto.AppointmentId,
                 DoctorId = dto.DoctorId,
                 MemberId = dto.MemberId,
                 StartedAt = dto.StartedAt,
                 EndedAt = dto.EndedAt,
                 Status = dto.Status,
-                DoctorNotes = dto.DoctorNotes
+                DoctorNotes = dto.DoctorNote
             };
         }
     }

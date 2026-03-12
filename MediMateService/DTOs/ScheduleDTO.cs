@@ -8,9 +8,9 @@ namespace MediMateService.DTOs
 {
     public class CreateScheduleRequest
     {
-        public Guid? PrescriptionMedicineId { get; set; }
-        public string MedicineName { get; set; } = string.Empty;
+        public Guid PrescriptionMedicineId { get; set; }
         public string Dosage { get; set; } = string.Empty;
+        public string MedicineName { get; set; } = string.Empty;
         public string Frequency { get; set; } = string.Empty;
         public string SpecificTimes { get; set; } = string.Empty; // VD: "08:00-09:00, 19:00-20:00"
         public DateTime StartDate { get; set; }
@@ -35,8 +35,13 @@ namespace MediMateService.DTOs
     public class ScheduleResponse
     {
         public Guid ScheduleId { get; set; }
-        public string MedicineName { get; set; }
-        public string SpecificTimes { get; set; }
+        public Guid MemberId { get; set; }
+        public string MemberName { get; set; } = string.Empty; // Dùng cho màn hình Family
+        public string MedicineName { get; set; } = string.Empty;
+        public string Dosage { get; set; } = string.Empty;
+        public string SpecificTimes { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
         public bool IsActive { get; set; }
     }
 

@@ -21,6 +21,8 @@ namespace MediMateService.Services
 
         // 3. Xóa Schedule
         Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId);
+        Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId);
+        Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetFamilySchedulesAsync(Guid familyId, Guid currentUserId);
 
     }
 }

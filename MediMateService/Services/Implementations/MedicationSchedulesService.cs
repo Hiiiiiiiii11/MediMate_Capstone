@@ -37,6 +37,7 @@ namespace MediMateService.Services.Implementations
             {
                 ScheduleId = Guid.NewGuid(),
                 MemberId = memberId,
+                PrescriptionMedicineId = request.PrescriptionMedicineId,
                 MedicineName = request.MedicineName,
                 Dosage = request.Dosage,
                 SpecificTimes = request.SpecificTimes,
@@ -104,7 +105,9 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            return ApiResponse<ScheduleResponse>.Ok(new ScheduleResponse { ScheduleId = schedule.ScheduleId, MedicineName = schedule.MedicineName });
+
+            schedule.Member = targetMember;
+            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Đã tạo lịch thành công.");
         }
 
         // 2. LẤY NHẮC NHỞ TRONG NGÀY CHO GIAO DIỆN (UI)
@@ -114,17 +117,16 @@ namespace MediMateService.Services.Implementations
             var endDate = date.Date.AddDays(1).AddTicks(-1);
 
             var reminders = await _unitOfWork.Repository<MedicationReminders>()
-                .FindAsync(r => r.Schedule.MemberId == memberId && r.ReminderDate >= startDate && r.ReminderDate <= endDate && r.Schedule.IsActive, "Schedule");
+        .FindAsync(r => r.Schedule.MemberId == memberId
+                        && r.ReminderDate >= startDate
+                        && r.ReminderDate <= endDate
+                        && r.Schedule.IsActive,
+                "Schedule,Schedule.Member");
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(r => new ReminderDailyResponse
-            {
-                ReminderId = r.ReminderId,
-                MedicineName = r.Schedule.MedicineName,
-                ReminderTime = r.ReminderTime,
-                EndTime = r.EndTime,
-                Status = r.Status
-            });
+            // Thay vì viết new ReminderDailyResponse ở đây, ta gọi thẳng hàm Helper cho gọn
+            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
+
         }
 
         // 3. XỬ LÝ NÚT BẤM "ĐÃ UỐNG" VÀ GHI LOG
@@ -367,6 +369,79 @@ namespace MediMateService.Services.Implementations
             }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa lịch uống thuốc.");
+        }
+        public async Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId)
+        {
+            if (!await _currentUserService.CheckAccess(memberId, currentUserId))
+                return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
+
+            // Include "Member" để lấy được tên người dùng nếu cần
+            var schedules = await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.MemberId == memberId, "Member");
+
+            // Sắp xếp: Lịch đang hoạt động lên đầu, sau đó xếp theo ngày tạo mới nhất
+            var response = schedules
+                .OrderByDescending(s => s.IsActive)
+                .ThenByDescending(s => s.StartDate)
+                .Select(s => MapToResponse(s));
+
+            return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
+        }
+
+        // =======================================================
+        // 5. LẤY DANH SÁCH LỊCH CỦA TOÀN BỘ GIA ĐÌNH (FAMILY)
+        // =======================================================
+        public async Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetFamilySchedulesAsync(Guid familyId, Guid currentUserId)
+        {
+            // Kiểm tra xem User hiện tại có thuộc gia đình này không
+            var isFamilyMember = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
+
+            if (!isFamilyMember)
+                return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Bạn không có quyền xem thông tin gia đình này.", 403);
+
+            // Lấy toàn bộ lịch của các thành viên trong gia đình
+            var schedules = await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.Member.FamilyId == familyId, "Member");
+
+            var response = schedules
+                .OrderByDescending(s => s.IsActive)
+                .ThenByDescending(s => s.StartDate)
+                .Select(s => MapToResponse(s));
+
+            return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
+        }
+        private ScheduleResponse MapToResponse(MedicationSchedules schedule)
+        {
+            return new ScheduleResponse
+            {
+                ScheduleId = schedule.ScheduleId,
+                MemberId = schedule.MemberId,
+                // Check null an toàn trong trường hợp không include bảng Member
+                MemberName = schedule.Member?.FullName ?? "Unknown",
+                MedicineName = schedule.MedicineName,
+                Dosage = schedule.Dosage,
+                SpecificTimes = schedule.SpecificTimes,
+                StartDate = schedule.StartDate,
+                EndDate = schedule.EndDate,
+                IsActive = schedule.IsActive
+            };
+        }
+
+        private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
+        {
+            return new ReminderDailyResponse
+            {
+                ReminderId = r.ReminderId,
+                ScheduleId = r.ScheduleId,                  // Giờ sẽ không bị 0000000 nữa
+                MemberId = r.Schedule.MemberId,             // Giờ sẽ không bị 0000000 nữa
+                MemberName = r.Schedule.Member?.FullName,   // Lấy tên bệnh nhân
+                MedicineName = r.Schedule.MedicineName,
+                Dosage = r.Schedule.Dosage,                 // Lấy liều lượng (viên, ml...)
+                ReminderTime = r.ReminderTime,
+                EndTime = r.EndTime,
+                Status = r.Status
+            };
         }
     }
 }

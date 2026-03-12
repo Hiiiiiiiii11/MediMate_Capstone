@@ -22,5 +22,6 @@ namespace MediMateRepository.Model
         public string? FcmToken { get; set; }
         public bool IsActive { get; set; }
         public virtual HealthProfiles? HealthProfile { get; set; }
+        public virtual NotificationSetting? NotificationSetting { get; set; }
     }
 }

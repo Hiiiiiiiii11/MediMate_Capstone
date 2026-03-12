@@ -48,6 +48,38 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet("members/{memberId}/schedules")]
+        public async Task<IActionResult> GetMemberSchedules(Guid memberId)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.GetMemberSchedulesAsync(memberId, callerId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
+        [HttpGet("families/{familyId}/schedules")]
+        public async Task<IActionResult> GetFamilySchedules(Guid familyId)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.GetFamilySchedulesAsync(familyId, callerId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
         [HttpPut("schedules/{scheduleId}")]
         public async Task<IActionResult> UpdateSchedule(Guid scheduleId, [FromBody] UpdateScheduleRequest request)
         {
@@ -86,25 +118,25 @@ namespace MediMate.Controllers
         // QUẢN LÝ NHẮC NHỞ (REMINDERS) & LOGS
         // ==========================================
 
-        [HttpGet("reminders/my-daily")]
-        public async Task<IActionResult> GetMyDailyReminders([FromQuery] DateTime date)
-        {
-            try
-            {
-                var callerId = _currentUserService.UserId;
+        //[HttpGet("reminders/my-daily")]
+        //public async Task<IActionResult> GetMyDailyReminders([FromQuery] DateTime date)
+        //{
+        //    try
+        //    {
+        //        var callerId = _currentUserService.UserId;
 
-                // Vì tự xem của mình, memberId và currentUserId đều là callerId
-                var result = await _scheduleService.GetDailyRemindersAsync(callerId, callerId, date);
+        //        // Vì tự xem của mình, memberId và currentUserId đều là callerId
+        //        var result = await _scheduleService.GetDailyRemindersAsync(callerId, callerId, date);
 
-                if (!result.Success) return StatusCode(result.Code, result);
-                return Ok(result);
+        //        if (!result.Success) return StatusCode(result.Code, result);
+        //        return Ok(result);
 
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
-            }
-        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        //    }
+        //}
         [HttpGet("members/{memberId}/reminders/daily")]
         public async Task<IActionResult> GetDailyReminders(Guid memberId, [FromQuery] DateTime date)
         {
@@ -135,11 +167,18 @@ namespace MediMate.Controllers
         [HttpPut("reminders/{reminderId}/action")]
         public async Task<IActionResult> MarkReminderAction(Guid reminderId, [FromBody] MedicationActionRequest request)
         {
-            var callerId = _currentUserService.UserId;
-            var result = await _scheduleService.MarkReminderActionAsync(reminderId, callerId, request);
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.MarkReminderActionAsync(reminderId, callerId, request);
 
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
         }
     }
 }

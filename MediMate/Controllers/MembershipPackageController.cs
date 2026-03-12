@@ -1,4 +1,4 @@
-using MediMate.Models.Packages;
+
 using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;

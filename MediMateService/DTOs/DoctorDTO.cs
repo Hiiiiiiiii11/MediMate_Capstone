@@ -14,7 +14,7 @@ namespace MediMateService.DTOs
         public string Status { get; set; } = string.Empty;
         public string? RejectionReason { get; set; }
         public DateTime? LastSeenAt { get; set; }
-        public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.UtcNow.AddMinutes(-2);
+        public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.Now.AddMinutes(-2);
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }

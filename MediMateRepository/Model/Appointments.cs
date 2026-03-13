@@ -15,5 +15,6 @@ namespace MediMateRepository.Model
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public virtual Doctors Doctor { get; set; } = null!;
         public virtual Members Member { get; set; } = null!;
+        public virtual DoctorAvailability Availability { get; set; } = null!;
     }
 }

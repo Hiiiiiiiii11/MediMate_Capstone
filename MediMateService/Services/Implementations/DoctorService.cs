@@ -294,21 +294,21 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        //public async Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason)
-        //{
-        //    var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-        //    if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-        //    if (doctor.Status == DoctorStatuses.Rejected)
-        //        throw new BadRequestException("Bác sĩ đã bị từ chối trước đó.");
+        public async Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason)
+        {
+            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+            if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+            if (doctor.Status == DoctorStatuses.Rejected)
+                throw new BadRequestException("Bác sĩ đã bị từ chối trước đó.");
 
-        //    doctor.Status = DoctorStatuses.Rejected;
-        //    doctor.RejectionReason = reason;
-        //    await _repo.UpdateDoctorAsync(doctor);
+            doctor.Status = DoctorStatuses.Rejected;
+            doctor.RejectionReason = reason;
+            await _repo.UpdateDoctorAsync(doctor);
 
-        //    await SyncUserIsActiveAsync(doctor.UserId, isActive: false);
+            await SyncUserIsActiveAsync(doctor.UserId, isActive: false);
 
-        //    return MapToDto(doctor);
-        //}
+            return MapToDto(doctor);
+        }
 
         public async Task HeartbeatAsync(Guid doctorId)
         {

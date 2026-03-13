@@ -56,11 +56,11 @@ namespace MediMate.Controllers
 
         [HttpPost("{doctorId}/reject")]
         [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
-        //public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
-        //{
-        //    var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);
-        //    return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Đã từ chối hồ sơ bác sĩ."));
-        //}
+        public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
+        {
+            var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);
+            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Đã từ chối hồ sơ bác sĩ."));
+        }
 
         //[HttpPost("{doctorId}/availability")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]

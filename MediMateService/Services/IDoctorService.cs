@@ -27,7 +27,7 @@ namespace MediMateService.Services
         Task<DoctorDto> VerifyDoctorAsync(Guid doctorId);                         // Pending → Verified
         Task<DoctorDto> ApproveDoctorAsync(Guid doctorId);                        // Verified → Approved
         Task<DoctorDto> ActivateDoctorAsync(Guid doctorId, int verifyCode);                       // Approved → Active  (+sync User.IsActive=true)
-/*        Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason);  */       // any → Rejected     (+sync User.IsActive=false)
+        Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason);         // any → Rejected     (+sync User.IsActive=false)
 
         // Heartbeat (online status)
         Task HeartbeatAsync(Guid doctorId);

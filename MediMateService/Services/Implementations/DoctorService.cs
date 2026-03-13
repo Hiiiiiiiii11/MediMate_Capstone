@@ -40,13 +40,13 @@ namespace MediMateService.Services.Implementations
             return doc == null ? throw new NotFoundException("Không tìm thấy bác sĩ.") : MapToDto(doc);
         }
 
-        public async Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId)
-        {
-            var doc = await _repo.GetPublicDoctorByIdAsync(doctorId);
-            if (doc == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            var list = (await _repo.GetAvailabilityByDoctorIdAsync(doctorId)).Where(a => a.IsActive).ToList();
-            return list.Select(MapToDto).ToList();
-        }
+        //public async Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId)
+        //{
+        //    var doc = await _repo.GetPublicDoctorByIdAsync(doctorId);
+        //    if (doc == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+        //    var list = (await _repo.GetAvailabilityByDoctorIdAsync(doctorId)).Where(a => a.IsActive).ToList();
+        //    return list.Select(MapToDto).ToList();
+        //}
 
         public async Task<List<DoctorDto>> GetDoctorsAsync(string? specialty = null, string? status = null)
         {
@@ -294,21 +294,21 @@ namespace MediMateService.Services.Implementations
             return MapToDto(doctor);
         }
 
-        public async Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            if (doctor.Status == DoctorStatuses.Rejected)
-                throw new BadRequestException("Bác sĩ đã bị từ chối trước đó.");
+        //public async Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason)
+        //{
+        //    var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+        //    if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+        //    if (doctor.Status == DoctorStatuses.Rejected)
+        //        throw new BadRequestException("Bác sĩ đã bị từ chối trước đó.");
 
-            doctor.Status = DoctorStatuses.Rejected;
-            doctor.RejectionReason = reason;
-            await _repo.UpdateDoctorAsync(doctor);
+        //    doctor.Status = DoctorStatuses.Rejected;
+        //    doctor.RejectionReason = reason;
+        //    await _repo.UpdateDoctorAsync(doctor);
 
-            await SyncUserIsActiveAsync(doctor.UserId, isActive: false);
+        //    await SyncUserIsActiveAsync(doctor.UserId, isActive: false);
 
-            return MapToDto(doctor);
-        }
+        //    return MapToDto(doctor);
+        //}
 
         public async Task HeartbeatAsync(Guid doctorId)
         {
@@ -328,53 +328,53 @@ namespace MediMateService.Services.Implementations
             }
         }
 
-        public async Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+        //public async Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request)
+        //{
+        //    var doctor = await _repo.GetDoctorByIdAsync(doctorId);
+        //    if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
 
-            var startTime = ParseTime(request.StartTime, "StartTime");
-            var endTime = ParseTime(request.EndTime, "EndTime");
-            ValidateRange(startTime, endTime);
+        //    var startTime = ParseTime(request.StartTime, "StartTime");
+        //    var endTime = ParseTime(request.EndTime, "EndTime");
+        //    ValidateRange(startTime, endTime);
 
-            var availability = new DoctorAvailability
-            {
-                DoctorAvailabilityId = Guid.NewGuid(),
-                DoctorId = doctorId,
-                DayOfWeek = request.DayOfWeek,
-                StartTime = startTime,
-                EndTime = endTime,
-                IsActive = true
-            };
+        //    var availability = new DoctorAvailability
+        //    {
+        //        DoctorAvailabilityId = Guid.NewGuid(),
+        //        DoctorId = doctorId,
+        //        DayOfWeek = request.DayOfWeek,
+        //        StartTime = startTime,
+        //        EndTime = endTime,
+        //        IsActive = true
+        //    };
 
-            await _repo.AddAvailabilityAsync(availability);
-            return MapToDto(availability);
-        }
+        //    await _repo.AddAvailabilityAsync(availability);
+        //    return MapToDto(availability);
+        //}
 
-        public async Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request)
-        {
-            var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
-            if (availability == null) throw new NotFoundException("Không tìm thấy lịch làm việc.");
+        //public async Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request)
+        //{
+        //    var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
+        //    if (availability == null) throw new NotFoundException("Không tìm thấy lịch làm việc.");
 
-            var startTime = ParseTime(request.StartTime, "StartTime");
-            var endTime = ParseTime(request.EndTime, "EndTime");
-            ValidateRange(startTime, endTime);
+        //    var startTime = ParseTime(request.StartTime, "StartTime");
+        //    var endTime = ParseTime(request.EndTime, "EndTime");
+        //    ValidateRange(startTime, endTime);
 
-            availability.DayOfWeek = request.DayOfWeek;
-            availability.StartTime = startTime;
-            availability.EndTime = endTime;
-            availability.IsActive = request.IsActive;
+        //    availability.DayOfWeek = request.DayOfWeek;
+        //    availability.StartTime = startTime;
+        //    availability.EndTime = endTime;
+        //    availability.IsActive = request.IsActive;
 
-            await _repo.UpdateAvailabilityAsync(availability);
-            return MapToDto(availability);
-        }
+        //    await _repo.UpdateAvailabilityAsync(availability);
+        //    return MapToDto(availability);
+        //}
 
-        public async Task DeleteAvailabilityAsync(Guid doctorId, Guid availabilityId)
-        {
-            var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
-            if (availability == null) throw new NotFoundException("Không tìm thấy lịch làm việc.");
-            await _repo.DeleteAvailabilityAsync(availability);
-        }
+        //public async Task DeleteAvailabilityAsync(Guid doctorId, Guid availabilityId)
+        //{
+        //    var availability = await _repo.GetAvailabilityByIdAsync(doctorId, availabilityId);
+        //    if (availability == null) throw new NotFoundException("Không tìm thấy lịch làm việc.");
+        //    await _repo.DeleteAvailabilityAsync(availability);
+        //}
 
         private async Task SyncUserIsActiveAsync(Guid userId, bool isActive)
         {

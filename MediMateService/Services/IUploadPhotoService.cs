@@ -7,5 +7,6 @@ namespace MediMateService.Services
     {
         Task<FileUploadResult> UploadPhotoAsync(IFormFile file);
         Task<FileUploadResult> UploadPrescriptionPhotoAsync(IFormFile file);
+        Task<string> UploadDocumentAsync(IFormFile file);
     }
 }

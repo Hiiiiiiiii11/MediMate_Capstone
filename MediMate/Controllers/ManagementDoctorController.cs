@@ -56,46 +56,46 @@ namespace MediMate.Controllers
 
         [HttpPost("{doctorId}/reject")]
         [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
-        public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
-        {
-            var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);
-            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Đã từ chối hồ sơ bác sĩ."));
-        }
+        //public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
+        //{
+        //    var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);
+        //    return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Đã từ chối hồ sơ bác sĩ."));
+        //}
 
-        [HttpPost("{doctorId}/availability")]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
-        public async Task<IActionResult> AddAvailability(Guid doctorId, [FromBody] CreateDoctorAvailabilityRequest request)
-        {
-            var data = await _doctorService.AddAvailabilityAsync(doctorId, new CreateDoctorAvailabilityDto
-            {
-                DayOfWeek = request.DayOfWeek,
-                StartTime = request.StartTime,
-                EndTime = request.EndTime
-            });
-            return Ok(ApiResponse<DoctorAvailabilityResponse>.Ok(MapAvailabilityResponse(data), "Thêm lịch làm việc thành công."));
-        }
+        //[HttpPost("{doctorId}/availability")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        //public async Task<IActionResult> AddAvailability(Guid doctorId, [FromBody] CreateDoctorAvailabilityRequest request)
+        //{
+        //    var data = await _doctorService.AddAvailabilityAsync(doctorId, new CreateDoctorAvailabilityDto
+        //    {
+        //        DayOfWeek = request.DayOfWeek,
+        //        StartTime = request.StartTime,
+        //        EndTime = request.EndTime
+        //    });
+        //    return Ok(ApiResponse<DoctorAvailabilityResponse>.Ok(MapAvailabilityResponse(data), "Thêm lịch làm việc thành công."));
+        //}
 
-        [HttpPut("{doctorId}/availability/{availabilityId}")]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
-        public async Task<IActionResult> UpdateAvailability(Guid doctorId, Guid availabilityId, [FromBody] UpdateDoctorAvailabilityRequest request)
-        {
-            var data = await _doctorService.UpdateAvailabilityAsync(doctorId, availabilityId, new UpdateDoctorAvailabilityDto
-            {
-                DayOfWeek = request.DayOfWeek,
-                StartTime = request.StartTime,
-                EndTime = request.EndTime,
-                IsActive = request.IsActive
-            });
-            return Ok(ApiResponse<DoctorAvailabilityResponse>.Ok(MapAvailabilityResponse(data), "Cập nhật lịch làm việc thành công."));
-        }
+        //[HttpPut("{doctorId}/availability/{availabilityId}")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        //public async Task<IActionResult> UpdateAvailability(Guid doctorId, Guid availabilityId, [FromBody] UpdateDoctorAvailabilityRequest request)
+        //{
+        //    var data = await _doctorService.UpdateAvailabilityAsync(doctorId, availabilityId, new UpdateDoctorAvailabilityDto
+        //    {
+        //        DayOfWeek = request.DayOfWeek,
+        //        StartTime = request.StartTime,
+        //        EndTime = request.EndTime,
+        //        IsActive = request.IsActive
+        //    });
+        //    return Ok(ApiResponse<DoctorAvailabilityResponse>.Ok(MapAvailabilityResponse(data), "Cập nhật lịch làm việc thành công."));
+        //}
 
-        [HttpDelete("{doctorId}/availability/{availabilityId}")]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
-        public async Task<IActionResult> DeleteAvailability(Guid doctorId, Guid availabilityId)
-        {
-            await _doctorService.DeleteAvailabilityAsync(doctorId, availabilityId);
-            return Ok(ApiResponse<bool>.Ok(true, "Xóa lịch làm việc thành công."));
-        }
+        //[HttpDelete("{doctorId}/availability/{availabilityId}")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        //public async Task<IActionResult> DeleteAvailability(Guid doctorId, Guid availabilityId)
+        //{
+        //    await _doctorService.DeleteAvailabilityAsync(doctorId, availabilityId);
+        //    return Ok(ApiResponse<bool>.Ok(true, "Xóa lịch làm việc thành công."));
+        //}
 
         private static ManagementDoctorResponse MapResponse(DoctorDto dto) => new()
         {

@@ -28,7 +28,9 @@ namespace MediMateRepository.Data
         public DbSet<Doctors> Doctors { get; set; }
         public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
         public DbSet<Appointments> Appointments { get; set; }
-        
+        public DbSet<DoctorBankAccount> DoctorBankAccounts { get; set; } 
+        public DbSet<DoctorDocument> DoctorDocuments { get; set; }
+
         public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
         public DbSet<Ratings> Ratings { get; set; }
         // Payment
@@ -68,6 +70,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
             modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
             modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
+            modelBuilder.Entity<DoctorBankAccount>().HasKey(dba => dba.BankAccountId); 
+            modelBuilder.Entity<DoctorDocument>().HasKey(dd => dd.DocumentId);         
             // Payment
             modelBuilder.Entity<MembershipPackages>().HasKey(mp => mp.PackageId);
             modelBuilder.Entity<FamilySubscriptions>().HasKey(fs => fs.SubscriptionId);
@@ -295,6 +299,26 @@ namespace MediMateRepository.Data
                 .WithMany()
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Doctors 1-N DoctorBankAccount (THÊM MỚI)
+            modelBuilder.Entity<DoctorBankAccount>()
+                .HasOne(dba => dba.Doctor)
+                .WithMany()
+                .HasForeignKey(dba => dba.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Doctors 1-N DoctorDocument (THÊM MỚI)
+            modelBuilder.Entity<DoctorDocument>()
+                .HasOne(dd => dd.Doctor)
+                .WithMany()
+                .HasForeignKey(dd => dd.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Appointments>()
+                .HasOne(a => a.Availability)
+                .WithMany()
+                .HasForeignKey(a => a.AvailabilityId)
+                .OnDelete(DeleteBehavior.Restrict); // Không cho xóa khung giờ nếu đã có người đặt lịch
 
             // ==========================================
             // PAYMENT RELATIONSHIPS

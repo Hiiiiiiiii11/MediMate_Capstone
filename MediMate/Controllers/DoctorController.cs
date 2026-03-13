@@ -42,14 +42,14 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<DoctorResponse>.Ok(response, "Lấy chi tiết bác sĩ thành công."));
         }
 
-        [HttpGet("{doctorId}/availability")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetAvailability(Guid doctorId)
-        {
-            var data = await _doctorService.GetPublicAvailabilityByDoctorAsync(doctorId);
-            var response = data.Select(MapAvailabilityResponse).ToList();
-            return Ok(ApiResponse<List<DoctorAvailabilityResponse>>.Ok(response, "Lấy lịch làm việc bác sĩ thành công."));
-        }
+        //[HttpGet("{doctorId}/availability")]
+        //[AllowAnonymous]
+        //public async Task<IActionResult> GetAvailability(Guid doctorId)
+        //{
+        //    var data = await _doctorService.GetPublicAvailabilityByDoctorAsync(doctorId);
+        //    var response = data.Select(MapAvailabilityResponse).ToList();
+        //    return Ok(ApiResponse<List<DoctorAvailabilityResponse>>.Ok(response, "Lấy lịch làm việc bác sĩ thành công."));
+        //}
 
         [HttpGet("{doctorId}/reviews")]
         [AllowAnonymous]

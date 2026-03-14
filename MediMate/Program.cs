@@ -96,6 +96,7 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorBankAccountService, DoctorBankAccountService>();
             builder.Services.AddScoped<IDoctorDocumentService, DoctorDocumentService>();
             builder.Services.AddScoped<IDoctorAvailabilityExceptionService, DoctorAvailabilityExceptionService>();
+            builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
 
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

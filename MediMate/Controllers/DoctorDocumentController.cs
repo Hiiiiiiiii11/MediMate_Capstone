@@ -25,7 +25,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("doctors/{doctorId}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreateDoctorDocumentRequest request)
         {
             try
@@ -44,7 +45,8 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("doctors/{doctorId}")]
-        [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
+        //[Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
+        [Authorize]
         public async Task<IActionResult> GetByDoctorId(Guid doctorId)
         {
             try
@@ -59,7 +61,8 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
+        //[Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
+        [Authorize]
         public async Task<IActionResult> GetById(Guid id)
         {
             try
@@ -74,7 +77,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDoctorDocumentRequest request)
         {
             try
@@ -91,7 +95,8 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
@@ -111,7 +116,8 @@ namespace MediMate.Controllers
         // API DÀNH RIÊNG CHO ADMIN / MANAGER DUYỆT
         // ==========================================
         [HttpPatch("{id}/review")]
-        [Authorize(Roles = $"{Roles.DoctorManager}")]
+        //[Authorize(Roles = $"{Roles.DoctorManager}")]
+        [Authorize]
         public async Task<IActionResult> ReviewDocument(Guid id, [FromBody] ReviewDoctorDocumentRequest request)
         {
             try

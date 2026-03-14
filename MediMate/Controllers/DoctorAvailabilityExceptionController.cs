@@ -24,7 +24,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("doctors/{doctorId}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreateDoctorAvailabilityExceptionRequest request)
         {
             try
@@ -70,7 +71,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDoctorAvailabilityExceptionRequest request)
         {
             try
@@ -86,7 +88,8 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

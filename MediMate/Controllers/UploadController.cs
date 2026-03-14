@@ -39,7 +39,7 @@ public class UploadController : ControllerBase
     }
 
     [HttpPost("document")]
-    [Authorize(Roles = Roles.Doctor)]
+    //[Authorize(Roles = Roles.Doctor)]
     public async Task<IActionResult> UploadDocument(IFormFile file)
     {
         try

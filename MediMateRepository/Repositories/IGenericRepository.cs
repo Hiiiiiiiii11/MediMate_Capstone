@@ -14,6 +14,7 @@ namespace MediMateRepository.Repositories
         void UpdateRange(IEnumerable<T> entities);
         void Remove(T entity);
         void RemoveRange(IEnumerable<T> entities);
+        IQueryable<T> GetQueryable();
 
     }
 }

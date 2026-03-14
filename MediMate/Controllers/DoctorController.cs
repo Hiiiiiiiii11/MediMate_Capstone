@@ -62,7 +62,8 @@ namespace MediMate.Controllers
 
     
         [HttpGet("me")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> GetMyProfile()
         {
             var userId = GetCurrentUserId();
@@ -73,7 +74,8 @@ namespace MediMate.Controllers
      
 
         [HttpPost("me/submit")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> SubmitProfile([FromForm] SubmitDoctorRequest request)
         {
             var userId = GetCurrentUserId();
@@ -100,7 +102,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPatch("me/online")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Heartbeat()
         {
             var userId = GetCurrentUserId();

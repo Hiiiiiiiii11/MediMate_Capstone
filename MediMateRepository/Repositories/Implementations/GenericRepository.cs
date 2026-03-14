@@ -91,5 +91,10 @@ namespace MediMateRepository.Repositories.Implementations
         {
             _dbSet.RemoveRange(entities);
         }
+        public IQueryable<T> GetQueryable()
+        {
+            // Thêm AsNoTracking() trước AsQueryable()
+            return _context.Set<T>().AsNoTracking().AsQueryable();
+        }
     }
 }

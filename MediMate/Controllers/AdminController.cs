@@ -10,7 +10,8 @@ namespace MediMate.Controllers
 {
     [Route("api/v1/admin")]
     [ApiController]
-    [Authorize(Roles = Roles.Admin)]
+    //[Authorize(Roles = Roles.Admin)]
+    [Authorize]
     public class AdminController : ControllerBase
     {
         private readonly IDoctorService _doctorService;

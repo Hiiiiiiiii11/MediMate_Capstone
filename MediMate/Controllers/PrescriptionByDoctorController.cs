@@ -25,7 +25,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("doctors/{doctorId}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
         public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreatePrescriptionByDoctorRequest request)
         {
             try
@@ -83,7 +83,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePrescriptionByDoctorRequest request)
         {
             try

@@ -21,7 +21,8 @@ namespace MediMate.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        [Authorize]
         public async Task<IActionResult> GetDoctors([FromQuery] GetDoctorsRequest request, [FromQuery] string? status = null)
         {
             var data = await _doctorService.GetDoctorsAsync(request.Specialty, status);
@@ -30,7 +31,8 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{doctorId}")]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager},{Roles.Doctor}")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager},{Roles.Doctor}")]
+        [Authorize]
         public async Task<IActionResult> GetDoctorById(Guid doctorId)
         {
             var data = await _doctorService.GetDoctorByIdAsync(doctorId);
@@ -39,7 +41,8 @@ namespace MediMate.Controllers
 
 
         [HttpPost("{doctorId}/verify")]
-        [Authorize(Roles = Roles.DoctorManager)]
+        //[Authorize(Roles = Roles.DoctorManager)]
+        [Authorize]
         public async Task<IActionResult> Verify(Guid doctorId)
         {
             var data = await _doctorService.VerifyDoctorAsync(doctorId);
@@ -47,7 +50,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("{doctorId}/approve")]
-        [Authorize(Roles = Roles.DoctorManager)]
+        //[Authorize(Roles = Roles.DoctorManager)]
+        [Authorize]
         public async Task<IActionResult> Approve(Guid doctorId)
         {
             var data = await _doctorService.ApproveDoctorAsync(doctorId);
@@ -55,7 +59,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("{doctorId}/reject")]
-        [Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        [Authorize]
         public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
         {
             var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);

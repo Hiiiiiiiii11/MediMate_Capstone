@@ -1,0 +1,347 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using MediMateRepository.Data;
+using MediMateRepository.Model;
+using MediMateRepository.Repositories;
+using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace MediMateService.Services.Implementations;
+
+public class PayOSService : IPayOSService
+{
+    private readonly HttpClient _httpClient;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<PayOSService> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly MediMateDbContext _context;
+
+    private readonly string _clientId;
+    private readonly string _apiKey;
+    private readonly string _checksumKey;
+    private readonly string _baseUrl;
+    private readonly string _defaultReturnUrl;
+    private readonly string _defaultCancelUrl;
+
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, MediMateDbContext context)
+    {
+        _httpClient = httpClient;
+        _configuration = configuration;
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+        _context = context;
+
+        _clientId = Environment.GetEnvironmentVariable("PAYOS_CLIENT_ID") ?? _configuration["PayOS:ClientId"] ?? throw new InvalidOperationException("PayOS ClientId not configured");
+        _apiKey = Environment.GetEnvironmentVariable("PAYOS_API_KEY") ?? _configuration["PayOS:ApiKey"] ?? throw new InvalidOperationException("PayOS ApiKey not configured");
+        _checksumKey = Environment.GetEnvironmentVariable("PAYOS_CHECKSUM_KEY") ?? _configuration["PayOS:ChecksumKey"] ?? throw new InvalidOperationException("PayOS ChecksumKey not configured");
+        _baseUrl = Environment.GetEnvironmentVariable("PAYOS_BASE_URL") ?? _configuration["PayOS:BaseUrl"] ?? throw new InvalidOperationException("PayOS BaseUrl not configured");
+        _defaultReturnUrl = Environment.GetEnvironmentVariable("PAYOS_RETURN_URL") ?? _configuration["PayOS:ReturnUrl"] ?? throw new InvalidOperationException("PayOS ReturnUrl not configured");
+        _defaultCancelUrl = Environment.GetEnvironmentVariable("PAYOS_CANCEL_URL") ?? _configuration["PayOS:CancelUrl"] ?? throw new InvalidOperationException("PayOS CancelUrl not configured");
+
+        _httpClient.BaseAddress = new Uri(_baseUrl);
+        _httpClient.DefaultRequestHeaders.Add("x-client-id", _clientId);
+        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+    }
+
+    public async Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var package = await _unitOfWork.Repository<MembershipPackages>().GetByIdAsync(request.PackageId);
+            if (package == null) throw new InvalidOperationException("Package not found");
+
+            var family = await _unitOfWork.Repository<Families>().GetByIdAsync(request.FamilyId);
+            if (family == null) throw new InvalidOperationException("Family not found");
+
+            // Check member limit vs current family members count
+            var memberCount = (await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == request.FamilyId && m.IsActive)).Count();
+            if (memberCount > package.MemberLimit)
+            {
+                throw new InvalidOperationException($"Gia đình hiện có {memberCount} thành viên, vượt quá giới hạn {package.MemberLimit} của gói này. Vui lòng chọn gói cao hơn.");
+            }
+
+            // Define orderCode (unique int up to 53 bit)
+            int orderCode = (int)(DateTime.UtcNow.Ticks % int.MaxValue);
+
+
+            // Create Pending Subscription
+            var subscription = new FamilySubscriptions
+            {
+                SubscriptionId = Guid.NewGuid(),
+                FamilyId = request.FamilyId,
+                PackageId = request.PackageId,
+                UserId = userId,
+                // Dates will be finalized when payment succeeds
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                Status = "Pending",
+                AutoRenew = false
+            };
+            await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(subscription);
+
+            // Create Pending Payment
+            var payment = new Payments
+            {
+                PaymentId = Guid.NewGuid(),
+                SubscriptionId = subscription.SubscriptionId,
+                UserId = userId,
+                Amount = package.Price,
+                PaymentContent = $"Mua goi {package.PackageName}",
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<Payments>().AddAsync(payment);
+
+            // Create Transaction to store OrderCode
+            var transaction = new Transactions
+            {
+                TransactionId = Guid.NewGuid(),
+                PaymentId = payment.PaymentId,
+                GatewayName = "PayOS",
+                GatewayTransactionId = orderCode.ToString(),
+                TransactionStatus = "Pending",
+                AmountPaid = 0 // Will update on success
+            };
+            await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
+
+            await _unitOfWork.CompleteAsync();
+
+            var payload = new
+            {
+                orderCode = orderCode,
+                amount = (int)package.Price,
+                description = $"Thanh toan #{orderCode}",
+                buyerName = request.BuyerName,
+                buyerEmail = request.BuyerEmail,
+                buyerPhone = request.BuyerPhone,
+                items = new[] {
+                    new {
+                        name = package.PackageName,
+                        quantity = 1,
+                        price = (int)package.Price,
+                        unit = "VND"
+                    }
+                },
+                cancelUrl = request.CancelUrl ?? _defaultCancelUrl,
+                returnUrl = request.ReturnUrl ?? _defaultReturnUrl,
+                expiredAt = (int?)DateTime.UtcNow.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
+            };
+
+            var signature = CreateSignature(payload);
+            var requestBody = new
+            {
+                orderCode = payload.orderCode,
+                amount = payload.amount,
+                description = payload.description,
+                buyerName = payload.buyerName,
+                buyerEmail = payload.buyerEmail,
+                buyerPhone = payload.buyerPhone,
+                items = payload.items,
+                cancelUrl = payload.cancelUrl,
+                returnUrl = payload.returnUrl,
+                expiredAt = payload.expiredAt,
+                signature = signature
+            };
+
+            var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            _logger.LogInformation("Creating PayOS payment link for OrderCode {OrderCode}", orderCode);
+
+            var response = await _httpClient.PostAsync("/v2/payment-requests", content, cancellationToken);
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = JsonSerializer.Deserialize<PayOSApiResponse<PaymentLinkData>>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                if (result?.Data != null)
+                {
+                    return new PaymentLinkResponse
+                    {
+                        PaymentUrl = result.Data.CheckoutUrl,
+                        OrderCode = orderCode,
+                        QrCode = result.Data.QrCode,
+                        Message = "Payment link created successfully"
+                    };
+                }
+            }
+
+            _logger.LogError("PayOS Error: {Response}", responseContent);
+            throw new Exception($"Failed to create payment link: {responseContent}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating payment link");
+            throw;
+        }
+    }
+
+    public async Task<PaymentStatusResponse?> GetPaymentInfoAsync(int orderCode, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"/v2/payment-requests/{orderCode}", cancellationToken);
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = JsonSerializer.Deserialize<PayOSApiResponse<PaymentInfoData>>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                if (result?.Data != null)
+                {
+                    return new PaymentStatusResponse
+                    {
+                        OrderCode = result.Data.OrderCode,
+                        Amount = result.Data.Amount,
+                        Description = result.Data.Description,
+                        Status = result.Data.Status,
+                        CreatedAt = result.Data.CreatedAt,
+                        PaidAt = result.Data.PaidAt,
+                        TransactionId = result.Data.TransactionId
+                    };
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment info");
+            throw;
+        }
+    }
+
+    public async Task<bool> ProcessPaymentWebhookAsync(int orderCode, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Processing webhook for order {OrderCode}", orderCode);
+
+            // Find transaction logic bypassing Repositories simple query since we need eager loading
+            var transaction = await _context.Transactions
+                .Include(t => t.Payment)
+                .ThenInclude(p => p.Subscription)
+                .ThenInclude(s => s.Package)
+                .FirstOrDefaultAsync(t => t.GatewayName == "PayOS" && t.GatewayTransactionId == orderCode.ToString(), cancellationToken);
+
+            if (transaction == null)
+            {
+                _logger.LogWarning("Transaction not found for OrderCode {OrderCode}", orderCode);
+                return false;
+            }
+
+            if (transaction.TransactionStatus == "Success" || transaction.Payment.Status == "Success")
+            {
+                // Already processed
+                return true;
+            }
+
+            // Update Transaction
+            transaction.TransactionStatus = "Success";
+            transaction.AmountPaid = transaction.Payment.Amount;
+
+            // Update Payment
+            transaction.Payment.Status = "Success";
+
+            // Update Subscription
+            var sub = transaction.Payment.Subscription;
+            sub.Status = "Active";
+            sub.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
+
+            _context.Transactions.Update(transaction);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing payment completion for order {OrderCode}", orderCode);
+            return false;
+        }
+    }
+
+    public Task<bool> VerifyWebhookSignatureAsync(string signature, string data, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var webhookBody = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(data);
+            if (webhookBody == null || !webhookBody.ContainsKey("data")) return Task.FromResult(false);
+
+            var dataObject = webhookBody["data"];
+            var expectedSignature = CreateWebhookSignatureFromData(dataObject);
+            return Task.FromResult(signature == expectedSignature);
+        }
+        catch
+        {
+            return Task.FromResult(false);
+        }
+    }
+
+    private string CreateSignature(object payload)
+    {
+        var properties = payload.GetType().GetProperties();
+        var signatureData = new Dictionary<string, string>();
+
+        foreach (var prop in properties)
+        {
+            var value = prop.GetValue(payload);
+            if (value != null)
+            {
+                var key = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
+                if (key == "amount" || key == "cancelUrl" || key == "description" || key == "orderCode" || key == "returnUrl")
+                {
+                    string valueStr = value switch
+                    {
+                        DateTime dt => ((long)dt.Subtract(DateTime.UnixEpoch).TotalSeconds).ToString(),
+                        double d => ((long)d).ToString(),
+                        _ => value.ToString() ?? ""
+                    };
+                    signatureData[key] = valueStr;
+                }
+            }
+        }
+
+        var sortedData = signatureData.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
+        var queryString = string.Join("&", sortedData.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_checksumKey));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(queryString));
+        return Convert.ToHexString(hash).ToLower();
+    }
+
+    private string CreateWebhookSignatureFromData(JsonElement dataElement)
+    {
+        try
+        {
+            var sortedData = new SortedDictionary<string, string>();
+            foreach (var property in dataElement.EnumerateObject())
+            {
+                string valueStr = property.Value.ValueKind switch
+                {
+                    JsonValueKind.String => property.Value.GetString() ?? "",
+                    JsonValueKind.Number => property.Value.GetInt64().ToString(),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    JsonValueKind.Null => "",
+                    _ => property.Value.GetRawText()
+                };
+                sortedData[property.Name] = valueStr;
+            }
+
+            var queryString = string.Join("&", sortedData.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_checksumKey));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(queryString));
+            return Convert.ToHexString(hash).ToLower();
+        }
+        catch
+        {
+            return "";
+        }
+    }
+}

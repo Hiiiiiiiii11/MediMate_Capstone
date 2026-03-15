@@ -33,24 +33,34 @@ namespace MediMate.Middleware // Hoặc namespace phù hợp của bạn
 
         private static Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            var statusCode = exception switch
-            {
-                NotFoundException => HttpStatusCode.NotFound,
-                ForbiddenException => HttpStatusCode.Forbidden,
-                BadRequestException => HttpStatusCode.BadRequest,
-                ConflictException => HttpStatusCode.Conflict,
-                _ => HttpStatusCode.InternalServerError
-            };
-            context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)statusCode;
+            int statusCode;
+            string? businessCode = null;
+            string? field = null;
+            string message = exception.Message;
 
-            // Tạo response chuẩn theo format ApiResponse
-            // Lưu ý: Có thể ẩn exception.Message khi chạy Prod để bảo mật
-            var response = ApiResponse<object>.Fail(exception.Message, (int)statusCode);
+            statusCode = exception switch
+            {
+                NotFoundException => (int)HttpStatusCode.NotFound,
+                ForbiddenException => (int)HttpStatusCode.Forbidden,
+                BadRequestException => (int)HttpStatusCode.BadRequest,
+                ConflictException => (int)HttpStatusCode.Conflict,
+                _ => (int)HttpStatusCode.InternalServerError
+            };
+
+            if (exception is ServiceException serviceException)
+            {
+                businessCode = serviceException.BusinessCode;
+                field = serviceException.Field;
+            }
+
+            context.Response.ContentType = "application/json";
+            context.Response.StatusCode = statusCode;
+
+            var response = ApiResponse<object>.Fail(message, statusCode, businessCode, field);
 
             var jsonOptions = new JsonSerializerOptions
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase // Để trả về json dạng camelCase (success, code...)
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
 
             var json = JsonSerializer.Serialize(response, jsonOptions);

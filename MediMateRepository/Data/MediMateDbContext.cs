@@ -41,6 +41,11 @@ namespace MediMateRepository.Data
         public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
         public DbSet<ChatDoctorMessages> ChatDoctorMessages { get; set; }
 
+        public DbSet<RagBaseCollection> RagBaseCollections { get; set; } // THÊM MỚI
+        public DbSet<RagBaseConfig> RagBaseConfigs { get; set; }         // THÊM MỚI
+        public DbSet<RagBaseDocument> RagBaseDocuments { get; set; }     // THÊM MỚI
+        public DbSet<RagBaseEmbedding> RagBaseEmbeddings { get; set; }
+
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,8 +75,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
             modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
             modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
-            modelBuilder.Entity<DoctorBankAccount>().HasKey(dba => dba.BankAccountId); 
-            modelBuilder.Entity<DoctorDocument>().HasKey(dd => dd.DocumentId);         
+            modelBuilder.Entity<DoctorBankAccount>().HasKey(dba => dba.BankAccountId);
+            modelBuilder.Entity<DoctorDocument>().HasKey(dd => dd.DocumentId);
             // Payment
             modelBuilder.Entity<MembershipPackages>().HasKey(mp => mp.PackageId);
             modelBuilder.Entity<FamilySubscriptions>().HasKey(fs => fs.SubscriptionId);
@@ -79,6 +84,11 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
             modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.ConsultanSessionId);
             modelBuilder.Entity<ChatDoctorMessages>().HasKey(cm => cm.ChatDoctorMessageId);
+
+            modelBuilder.Entity<RagBaseCollection>().HasKey(rc => rc.CollectionId);
+            modelBuilder.Entity<RagBaseConfig>().HasKey(rc => rc.ConfigId);
+            modelBuilder.Entity<RagBaseDocument>().HasKey(rd => rd.RagDocumentId);
+            modelBuilder.Entity<RagBaseEmbedding>().HasKey(re => re.EmbeddingId);
 
 
 
@@ -370,6 +380,20 @@ namespace MediMateRepository.Data
                 .HasOne(m => m.ConsultantSession)
                 .WithMany(cs => cs.Messages) // Map vào ICollection trong Session
                 .HasForeignKey(m => m.ConsultanSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 1. Collection 1-N Documents
+            modelBuilder.Entity<RagBaseDocument>()
+                .HasOne(rd => rd.RagBaseCollection)
+                .WithMany() // Nếu Collection có list Documents thì map vào đây, vd: .WithMany(c => c.Documents)
+                .HasForeignKey(rd => rd.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa Collection -> Xóa sạch các tài liệu bên trong
+
+            // 2. Document 1-N Embeddings
+            modelBuilder.Entity<RagBaseEmbedding>()
+                .HasOne(re => re.RagBaseDocument)
+                .WithMany() // Tương tự, nếu Document có list Embeddings thì map vào
+                .HasForeignKey(re => re.RagDocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

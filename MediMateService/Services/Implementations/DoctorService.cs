@@ -83,9 +83,18 @@ namespace MediMateService.Services.Implementations
         public async Task<DoctorDto> CreateDoctorAsync(CreateDoctorDto request)
         {
             var userRepo = _unitOfWork.Repository<User>();
-            var exists = (await userRepo.GetAllAsync())
-                .Any(u => u.Email == request.Email || u.PhoneNumber == request.PhoneNumber);
-            if (exists) throw new ConflictException("Email hoặc số điện thoại đã tồn tại.");
+            var mailExists = (await userRepo.GetAllAsync())
+                .Any(u => u.Email == request.Email);
+            var phoneExists = (await userRepo.GetAllAsync())
+                .Any(u => u.PhoneNumber == request.PhoneNumber);
+            if (mailExists)
+            {
+                throw new ConflictException("Email đã tồn tại.", ErrorCodes.EmailExists);
+            }
+            if (phoneExists)
+            {
+                throw new ConflictException("Số điện thoại đã tồn tại.", ErrorCodes.PhoneExists);
+            }
             var newUserId = Guid.NewGuid();
             var newUser = new User
             {

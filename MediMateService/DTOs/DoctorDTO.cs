@@ -1,4 +1,4 @@
-namespace MediMateService.DTOs
+﻿namespace MediMateService.DTOs
 {
     public class DoctorDto
     {
@@ -14,7 +14,7 @@ namespace MediMateService.DTOs
         public string Status { get; set; } = string.Empty;
         public string? RejectionReason { get; set; }
         public DateTime? LastSeenAt { get; set; }
-        public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.UtcNow.AddMinutes(-2);
+        public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.Now.AddMinutes(-2);
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
     }
@@ -34,7 +34,7 @@ namespace MediMateService.DTOs
         public string Specialty { get; set; } = string.Empty;
         public string CurrentHospitalName { get; set; } = string.Empty;
         public string LicenseNumber { get; set; } = string.Empty;
-        public string? LicenseImage { get; set; }  
+        public string? LicenseImage { get; set; }
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
     }
@@ -61,39 +61,163 @@ namespace MediMateService.DTOs
         public string? Reason { get; set; }
     }
 
-    public class CreateDoctorAvailabilityDto
+
+    public class DoctorBankAccountDto
     {
-        public string DayOfWeek { get; set; } = string.Empty;
-        public string StartTime { get; set; } = string.Empty;
-        public string EndTime { get; set; } = string.Empty;
+        public Guid BankAccountId { get; set; }
+        public Guid DoctorId { get; set; }
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
     }
 
-    public class UpdateDoctorAvailabilityDto
+    public class CreateDoctorBankAccountRequest
     {
-        public string DayOfWeek { get; set; } = string.Empty;
-        public string StartTime { get; set; } = string.Empty;
-        public string EndTime { get; set; } = string.Empty;
-        public bool IsActive { get; set; }
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
     }
+
+    public class UpdateDoctorBankAccountRequest
+    {
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+    }
+
+
+    public class DoctorDocumentDto
+    {
+        public Guid DocumentId { get; set; }
+        public Guid DoctorId { get; set; }
+        public string FileUrl { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty; // VD: "Bằng cấp", "Chứng chỉ hành nghề"
+        public string Status { get; set; } = string.Empty; // "Pending", "Approved", "Rejected"
+        public string? ReviewBy { get; set; }
+        public string? ReviewAt { get; set; }
+        public string? Note { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class CreateDoctorDocumentRequest
+    {
+        public string FileUrl { get; set; } = string.Empty; // Gửi link từ API Upload ảnh/file
+        public string Type { get; set; } = string.Empty;
+    }
+
+    public class UpdateDoctorDocumentRequest
+    {
+        public string FileUrl { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+    }
+
+    public class ReviewDoctorDocumentRequest
+    {
+        public string Status { get; set; } = string.Empty; // Chỉ nhận "Approved" hoặc "Rejected"
+        public string? Note { get; set; }
+    }
+
 
     public class DoctorAvailabilityDto
     {
         public Guid DoctorAvailabilityId { get; set; }
         public Guid DoctorId { get; set; }
         public string DayOfWeek { get; set; } = string.Empty;
+
+        // Sửa TimeSpan thành string
         public string StartTime { get; set; } = string.Empty;
         public string EndTime { get; set; } = string.Empty;
+
         public bool IsActive { get; set; }
     }
+
+    public class CreateDoctorAvailabilityRequest
+    {
+        public string DayOfWeek { get; set; } = string.Empty;
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+    }
+
+    public class UpdateDoctorAvailabilityRequest
+    {
+        public string DayOfWeek { get; set; } = string.Empty;
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+        public bool IsActive { get; set; }
+    }
+
 
     public class DoctorAvailabilityExceptionDto
     {
         public Guid ExceptionId { get; set; }
         public Guid DoctorId { get; set; }
         public DateTime Date { get; set; }
+
+        // Sửa TimeSpan? thành string?
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
+
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
+    }
+
+    public class CreateDoctorAvailabilityExceptionRequest
+    {
+        public DateTime Date { get; set; }
+        public TimeSpan? StartTime { get; set; } // Nếu null nghĩa là nghỉ/tăng ca cả ngày
+        public TimeSpan? EndTime { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public bool IsAvailableOverride { get; set; } = false;
+    }
+
+    public class UpdateDoctorAvailabilityExceptionRequest
+    {
+        public DateTime Date { get; set; }
+        public TimeSpan? StartTime { get; set; }
+        public TimeSpan? EndTime { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public bool IsAvailableOverride { get; set; }
+    }
+
+
+
+    public class DigitalMedicineItemDto
+    {
+        public string MedicineName { get; set; } = string.Empty;
+        public string Dosage { get; set; } = string.Empty; // VD: 500mg
+        public int Quantity { get; set; }
+        public string Unit { get; set; } = string.Empty; // VD: Viên, Lọ
+        public string Instructions { get; set; } = string.Empty; // VD: Sáng 1 viên, tối 1 viên
+    }
+
+    public class PrescriptionByDoctorDto
+    {
+        public Guid DigitalPrescriptionId { get; set; }
+        public Guid ConsultanSessionId { get; set; }
+        public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; } = string.Empty; // Tên bác sĩ kê đơn
+        public Guid MemberId { get; set; }
+        public string MemberName { get; set; } = string.Empty; // Tên bệnh nhân
+        public string? Diagnosis { get; set; }
+        public string? Advice { get; set; }
+        public List<DigitalMedicineItemDto> Medicines { get; set; } = new(); // Danh sách thuốc (đã parse từ JSON)
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class CreatePrescriptionByDoctorRequest
+    {
+        public Guid ConsultanSessionId { get; set; }
+        public Guid MemberId { get; set; }
+        public string Diagnosis { get; set; } = string.Empty;
+        public string Advice { get; set; } = string.Empty;
+        public List<DigitalMedicineItemDto> Medicines { get; set; } = new();
+    }
+
+    public class UpdatePrescriptionByDoctorRequest
+    {
+        public string Diagnosis { get; set; } = string.Empty;
+        public string Advice { get; set; } = string.Empty;
+        public List<DigitalMedicineItemDto> Medicines { get; set; } = new();
     }
 }

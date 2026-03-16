@@ -42,14 +42,14 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<DoctorResponse>.Ok(response, "Lấy chi tiết bác sĩ thành công."));
         }
 
-        [HttpGet("{doctorId}/availability")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetAvailability(Guid doctorId)
-        {
-            var data = await _doctorService.GetPublicAvailabilityByDoctorAsync(doctorId);
-            var response = data.Select(MapAvailabilityResponse).ToList();
-            return Ok(ApiResponse<List<DoctorAvailabilityResponse>>.Ok(response, "Lấy lịch làm việc bác sĩ thành công."));
-        }
+        //[HttpGet("{doctorId}/availability")]
+        //[AllowAnonymous]
+        //public async Task<IActionResult> GetAvailability(Guid doctorId)
+        //{
+        //    var data = await _doctorService.GetPublicAvailabilityByDoctorAsync(doctorId);
+        //    var response = data.Select(MapAvailabilityResponse).ToList();
+        //    return Ok(ApiResponse<List<DoctorAvailabilityResponse>>.Ok(response, "Lấy lịch làm việc bác sĩ thành công."));
+        //}
 
         [HttpGet("{doctorId}/reviews")]
         [AllowAnonymous]
@@ -62,7 +62,8 @@ namespace MediMate.Controllers
 
     
         [HttpGet("me")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> GetMyProfile()
         {
             var userId = GetCurrentUserId();
@@ -73,7 +74,8 @@ namespace MediMate.Controllers
      
 
         [HttpPost("me/submit")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> SubmitProfile([FromForm] SubmitDoctorRequest request)
         {
             var userId = GetCurrentUserId();
@@ -100,7 +102,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPatch("me/online")]
-        [Authorize(Roles = Roles.Doctor)]
+        //[Authorize(Roles = Roles.Doctor)]
+        [Authorize]
         public async Task<IActionResult> Heartbeat()
         {
             var userId = GetCurrentUserId();

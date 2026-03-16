@@ -30,6 +30,7 @@
 
     public class PrescriptionMedicineDto
     {
+        public Guid? PrescriptionMedicineId { get; set; }
         public string MedicineName { get; set; }
         public string? Dosage { get; set; } // Liều lượng (vd: 500mg)
         public string? Unit { get; set; }   // Đơn vị (vd: Viên)

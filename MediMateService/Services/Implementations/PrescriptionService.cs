@@ -381,6 +381,7 @@ namespace MediMateService.Services.Implementations
                 Images = p.PrescriptionImages.Select(i => new PrescriptionImageDto { ImageUrl = i.ImageUrl, OcrRawData = i.OcrRawData }).ToList(),
                 Medicines = p.PrescriptionMedicines.Select(m => new PrescriptionMedicineDto
                 {
+                    PrescriptionMedicineId = m.PrescriptionMedicineId,
                     MedicineName = m.MedicineName,
                     Dosage = m.Dosage,
                     Unit = m.Unit,

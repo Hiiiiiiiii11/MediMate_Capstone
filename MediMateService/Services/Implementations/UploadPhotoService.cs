@@ -88,5 +88,33 @@ namespace MediMateService.Services.Implementations
                 ThumbnailUrl = thumbnailUrl
             };
         }
+
+        public async Task<string> UploadDocumentAsync(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                throw new ArgumentException("File cannot be null or empty.");
+            }
+
+            using var stream = file.OpenReadStream();
+
+            // Sử dụng RawUploadParams thay vì ImageUploadParams
+            // Điều này cho phép Cloudinary nhận file PDF, DOCX, ZIP... thay vì chỉ nhận ảnh
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = "doctor_documents" // Nhóm riêng vào một folder trên Cloudinary
+            };
+
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+            if (uploadResult.Error != null)
+            {
+                throw new Exception($"Cloudinary Error: {uploadResult.Error.Message}");
+            }
+
+            // Chỉ cần trả về link URL tuyệt đối (SecureUrl)
+            return uploadResult.SecureUrl.AbsoluteUri;
+        }
     }
 }

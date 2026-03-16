@@ -7,13 +7,13 @@ namespace MediMateService.Services
         // Public endpoints
         Task<List<DoctorDto>> GetPublicDoctorsAsync(string? specialty = null);
         Task<DoctorDto> GetPublicDoctorByIdAsync(Guid doctorId);
-        Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId);
+        //Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId);
 
         // Management - read
         Task<List<DoctorDto>> GetDoctorsAsync(string? specialty = null, string? status = null);
         Task<DoctorDto> GetDoctorByIdAsync(Guid doctorId);
-        Task<List<DoctorAvailabilityDto>> GetAvailabilityByDoctorAsync(Guid doctorId);
-        Task<List<DoctorAvailabilityExceptionDto>> GetExceptionsByDoctorAsync(Guid doctorId);
+        //Task<List<DoctorAvailabilityDto>> GetAvailabilityByDoctorAsync(Guid doctorId);
+        //Task<List<DoctorAvailabilityExceptionDto>> GetExceptionsByDoctorAsync(Guid doctorId);
 
         // Admin: tạo hồ sơ bác sĩ (Inactive)
         Task<DoctorDto> CreateDoctorAsync(CreateDoctorDto request);
@@ -33,8 +33,8 @@ namespace MediMateService.Services
         Task HeartbeatAsync(Guid doctorId);
 
         // Availability
-        Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request);
-        Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request);
-        Task DeleteAvailabilityAsync(Guid doctorId, Guid availabilityId);
+        //Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, CreateDoctorAvailabilityDto request);
+        //Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid availabilityId, UpdateDoctorAvailabilityDto request);
+        //Task DeleteAvailabilityAsync(Guid doctorId, Guid availabilityId);
     }
 }

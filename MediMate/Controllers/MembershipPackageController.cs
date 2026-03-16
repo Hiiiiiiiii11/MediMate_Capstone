@@ -1,3 +1,4 @@
+
 using MediMate.Models.Packages;
 using MediMateService.DTOs;
 using MediMateService.Services;
@@ -34,7 +35,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = Roles.Admin)]
+        //[Authorize(Roles = Roles.Admin)]
+        [Authorize]
         public async Task<IActionResult> Create([FromBody] CreateMembershipPackageRequest request)
         {
             var result = await _packageService.CreateAsync(new CreateMembershipPackageDto
@@ -50,7 +52,8 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{packageId}")]
-        [Authorize(Roles = Roles.Admin)]
+        //[Authorize(Roles = Roles.Admin)]
+        [Authorize]
         public async Task<IActionResult> Update(Guid packageId, [FromBody] UpdateMembershipPackageRequest request)
         {
             var result = await _packageService.UpdateAsync(packageId, new UpdateMembershipPackageDto
@@ -66,7 +69,8 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("{packageId}")]
-        [Authorize(Roles = Roles.Admin)]
+        //[Authorize(Roles = Roles.Admin)]
+        [Authorize]
         public async Task<IActionResult> Delete(Guid packageId)
         {
             var result = await _packageService.DeleteAsync(packageId);

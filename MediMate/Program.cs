@@ -93,6 +93,10 @@ namespace MediMate
             builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
             builder.Services.AddScoped<INotificationSettingService, NotificationSettingService>();
             builder.Services.AddScoped<IMembershipPackageService, MembershipPackageService>();
+            builder.Services.AddScoped<IDoctorBankAccountService, DoctorBankAccountService>();
+            builder.Services.AddScoped<IDoctorDocumentService, DoctorDocumentService>();
+            builder.Services.AddScoped<IDoctorAvailabilityExceptionService, DoctorAvailabilityExceptionService>();
+            builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
 
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -135,7 +139,7 @@ namespace MediMate
                 Console.WriteLine("Warning: Firebase configuration is missing in .env file.");
             }
 
-            builder.Services.AddHttpClient(); 
+            builder.Services.AddHttpClient();
             builder.Services.AddScoped<IOcrService, OcrService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -232,6 +236,15 @@ namespace MediMate
                     };
                     options.Events = new JwtBearerEvents
                     {
+                        //neus có cookie thì dùng
+                        OnMessageReceived = context =>
+                        {
+                            if (context.Request.Cookies.TryGetValue("token", out var token))
+                            {
+                                context.Token = token;
+                            }
+                            return Task.CompletedTask;
+                        },
                         OnChallenge = async context =>
                         {
                             // 1. Ngăn chặn behavior mặc định (tránh việc nó tự ghi header WWW-Authenticate không mong muốn)

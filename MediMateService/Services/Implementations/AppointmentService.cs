@@ -51,6 +51,22 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy khung giờ làm việc khả dụng.");
             }
 
+            var appointmentDayOfWeek = request.AppointmentDate.DayOfWeek.ToString(); // VD: "Monday"
+            if (!string.Equals(availability.DayOfWeek, appointmentDayOfWeek, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException("Ngày đặt khám không khớp với khung giờ rảnh của bác sĩ.");
+            }
+
+            // 2. Kiểm tra bác sĩ có xin nghỉ phép ngày hôm đó không?
+            var isDayOff = (await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .FindAsync(e => e.DoctorId == request.DoctorId
+                                && e.Date.Date == request.AppointmentDate.Date
+                                && !e.IsAvailableOverride)).Any();
+            if (isDayOff)
+            {
+                throw new BadRequestException("Bác sĩ đã xin nghỉ phép vào ngày này.");
+            }
+
             var appointment = new Appointments
             {
                 AppointmentId = Guid.NewGuid(),
@@ -106,12 +122,20 @@ namespace MediMateService.Services.Implementations
             appointment.CancelReason = request.Reason?.Trim();
             await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
+            var session = await _appointmentRepository.GetSessionByAppointmentIdAsync(appointmentId);
+            if (session != null && session.Status != "Ended")
+            {
+                session.Status = "Cancelled"; // Hoặc Ended tùy logic của bạn
+                await _appointmentRepository.UpdateSessionAsync(session);
+            }
+
             return MapAppointment(appointment);
         }
 
         public async Task<List<AppointmentDto>> GetAppointmentsAsync(Guid userId)
         {
-            var doctor = (await _doctorRepository.GetAllDoctorsAsync()).FirstOrDefault(d => d.UserId == userId);
+            var doctor = (await _unitOfWork.Repository<Doctors>()
+             .FindAsync(d => d.UserId == userId)).FirstOrDefault();
             var doctorAppointments = doctor == null
                 ? new List<Appointments>()
                 : await _appointmentRepository.GetAppointmentsByDoctorIdAsync(doctor.DoctorId);

@@ -99,6 +99,8 @@ namespace MediMateRepository.Migrations
 
                     b.HasKey("AppointmentId");
 
+                    b.HasIndex("AvailabilityId");
+
                     b.HasIndex("DoctorId");
 
                     b.HasIndex("MemberId");
@@ -305,6 +307,80 @@ namespace MediMateRepository.Migrations
                     b.HasIndex("DoctorId");
 
                     b.ToTable("DoctorAvailabilityExceptions");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.DoctorBankAccount", b =>
+                {
+                    b.Property<Guid>("BankAccountId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountHolder")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("BankAccountId");
+
+                    b.HasIndex("DoctorId");
+
+                    b.ToTable("DoctorBankAccounts");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.DoctorDocument", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReviewAt")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReviewBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("DocumentId");
+
+                    b.HasIndex("DoctorId");
+
+                    b.ToTable("DoctorDocuments");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
@@ -680,6 +756,9 @@ namespace MediMateRepository.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("NotificationSettingSettingId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("text");
@@ -696,6 +775,8 @@ namespace MediMateRepository.Migrations
                     b.HasKey("MemberId");
 
                     b.HasIndex("FamilyId");
+
+                    b.HasIndex("NotificationSettingSettingId");
 
                     b.HasIndex("UserId");
 
@@ -1122,6 +1203,12 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Appointments", b =>
                 {
+                    b.HasOne("MediMateRepository.Model.DoctorAvailability", "Availability")
+                        .WithMany()
+                        .HasForeignKey("AvailabilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorId")
@@ -1133,6 +1220,8 @@ namespace MediMateRepository.Migrations
                         .HasForeignKey("MemberId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Availability");
 
                     b.Navigation("Doctor");
 
@@ -1225,6 +1314,28 @@ namespace MediMateRepository.Migrations
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.DoctorAvailabilityExceptions", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Doctor");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.DoctorBankAccount", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Doctor");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.DoctorDocument", b =>
                 {
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany()
@@ -1370,9 +1481,15 @@ namespace MediMateRepository.Migrations
                         .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("MediMateRepository.Model.NotificationSetting", "NotificationSetting")
+                        .WithMany()
+                        .HasForeignKey("NotificationSettingSettingId");
+
                     b.HasOne("MediMateRepository.Model.User", null)
                         .WithMany("MemberProfiles")
                         .HasForeignKey("UserId");
+
+                    b.Navigation("NotificationSetting");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>

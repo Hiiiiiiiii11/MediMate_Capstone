@@ -13,7 +13,7 @@ namespace MediMateRepository.Model
         public string? Diagnosis { get; set; }
         public string? Advice { get; set; }
         public string? MedicinesList { get; set; } // JSON
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         public virtual Doctors Doctor { get; set; }
         public virtual Members Member { get; set; }
 

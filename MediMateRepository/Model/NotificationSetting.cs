@@ -19,5 +19,6 @@ namespace MediMateRepository.Model
         public string CustomSetting { get; set; }
         public DateTime UpdateAt { get; set; }
         public virtual Members Member { get; set; }
+
     }
 }

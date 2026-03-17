@@ -20,7 +20,6 @@ namespace Share.Common
             {
                 Success = true,
                 Code = 200,
-                Error = null,
                 Message = message,
                 Data = data
             };
@@ -50,7 +49,6 @@ namespace Share.Common
             {
                 Success = false,
                 Code = 500,
-                Error = null,
                 Message = message,
                 Data = default
             };

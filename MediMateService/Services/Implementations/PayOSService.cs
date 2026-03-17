@@ -62,12 +62,7 @@ public class PayOSService : IPayOSService
             {
                 throw new InvalidOperationException($"Gia đình hiện có {memberCount} thành viên, vượt quá giới hạn {package.MemberLimit} của gói này. Vui lòng chọn gói cao hơn.");
             }
-
-            // Define orderCode (unique int up to 53 bit)
             int orderCode = (int)(DateTime.UtcNow.Ticks % int.MaxValue);
-
-
-            // Create Pending Subscription
             var subscription = new FamilySubscriptions
             {
                 SubscriptionId = Guid.NewGuid(),
@@ -249,11 +244,26 @@ public class PayOSService : IPayOSService
 
             // Update Subscription
             var sub = transaction.Payment.Subscription;
+            
+            // 1. Deactivate current active subscriptions for this family
+            var oldActiveSubscriptions = await _context.FamilySubscriptions
+                .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
+                .ToListAsync(cancellationToken);
+            
+            foreach(var oldSub in oldActiveSubscriptions)
+            {
+                oldSub.Status = "Inactive";
+            }
+
+            // 2. Activate new subscription and initialize counts
             sub.Status = "Active";
             sub.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
             sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
+            sub.RemainingOcrCount = sub.Package.OcrLimit;
+            sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
 
             _context.Transactions.Update(transaction);
+            _context.FamilySubscriptions.UpdateRange(oldActiveSubscriptions);
             await _context.SaveChangesAsync(cancellationToken);
 
             return true;

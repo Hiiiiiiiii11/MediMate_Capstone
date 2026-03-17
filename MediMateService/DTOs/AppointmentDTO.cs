@@ -1,11 +1,21 @@
-﻿namespace MediMateService.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace MediMateService.DTOs
 {
     public class CreateAppointmentDto
     {
+
         public Guid DoctorId { get; set; }
+
+
         public Guid MemberId { get; set; }
+
+
         public Guid AvailabilityId { get; set; }
+
         public DateTime AppointmentDate { get; set; }
+
+        public TimeSpan AppointmentTime { get; set; }
     }
 
     public class CancelAppointmentDto
@@ -28,8 +38,12 @@
 
     public class AvailableSlotDto
     {
-        public int Time { get; set; } // Giờ khám (ví dụ: 8, 9, 14...)
-        public string DisplayTime { get; set; } = string.Empty; // Chuỗi hiển thị (ví dụ: "08:00 - 09:00")
-        public bool IsBooked { get; set; } // true: Đã có người đặt, false: Còn trống
+        public TimeSpan Time { get; set; } // Đổi từ int sang TimeSpan
+        public string DisplayTime { get; set; } = string.Empty;
+        public bool IsBooked { get; set; }
+    }
+    public class UpdateAppointmentDto
+    {
+        public string Status { get; set; } = string.Empty; // "Approved", "Rejected", "Completed"
     }
 }

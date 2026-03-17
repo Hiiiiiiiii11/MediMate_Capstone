@@ -10,7 +10,7 @@ namespace MediMateRepository.Model
         public Guid MemberId { get; set; }
         public Guid AvailabilityId { get; set; }
         public DateTime AppointmentDate { get; set; }
-        public int AppointmentTime { get; set; }
+        public TimeSpan AppointmentTime { get; set; }
         public string Status { get; set; } = "Pending";
         public string? CancelReason { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;

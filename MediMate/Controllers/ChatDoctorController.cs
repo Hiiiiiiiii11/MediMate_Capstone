@@ -72,6 +72,40 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+
+
+        [HttpGet("families/{familyId}/sessions")]
+        public async Task<IActionResult> GetSessionsByFamily(Guid familyId)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _chatDoctorService.GetSessionsByFamilyIdAsync(familyId, userId);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+        // 2. Lấy danh sách phòng chat theo DoctorId (Góc nhìn Bác sĩ)
+        [HttpGet("doctors/{doctorId}/sessions")]
+        public async Task<IActionResult> GetSessionsByDoctor(Guid doctorId)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _chatDoctorService.GetSessionsByDoctorIdAsync(doctorId, userId);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+        // 3. Lấy thông tin Header của 1 phòng chat
+        [HttpGet("sessions/{sessionId}/details")]
+        public async Task<IActionResult> GetSessionDetails(Guid sessionId, [FromQuery] bool isDoctorRequest = false)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _chatDoctorService.GetSessionDetailsAsync(sessionId, userId, isDoctorRequest);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
         [HttpPut("sessions/{sessionId}/messages/read")]
         public async Task<IActionResult> MarkMessagesAsRead(Guid sessionId)
         {

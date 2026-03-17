@@ -104,8 +104,9 @@ namespace MediMate.Controllers
                 {
                     return StatusCode(result.Code, result);
                 }
-
-                return Ok(result); // Tr? v? JWT Token
+                var token = result.Data?.AccessToken;
+                SetAuthCookie(token);
+                return Ok(ApiResponse<object>.Ok(new { token }, "Đăng nhập thành công"));
             }
             catch (Exception ex)
             {
@@ -118,6 +119,7 @@ namespace MediMate.Controllers
         {
             // 1. T?m ID c?a ng�?i d�ng t? trong JWT Token
             // H? tr? c? 3 lo?i key claim: NameIdentifier, "Id" (c?a User), "MemberId" (c?a Dependent)
+            var token = Request.Headers["Authorization"].ToString();
             var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                        ?? User.FindFirst("Id")?.Value
                        ?? User.FindFirst("MemberId")?.Value;
@@ -133,7 +135,7 @@ namespace MediMate.Controllers
                          ?? "User";
 
             // 3. X? l? clear DB
-            var result = await _authenticationService.LogoutAsync(accountId, roleClaim);
+            var result = await _authenticationService.LogoutAsync(accountId, roleClaim,token);
 
             return !result.Success ? StatusCode(result.Code, result) : (IActionResult)Ok(result);
         }

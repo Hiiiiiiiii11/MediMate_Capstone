@@ -1,6 +1,7 @@
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Share.Common;
@@ -17,18 +18,20 @@ namespace MediMateService.Services.Implementations
         private readonly IAuthenticationRepository _authRepo;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
+        private readonly IMemoryCache _memoryCache;
 
         private static readonly HashSet<string> RemainingRoles = new(StringComparer.OrdinalIgnoreCase)
         {
             "Admin", "Doctor", "Staff", "DoctorManager"
         };
 
-        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService)
+        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService,IMemoryCache memoryCache)
         {
             _unitOfWork = unitOfWork;
             _authRepo = authRepo;
             _configuration = configuration;
             _emailService = emailService;
+            _memoryCache = memoryCache;
         }
 
         public async Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request)
@@ -155,12 +158,12 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<AutheticationResponse>.Ok(responseData, "Kích hoạt tài khoản thành công.");
         }
 
-        public async Task<ApiResponse<string>> LoginDependentByQrAsync(DependentQrLoginRequest request)
+        public async Task<ApiResponse<AutheticationResponse>> LoginDependentByQrAsync(DependentQrLoginRequest request)
         {
             // 1. Validate định dạng mã
             if (string.IsNullOrEmpty(request.QrData) || !request.QrData.StartsWith("LOGIN-"))
             {
-                return ApiResponse<string>.Fail("Mã QR không hợp lệ.", 400);
+                return ApiResponse<AutheticationResponse>.Fail("Mã QR không hợp lệ.", 400);
             }
 
             // Tách lấy SyncToken thực tế
@@ -172,13 +175,13 @@ namespace MediMateService.Services.Implementations
 
             if (member == null)
             {
-                return ApiResponse<string>.Fail("Mã đăng nhập không chính xác hoặc đã được sử dụng.", 401);
+                return ApiResponse<AutheticationResponse>.Fail("Mã đăng nhập không chính xác hoặc đã được sử dụng.", 401);
             }
 
             // 3. Kiểm tra mã hết hạn chưa
             if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.Now)
             {
-                return ApiResponse<string>.Fail("Mã QR đăng nhập đã hết hạn. Vui lòng tạo mã mới.", 401);
+                return ApiResponse<AutheticationResponse>.Fail("Mã QR đăng nhập đã hết hạn. Vui lòng tạo mã mới.", 401);
             }
 
             // 4. THÀNH CÔNG: Xóa SyncToken để tránh dùng lại
@@ -198,7 +201,7 @@ namespace MediMateService.Services.Implementations
             // Hàm này tương tự hàm GenerateToken cho User của bạn, nhưng dùng MemberId thay vì UserId
             var token = GenerateJwtTokenForDependent(member, "dependent");
 
-            return ApiResponse<string>.Ok(token, $"Đăng nhập thành công với tư cách: {member.FullName}");
+            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token}, $"Đăng nhập thành công với tư cách: {member.FullName}");
         }
 
 
@@ -314,11 +317,11 @@ namespace MediMateService.Services.Implementations
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public async Task<ApiResponse<bool>> LogoutAsync(Guid accountId, string role)
+        public async Task<ApiResponse<bool>> LogoutAsync(Guid accountId, string role, string token)
         {
+            // 1. Xóa FCM Token như cũ
             if (role == "Dependent")
             {
-                // Nếu là người phụ thuộc đăng xuất -> Xóa token ở bảng Members
                 var member = await _unitOfWork.Repository<Members>().GetByIdAsync(accountId);
                 if (member != null)
                 {
@@ -328,7 +331,6 @@ namespace MediMateService.Services.Implementations
             }
             else
             {
-                // Nếu là User, Admin, Doctor... đăng xuất -> Xóa token ở bảng User
                 var user = await _unitOfWork.Repository<User>().GetByIdAsync(accountId);
                 if (user != null)
                 {
@@ -336,9 +338,36 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<User>().Update(user);
                 }
             }
-
-            // Lưu thay đổi vào Database
             await _unitOfWork.CompleteAsync();
+
+            // 2. THU HỒI TOKEN BẰNG BLACKLIST
+            if (!string.IsNullOrEmpty(token))
+            {
+                // Xóa chữ "Bearer " nếu Frontend gửi kèm
+                var jwtString = token.Replace("Bearer ", "").Trim();
+
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(jwtString))
+                {
+                    var jwtToken = handler.ReadJwtToken(jwtString);
+                    var expiryDate = jwtToken.ValidTo; // Lấy thời gian hết hạn của token
+
+                    // Nếu token chưa hết hạn tự nhiên thì mới cần đưa vào Blacklist
+                    if (expiryDate > DateTime.Now)
+                    {
+                        var timeRemaining = expiryDate - DateTime.Now;
+
+                        // Lưu token vào RAM (MemoryCache).
+                        // Thời gian lưu đúng bằng thời gian sống còn lại của Token.
+                        // Khi token tự hết hạn, nó cũng tự bay màu khỏi Cache để đỡ tốn RAM.
+                        _memoryCache.Set(
+                            $"blacklist_{jwtString}",
+                            "revoked",
+                            timeRemaining
+                        );
+                    }
+                }
+            }
 
             return ApiResponse<bool>.Ok(true, "Đăng xuất thành công.");
         }

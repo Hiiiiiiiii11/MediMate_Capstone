@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -121,6 +121,21 @@ public class FamilyController : ControllerBase
         catch (Exception ex)
         {
             // Log lỗi ex ở đây nếu cần
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/subscription")]
+    public async Task<IActionResult> GetMyFamilySubscription(Guid id)
+    {
+        try
+        {
+            var result = await _familyService.GetFamilySubscriptionAsync(id);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
             return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
         }
     }

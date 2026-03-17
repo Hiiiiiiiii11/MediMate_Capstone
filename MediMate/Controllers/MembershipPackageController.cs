@@ -46,6 +46,8 @@ namespace MediMate.Controllers
                 Currency = request.Currency,
                 DurationDays = request.DurationDays,
                 MemberLimit = request.MemberLimit,
+                OcrLimit = request.OcrLimit,
+                ConsultantLimit = request.ConsultantLimit,
                 Description = request.Description
             });
             return Ok(result);
@@ -63,6 +65,8 @@ namespace MediMate.Controllers
                 Currency = request.Currency,
                 DurationDays = request.DurationDays,
                 MemberLimit = request.MemberLimit,
+                OcrLimit = request.OcrLimit,
+                ConsultantLimit = request.ConsultantLimit,
                 Description = request.Description
             });
             return Ok(result);

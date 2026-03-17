@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316170010_UpdateMembershipAndSubscriptionColumns")]
+    partial class UpdateMembershipAndSubscriptionColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1064,169 +1067,6 @@ namespace MediMateRepository.Migrations
                     b.ToTable("PrescriptionsByDoctor");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseCollection", b =>
-                {
-                    b.Property<Guid>("CollectionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("CollectionId");
-
-                    b.ToTable("RagBaseCollections");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseConfig", b =>
-                {
-                    b.Property<Guid>("ConfigId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ChunkOverlap")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ChunkSize")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ContextWindow")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EmbeddingModel")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsUseApi")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LLMModel")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("MaxTokens")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PromptTemplate")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResponseType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<float>("Temperature")
-                        .HasColumnType("real");
-
-                    b.Property<int>("TopK")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("ConfigId");
-
-                    b.ToTable("RagBaseConfigs");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseDocument", b =>
-                {
-                    b.Property<Guid>("RagDocumentId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CheckSum")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("CollectionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DocName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("FileSize")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("RagDocumentId");
-
-                    b.HasIndex("CollectionId");
-
-                    b.ToTable("RagBaseDocuments");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseEmbedding", b =>
-                {
-                    b.Property<Guid>("EmbeddingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ChunkSize")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.PrimitiveCollection<float[]>("Embedding")
-                        .IsRequired()
-                        .HasColumnType("real[]");
-
-                    b.Property<int>("Level")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Metadata")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("NodeId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParentNodeId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("RagDocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("EmbeddingId");
-
-                    b.HasIndex("RagDocumentId");
-
-                    b.ToTable("RagBaseEmbeddings");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.Ratings", b =>
                 {
                     b.Property<Guid>("RatingId")
@@ -1755,28 +1595,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Member");
 
                     b.Navigation("Session");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseDocument", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.RagBaseCollection", "RagBaseCollection")
-                        .WithMany()
-                        .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("RagBaseCollection");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseEmbedding", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.RagBaseDocument", "RagBaseDocument")
-                        .WithMany()
-                        .HasForeignKey("RagDocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("RagBaseDocument");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Ratings", b =>

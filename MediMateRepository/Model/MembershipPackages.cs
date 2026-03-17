@@ -11,6 +11,8 @@ namespace MediMateRepository.Model
         public string Currency { get; set; } = "VND";
         public int DurationDays { get; set; }
         public int MemberLimit { get; set; }
+        public int OcrLimit { get; set; }
+        public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
     }
 }

@@ -104,7 +104,7 @@ namespace MediMate.Controllers
                 {
                     return StatusCode(result.Code, result);
                 }
-                var token = result.Data?.AccessToken;
+                var token = result.Data?.AccessToken ?? "";
                 SetAuthCookie(token);
                 return Ok(ApiResponse<object>.Ok(new { token }, "Đăng nhập thành công"));
             }
@@ -117,25 +117,33 @@ namespace MediMate.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            // 1. T?m ID c?a ng�?i d�ng t? trong JWT Token
-            // H? tr? c? 3 lo?i key claim: NameIdentifier, "Id" (c?a User), "MemberId" (c?a Dependent)
-            var token = Request.Headers["Authorization"].ToString();
+          
             var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                        ?? User.FindFirst("Id")?.Value
                        ?? User.FindFirst("MemberId")?.Value;
 
             if (idClaim == null || !Guid.TryParse(idClaim, out Guid accountId))
             {
-                return Unauthorized(ApiResponse<bool>.Fail("Token kh�ng h?p l?.", 401));
+                return Unauthorized(ApiResponse<bool>.Fail("Token khng h?p l?.", 401));
             }
 
-            // 2. T?m Role �? bi?t l� User hay Dependent
             var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value
                          ?? User.FindFirst("Role")?.Value
                          ?? "User";
 
-            // 3. X? l? clear DB
-            var result = await _authenticationService.LogoutAsync(accountId, roleClaim,token);
+            // Lấy token để blacklist
+            string token = Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "") 
+                        ?? Request.Cookies["token"] 
+                        ?? "";
+
+            var result = await _authenticationService.LogoutAsync(accountId, roleClaim, token);
+            Response.Cookies.Delete("token", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/"
+            });
 
             return !result.Success ? StatusCode(result.Code, result) : (IActionResult)Ok(result);
         }

@@ -30,28 +30,13 @@ namespace MediMateService.Services.Implementations
             _authService = authService; // 3. Gán
             _activityLogService = activityLogService;
         }
+
         public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetAllMember()
         {
             var members = await _unitOfWork.Repository<Members>().GetAllAsync();
-            var memberDto = members.Select(u => new MemberResponse
-            {
-                MemberId = u.MemberId,
-                FamilyId = u.FamilyId,
-                FullName = u.FullName,
-                DateOfBirth = u.DateOfBirth,
-                AvatarUrl = u.AvatarUrl,
-                Gender = u.Gender,
-                IsActive = u.IsActive,
-                UserId = u.UserId,
-                IdentityCode = u.IdentityCode,
-                SyncToken = u.SyncToken,
-                SyncTokenExpireAt = u.SyncTokenExpireAt,
-                Role = u.Role,
+            var memberDto = members.Select(MapToResponse);
 
-
-
-            });
-            return ApiResponse<IEnumerable<MemberResponse>>.Ok(memberDto, "Lấy danh sách members  thành công.");
+            return ApiResponse<IEnumerable<MemberResponse>>.Ok(memberDto, "Lấy danh sách members thành công.");
         }
 
         // --- HÀM 1: TẠO PROFILE PHỤ THUỘC & JOIN GIA ĐÌNH ---
@@ -170,17 +155,7 @@ namespace MediMateService.Services.Implementations
 
             var members = await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == familyId);
 
-            var response = members.Select(m => new MemberResponse
-            {
-                MemberId = m.MemberId,
-                UserId = m.UserId,
-                FullName = m.FullName,
-                DateOfBirth = m.DateOfBirth,
-                Gender = m.Gender,
-                Role = m.Role,
-                AvatarUrl = m.AvatarUrl,
-                IsActive = m.IsActive
-            });
+            var response = members.Select(MapToResponse);
 
             return ApiResponse<IEnumerable<MemberResponse>>.Ok(response);
         }
@@ -205,17 +180,7 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            return ApiResponse<MemberResponse>.Ok(new MemberResponse
-            {
-                MemberId = member.MemberId,
-                UserId = member.UserId,
-                FullName = member.FullName,
-                DateOfBirth = member.DateOfBirth,
-                Gender = member.Gender,
-                Role = member.Role,
-                AvatarUrl = member.AvatarUrl,
-                IsActive = member.IsActive
-            });
+            return ApiResponse<MemberResponse>.Ok(MapToResponse(member));
         }
 
         public async Task<ApiResponse<MemberResponse>> UpdateMemberAsync(Guid memberId, Guid userId, UpdateMemberRequest request)
@@ -482,14 +447,7 @@ namespace MediMateService.Services.Implementations
                 description: $"Đã thêm tài khoản '{newMember.FullName}' vào gia đình qua SĐT."
             );
 
-            return ApiResponse<MemberResponse>.Ok(new MemberResponse
-            {
-                MemberId = newMember.MemberId,
-                UserId = newMember.UserId,
-                FullName = newMember.FullName,
-                Role = newMember.Role,
-                FamilyId = newMember.FamilyId
-            }, "Thêm thành viên thành công.");
+            return ApiResponse<MemberResponse>.Ok(MapToResponse(newMember), "Thêm thành viên thành công.");
         }
 
         // --- HÀM 4: TẠO THÀNH VIÊN PHỤ THUỘC (CON CÁI/NGƯỜI GIÀ - KHÔNG CÓ USER) ---
@@ -532,14 +490,7 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<Members>().AddAsync(newDependent);
             await _unitOfWork.CompleteAsync();
-
-            return ApiResponse<MemberResponse>.Ok(new MemberResponse
-            {
-                MemberId = newDependent.MemberId,
-                FullName = newDependent.FullName,
-                Role = newDependent.Role,
-                FamilyId = newDependent.FamilyId,
-            }, "Tạo hồ sơ thành viên phụ thuộc thành công.");
+            return ApiResponse<MemberResponse>.Ok(MapToResponse(newDependent), "Tạo hồ sơ thành viên phụ thuộc thành công.");
         }
         // --- HÀM 5: USER TỰ JOIN GIA ĐÌNH BẰNG MÃ CODE ---
         public async Task<ApiResponse<bool>> JoinFamilyByJoinCodeAsync(JoinFamilyByCodeRequest request, Guid userId)
@@ -614,6 +565,25 @@ namespace MediMateService.Services.Implementations
             );
 
             return ApiResponse<bool>.Ok(true, $"Tham gia gia đình '{family.FamilyName}' thành công.");
+        }
+
+        private MemberResponse MapToResponse(Members m)
+        {
+            return new MemberResponse
+            {
+                MemberId = m.MemberId,
+                FamilyId = m.FamilyId,
+                UserId = m.UserId,
+                FullName = m.FullName,
+                DateOfBirth = m.DateOfBirth,
+                AvatarUrl = m.AvatarUrl,
+                Gender = m.Gender,
+                IsActive = m.IsActive,
+                IdentityCode = m.IdentityCode,
+                SyncToken = m.SyncToken,
+                SyncTokenExpireAt = m.SyncTokenExpireAt,
+                Role = m.Role
+            };
         }
 
     }

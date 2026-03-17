@@ -2,9 +2,11 @@
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Threading.Tasks;
+using static Google.Apis.Requests.BatchRequest;
 
 namespace MediMate.Controllers
 {
@@ -26,13 +28,31 @@ namespace MediMate.Controllers
         [HttpPost("doctors/{doctorId}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
-        public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreateDoctorAvailabilityRequest request)
+        [HttpPost("{doctorId}/availabilities")]
+        public async Task<IActionResult> CreateAvailabilities(Guid doctorId, [FromBody] List<CreateDoctorAvailabilityRequest> request)
         {
             try
             {
-                var response = await _availabilityService.CreateAsync(doctorId, _currentUserService.UserId, request);
-                if (!response.Success) return StatusCode(response.Code, response);
-                return StatusCode(201, response);
+                // 1. Tạo 1 danh sách rỗng để hứng dữ liệu thành công
+                var createdResults = new List<object>();
+
+                foreach (var item in request)
+                {
+                    var response = await _availabilityService.CreateAsync(doctorId, _currentUserService.UserId, item);
+
+                    // Nếu có 1 ca bị lỗi (ví dụ: trùng giờ), dừng ngay lập tức và báo lỗi
+                    if (!response.Success)
+                    {
+                        return StatusCode(response.Code, response);
+                    }
+
+                    // Nếu thành công, nhét dữ liệu vào danh sách
+                    createdResults.Add(response.Data);
+                }
+
+                // 2. Trả về toàn bộ danh sách đã tạo thành công sau khi vòng lặp kết thúc
+                var finalResponse = ApiResponse<object>.Ok(createdResults, "Tạo lịch làm việc thành công.");
+                return StatusCode(201, finalResponse);
             }
             catch (Exception ex)
             {

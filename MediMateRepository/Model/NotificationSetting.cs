@@ -16,7 +16,7 @@ namespace MediMateRepository.Model
         public bool EnableSmsNotification { get; set; }
         public int ReminderAdvanceMinutes { get; set; }
         public bool EnableFamilyAlert { get; set; }
-        public string CustomSetting { get; set; }
+        public string? CustomSetting { get; set; }
         public DateTime UpdateAt { get; set; }
         public virtual Members Member { get; set; }
 

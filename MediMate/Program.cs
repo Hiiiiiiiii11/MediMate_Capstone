@@ -13,6 +13,7 @@ using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Share.Cloudinaries;
@@ -101,6 +102,7 @@ namespace MediMate
             builder.Services.AddScoped<IRagBaseDocumentService, RagBaseDocumentService>();
             builder.Services.AddScoped<IRagBaseEmbeddingService, RagBaseEmbeddingService>();
             builder.Services.AddScoped<IPayOSService, PayOSService>();
+            builder.Services.AddMemoryCache();
 
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -238,6 +240,8 @@ namespace MediMate
                         IssuerSigningKey = new SymmetricSecurityKey(key),
                         RoleClaimType = "Role"
                     };
+
+
                     options.Events = new JwtBearerEvents
                     {
                         //neus có cookie thì dùng
@@ -249,6 +253,37 @@ namespace MediMate
                             }
                             return Task.CompletedTask;
                         },
+
+                        // 2. CHECK TOKEN BLACKLIST SAU KHI PARSE THÀNH CÔNG (THÊM MỚI ĐOẠN NÀY)
+                        OnTokenValidated = context =>
+                        {
+                            var cache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+
+                            string rawToken = string.Empty;
+
+                            // Lấy từ Header trước
+                            var authHeader = context.HttpContext.Request.Headers["Authorization"].ToString();
+                            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                            {
+                                rawToken = authHeader.Substring("Bearer ".Length).Trim();
+                            }
+                            // Nếu không có ở Header, lấy từ trường hợp Cookie ở trên truyền xuống
+                            else if (!string.IsNullOrEmpty(context.SecurityToken?.UnsafeToString()))
+                            {
+                                // Dành cho .NET 8 (JsonWebToken)
+                                rawToken = context.SecurityToken.UnsafeToString();
+                            }
+
+                            // KIỂM TRA BLACKLIST
+                            if (!string.IsNullOrEmpty(rawToken) && cache.TryGetValue($"blacklist_{rawToken}", out _))
+                            {
+                                // Token nằm trong danh sách đen -> Đánh fail luôn! Nó sẽ tự nhảy xuống hàm OnChallenge bên dưới
+                                context.Fail("Token đã bị thu hồi (Logged out).");
+                            }
+
+                            return Task.CompletedTask;
+                        },
+
                         OnChallenge = async context =>
                         {
                             // 1. Ngăn chặn behavior mặc định (tránh việc nó tự ghi header WWW-Authenticate không mong muốn)

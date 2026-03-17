@@ -104,7 +104,7 @@ namespace MediMate.Controllers
                 {
                     return StatusCode(result.Code, result);
                 }
-                var token = result.Data?.AccessToken;
+                var token = result.Data?.AccessToken ?? "";
                 SetAuthCookie(token);
                 return Ok(ApiResponse<object>.Ok(new { token }, "Đăng nhập thành công"));
             }
@@ -124,13 +124,18 @@ namespace MediMate.Controllers
 
             if (idClaim == null || !Guid.TryParse(idClaim, out Guid accountId))
             {
-                return Unauthorized(ApiResponse<bool>.Fail("Token kh�ng h?p l?.", 401));
+                return Unauthorized(ApiResponse<bool>.Fail("Token khng h?p l?.", 401));
             }
 
             var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value
                          ?? User.FindFirst("Role")?.Value
                          ?? "User";
-            string token = Request.Headers["Authorization"].ToString() ?? Request.Cookies["token"] ?? "";
+
+            // Lấy token để blacklist
+            string token = Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "") 
+                        ?? Request.Cookies["token"] 
+                        ?? "";
+
             var result = await _authenticationService.LogoutAsync(accountId, roleClaim, token);
             Response.Cookies.Delete("token", new CookieOptions
             {

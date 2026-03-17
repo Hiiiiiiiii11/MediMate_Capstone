@@ -28,7 +28,6 @@ namespace MediMate.Controllers
         [HttpPost("doctors/{doctorId}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
-        [HttpPost("{doctorId}/availabilities")]
         public async Task<IActionResult> CreateAvailabilities(Guid doctorId, [FromBody] List<CreateDoctorAvailabilityRequest> request)
         {
             try

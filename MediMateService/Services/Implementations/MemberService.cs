@@ -93,6 +93,10 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<InitDependentResponse>.Fail($"Thành viên có tên '{request.FullName}' đã tồn tại trong gia đình này.", 409);
             }
 
+            // --- KIỂM TRA GIỚI HẠN THÀNH VIÊN ---
+            var limitCheck1 = await CheckMemberLimitAsync(family.FamilyId);
+            if (limitCheck1.Limited) return ApiResponse<InitDependentResponse>.Fail(limitCheck1.Message, 403);
+
             var newMember = new Members
             {
                 MemberId = Guid.NewGuid(),
@@ -421,6 +425,10 @@ namespace MediMateService.Services.Implementations
             if (inOtherFamily) return ApiResponse<MemberResponse>.Fail("Người dùng này đã tham gia một gia đình khác.", 409);
             */
 
+            // --- KIỂM TRA GIỚI HẠN THÀNH VIÊN ---
+            var limitCheck2 = await CheckMemberLimitAsync(request.FamilyId);
+            if (limitCheck2.Limited) return ApiResponse<MemberResponse>.Fail(limitCheck2.Message, 403);
+
             // 5. Tạo Member mới liên kết với UserId
             var newMember = new Members
             {
@@ -473,6 +481,10 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<MemberResponse>.Fail($"Thành viên có tên '{request.FullName}' đã tồn tại trong gia đình này. Vui lòng đặt tên khác", 409);
             }
+
+            // --- KIỂM TRA GIỚI HẠN THÀNH VIÊN ---
+            var limitCheck3 = await CheckMemberLimitAsync(request.FamilyId);
+            if (limitCheck3.Limited) return ApiResponse<MemberResponse>.Fail(limitCheck3.Message, 403);
 
             // 2. Tạo Member với UserId = NULL (Đây là dấu hiệu nhận biết Dependent)
             var newDependent = new Members
@@ -535,6 +547,10 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<bool>.Ok(true, "Bạn đã là thành viên của gia đình này.");
             }
 
+            // --- KIỂM TRA GIỚI HẠN THÀNH VIÊN ---
+            var limitCheck4 = await CheckMemberLimitAsync(family.FamilyId);
+            if (limitCheck4.Limited) return ApiResponse<bool>.Fail(limitCheck4.Message, 403);
+
             // 5. Thêm thành viên mới
             var currentUser = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
             if (currentUser == null) return ApiResponse<bool>.Fail("User error", 404);
@@ -567,6 +583,28 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<bool>.Ok(true, $"Tham gia gia đình '{family.FamilyName}' thành công.");
         }
 
+        private async Task<(bool Limited, string Message)> CheckMemberLimitAsync(Guid familyId)
+        {
+            var activeSub = (await _unitOfWork.Repository<FamilySubscriptions>()
+                .FindAsync(s => s.FamilyId == familyId && s.Status == "Active"))
+                .OrderByDescending(s => s.EndDate)
+                .FirstOrDefault();
+
+            if (activeSub == null) return (false, string.Empty);
+
+            var package = await _unitOfWork.Repository<MembershipPackages>().GetByIdAsync(activeSub.PackageId);
+            if (package == null) return (false, string.Empty);
+
+            var currentMemberCount = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId && m.IsActive)).Count();
+
+            if (currentMemberCount >= package.MemberLimit)
+            {
+                return (true, $"Gia đình đã đạt giới hạn tối đa {package.MemberLimit} thành viên của gói '{package.PackageName}'. Vui lòng nâng cấp gói để thêm thành viên.");
+            }
+
+            return (false, string.Empty);
+        }
         private MemberResponse MapToResponse(Members m)
         {
             return new MemberResponse

@@ -102,6 +102,7 @@ namespace MediMate
             builder.Services.AddScoped<IRagBaseConfigService, RagBaseConfigService>();
             builder.Services.AddScoped<IRagBaseDocumentService, RagBaseDocumentService>();
             builder.Services.AddScoped<IRagBaseEmbeddingService, RagBaseEmbeddingService>();
+            builder.Services.AddScoped<IPayOSService, PayOSService>();
             builder.Services.AddScoped<IDoctorAvailabilityService, DoctorAvailabilityService>();
             builder.Services.AddMemoryCache();
 

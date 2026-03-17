@@ -21,6 +21,20 @@ namespace MediMate.Controllers
             _currentUserService = currentUserService;
         }
 
+        [HttpGet("doctors/{doctorId}/available-slots")]
+        [Authorize]
+        public async Task<IActionResult> GetAvailableSlots(Guid doctorId, [FromQuery] DateTime date)
+        {
+            try
+            {
+                var response = await _appointmentService.GetAvailableSlotsAsync(doctorId, date);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
         [HttpPost]
         public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequest request)
         {
@@ -31,7 +45,6 @@ namespace MediMate.Controllers
                 MemberId = request.MemberId,
                 AvailabilityId = request.AvailabilityId,
                 AppointmentDate = request.AppointmentDate,
-                IsPremiumUser = request.IsPremiumUser
             });
 
             return Ok(ApiResponse<AppointmentResponse>.Ok(MapAppointmentResponse(data), "Đặt lịch khám thành công."));

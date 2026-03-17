@@ -46,6 +46,12 @@ services:
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       SENDER_EMAIL: ${SENDER_EMAIL}
       SENDER_NAME: ${SENDER_NAME}
+      PayOS__ClientId: ${PayOS__ClientId}
+      PayOS__ApiKey: ${PayOS__ApiKey}
+      PayOS__ChecksumKey: ${PayOS__ChecksumKey}
+      PayOS__BaseUrl: ${PayOS__BaseUrl}
+      PayOS__ReturnUrl: ${PayOS__ReturnUrl}
+      PayOS__CancelUrl: ${PayOS__CancelUrl}
     depends_on:
       postgres:
         condition: service_healthy

@@ -5,7 +5,6 @@ namespace MediMateService.Services
 {
     public interface IOcrService
     {
-      
-        Task<OcrScanResponse> ScanPrescriptionAsync(IFormFile file);
+        Task<OcrScanResponse> ScanPrescriptionAsync(IFormFile file, Guid? targetMemberId, string callerRole, Guid? callerUserId, Guid? callerMemberId);
     }
 }

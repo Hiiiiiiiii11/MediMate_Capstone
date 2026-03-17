@@ -54,6 +54,29 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<Families>().AddAsync(family);
             await _unitOfWork.Repository<Members>().AddAsync(member);
+
+            // 3. Tự động gán gói Freemium (Price = 0)
+            var freemiumPackage = (await _unitOfWork.Repository<MembershipPackages>()
+                .FindAsync(p => p.Price == 0)).FirstOrDefault();
+
+            if (freemiumPackage != null)
+            {
+                var subscription = new FamilySubscriptions
+                {
+                    SubscriptionId = Guid.NewGuid(),
+                    FamilyId = family.FamilyId,
+                    PackageId = freemiumPackage.PackageId,
+                    UserId = userId,
+                    StartDate = DateOnly.FromDateTime(DateTime.Now),
+                    EndDate = DateOnly.FromDateTime(DateTime.Now.AddDays(freemiumPackage.DurationDays)),
+                    Status = "Active",
+                    AutoRenew = false,
+                    RemainingOcrCount = freemiumPackage.OcrLimit,
+                    RemainingConsultantCount = freemiumPackage.ConsultantLimit
+                };
+                await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(subscription);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             await _activityLogService.LogActivityAsync(
@@ -62,7 +85,7 @@ namespace MediMateService.Services.Implementations
                 actionType: ActivityActionTypes.CREATE,
                 entityName: ActivityEntityNames.FAMILY,
                 entityId: family.FamilyId,
-                description: "Đã khởi tạo hồ sơ cá nhân."
+                description: "Đã khởi tạo hồ sơ cá nhân và kích hoạt gói Freemium."
             );
 
             return ApiResponse<FamilyResponse>.Ok(MapToResponse(family, 1));
@@ -104,6 +127,29 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<Families>().AddAsync(family);
             await _unitOfWork.Repository<Members>().AddAsync(member);
+
+            // 3. Tự động gán gói Freemium (Price = 0)
+            var freemiumPackage = (await _unitOfWork.Repository<MembershipPackages>()
+                .FindAsync(p => p.Price == 0)).FirstOrDefault();
+
+            if (freemiumPackage != null)
+            {
+                var subscription = new FamilySubscriptions
+                {
+                    SubscriptionId = Guid.NewGuid(),
+                    FamilyId = family.FamilyId,
+                    PackageId = freemiumPackage.PackageId,
+                    UserId = userId,
+                    StartDate = DateOnly.FromDateTime(DateTime.Now),
+                    EndDate = DateOnly.FromDateTime(DateTime.Now.AddDays(freemiumPackage.DurationDays)),
+                    Status = "Active",
+                    AutoRenew = false,
+                    RemainingOcrCount = freemiumPackage.OcrLimit,
+                    RemainingConsultantCount = freemiumPackage.ConsultantLimit
+                };
+                await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(subscription);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             await _activityLogService.LogActivityAsync(
@@ -112,7 +158,7 @@ namespace MediMateService.Services.Implementations
                 actionType: ActivityActionTypes.CREATE,
                 entityName: ActivityEntityNames.FAMILY,
                 entityId: family.FamilyId,
-                description: $"Đã tạo gia đình '{family.FamilyName}'."
+                description: $"Đã tạo gia đình '{family.FamilyName}' và kích hoạt gói Freemium."
             );
 
             return ApiResponse<FamilyResponse>.Ok(MapToResponse(family, 1));
@@ -307,6 +353,46 @@ namespace MediMateService.Services.Implementations
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             return new string(Enumerable.Repeat(chars, 6).Select(s => s[new Random().Next(s.Length)]).ToArray());
+        }
+
+        public async Task<ApiResponse<FamilySubscriptionResponse>> GetFamilySubscriptionAsync(Guid familyId)
+        {
+            var family = await _unitOfWork.Repository<Families>().GetByIdAsync(familyId);
+            if (family == null)
+            {
+                return ApiResponse<FamilySubscriptionResponse>.Fail("Gia đình không tồn tại.", 404);
+            }
+
+            var subscription = (await _unitOfWork.Repository<FamilySubscriptions>()
+                .FindAsync(fs => fs.FamilyId == familyId && fs.Status == "Active"))
+                .OrderByDescending(fs => fs.EndDate)
+                .FirstOrDefault();
+
+            if (subscription == null)
+            {
+                return ApiResponse<FamilySubscriptionResponse>.Fail("Gia đình chưa có gói đăng ký nào hoặc gói đã hết hạn.", 404);
+            }
+
+            var package = await _unitOfWork.Repository<MembershipPackages>().GetByIdAsync(subscription.PackageId);
+            if (package == null)
+            {
+                return ApiResponse<FamilySubscriptionResponse>.Fail("Không tìm thấy thông tin gói đăng ký.", 404);
+            }
+
+            var response = new FamilySubscriptionResponse
+            {
+                SubscriptionId = subscription.SubscriptionId,
+                PackageName = package.PackageName,
+                StartDate = subscription.StartDate,
+                EndDate = subscription.EndDate,
+                Status = subscription.Status,
+                RemainingOcrCount = subscription.RemainingOcrCount,
+                RemainingConsultantCount = subscription.RemainingConsultantCount,
+                OcrLimit = package.OcrLimit,
+                ConsultantLimit = package.ConsultantLimit
+            };
+
+            return ApiResponse<FamilySubscriptionResponse>.Ok(response, "Lấy thông tin gói đăng ký thành công.");
         }
     }
 }

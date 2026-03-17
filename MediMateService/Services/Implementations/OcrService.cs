@@ -1,5 +1,7 @@
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
+using MediMateRepository.Model;
+using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -15,25 +17,69 @@ namespace MediMateService.Services.Implementations
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<OcrService> _logger;
+        private readonly IUnitOfWork _unitOfWork;
 
         public OcrService(
             Cloudinary cloudinary,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
-            ILogger<OcrService> logger)
+            ILogger<OcrService> logger,
+            IUnitOfWork unitOfWork)
         {
             _cloudinary = cloudinary;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
+            _unitOfWork = unitOfWork;
         }
 
-        public async Task<OcrScanResponse> ScanPrescriptionAsync(IFormFile file)
+        public async Task<OcrScanResponse> ScanPrescriptionAsync(IFormFile file, Guid? targetMemberId, string callerRole, Guid? callerUserId, Guid? callerMemberId)
         {
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File ảnh không hợp lệ hoặc rỗng.");
 
-           
+            // Vì Controller đã validate và gán cứng, nên targetMemberId chắc chắn có value
+            var finalMemberId = targetMemberId.Value;
+
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(finalMemberId);
+            if (targetMember == null || targetMember.FamilyId == null)
+                throw new UnauthorizedAccessException("Thành viên không tồn tại hoặc không thuộc gia đình nào.");
+
+            var familyId = targetMember.FamilyId.Value;
+
+            // --- ANTI-THEFT ---
+            bool hasAccess = false;
+            
+            if (callerRole == "Dependent" && callerMemberId.HasValue)
+            {
+                // TH1: Dependent quét
+                var dependentMember = await _unitOfWork.Repository<Members>().GetByIdAsync(callerMemberId.Value);
+                hasAccess = (dependentMember != null && dependentMember.FamilyId == familyId);
+            }
+            else if (callerRole == "User" && callerUserId.HasValue)
+            {
+                // TH2: Chủ hộ quét
+                var callerMember = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == familyId && m.UserId == callerUserId.Value))
+                    .FirstOrDefault();
+                hasAccess = callerMember != null;
+            }
+
+            if (!hasAccess)
+                throw new UnauthorizedAccessException("Bạn không có quyền sử dụng hạn mức của gia đình này.");
+
+            // --- CHECK QUOTA ---
+            var activeSub = (await _unitOfWork.Repository<FamilySubscriptions>()
+                .FindAsync(s => s.FamilyId == familyId && s.Status == "Active"))
+                .OrderByDescending(s => s.EndDate)
+                .FirstOrDefault();
+
+            if (activeSub == null)
+                throw new InvalidOperationException("QUOTA_EXHAUSTED:Gia đình chưa có gói đăng ký nào.");
+
+            if (activeSub.RemainingOcrCount <= 0)
+                throw new InvalidOperationException("QUOTA_EXHAUSTED:Gia đình đã hết lượt quét OCR. Vui lòng nâng cấp gói để tiếp tục.");
+
             byte[] imageBytes;
             using (var ms = new MemoryStream())
             {
@@ -43,7 +89,6 @@ namespace MediMateService.Services.Implementations
 
             _logger.LogInformation("[OCR] Bắt đầu chạy song song: Cloudinary Upload + Google Vision");
 
-           
             var cloudinaryTask = UploadToCloudinaryAsync(imageBytes, file.FileName);
             var visionTask = CallGoogleVisionAsync(imageBytes);
 
@@ -54,9 +99,12 @@ namespace MediMateService.Services.Implementations
 
             _logger.LogInformation("[OCR] Cả 2 luồng hoàn thành. Raw text length: {Len}", rawText.Length);
 
-      
-            // ===== BƯỚC 3: Dùng Groq LLM bóc tách raw text → JSON =====
             var extractedData = await CallGroqExtractAsync(rawText);
+
+            activeSub.RemainingOcrCount -= 1;
+            _unitOfWork.Repository<FamilySubscriptions>().Update(activeSub);
+            await _unitOfWork.CompleteAsync();
+            _logger.LogInformation("[OCR] Đã trừ quota. Family {FamilyId} còn {Count} lượt.", familyId, activeSub.RemainingOcrCount);
 
             return new OcrScanResponse
             {
@@ -203,7 +251,7 @@ namespace MediMateService.Services.Implementations
                 {{rawText}}
                 """;
 
-            // Groq dùng OpenAI-compatible Chat Completions API
+         
             var requestBody = new
             {
                 model,

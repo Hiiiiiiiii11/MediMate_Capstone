@@ -13,7 +13,8 @@ namespace MediMateRepository.Model
         public DateOnly EndDate { get; set; }
         public string Status { get; set; } = "Active";
         public bool AutoRenew { get; set; } = false;
-
+        public int RemainingOcrCount { get; set; }
+        public int RemainingConsultantCount { get; set; }
         public virtual Families Family { get; set; } = null!;
         public virtual MembershipPackages Package { get; set; } = null!;
         public virtual User User { get; set; } = null!;

@@ -64,7 +64,7 @@ namespace MediMate.Controllers
                 var token = result.Data?.AccessToken;
                 SetAuthCookie(token);
 
-                return Ok(ApiResponse<object>.Ok(null, "Đăng nhập thành công"));
+                return Ok(ApiResponse<object>.Ok(new { token }, "Đăng nhập thành công"));
             }
             catch (Exception ex)
             {
@@ -86,7 +86,7 @@ namespace MediMate.Controllers
                 var token = result.Data?.AccessToken;
                 SetAuthCookie(token);
 
-                return Ok(ApiResponse<object>.Ok(null, "Đăng nhập thành công"));
+                return Ok(ApiResponse<object>.Ok(new { token }, "Đăng nhập thành công"));
             }
             catch (Exception ex)
             {

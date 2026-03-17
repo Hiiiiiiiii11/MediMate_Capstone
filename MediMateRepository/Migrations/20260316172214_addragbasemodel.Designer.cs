@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316172214_addragbasemodel")]
+    partial class addragbasemodel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -493,12 +496,6 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("PackageId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("RemainingConsultantCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RemainingOcrCount")
-                        .HasColumnType("integer");
-
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
 
@@ -795,9 +792,6 @@ namespace MediMateRepository.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ConsultantLimit")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasColumnType("text");
@@ -809,9 +803,6 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("MemberLimit")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("OcrLimit")
                         .HasColumnType("integer");
 
                     b.Property<string>("PackageName")

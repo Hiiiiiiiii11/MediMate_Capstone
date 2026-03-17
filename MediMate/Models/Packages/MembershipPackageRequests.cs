@@ -3,6 +3,7 @@ namespace MediMate.Models.Packages
     public class CreateMembershipPackageRequest
     {
         public string PackageName { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
         public decimal Price { get; set; }
         public string Currency { get; set; } = "VND";
         public int DurationDays { get; set; }
@@ -15,6 +16,7 @@ namespace MediMate.Models.Packages
     public class UpdateMembershipPackageRequest
     {
         public string? PackageName { get; set; }
+        public bool? IsActive { get; set; }
         public decimal? Price { get; set; }
         public string? Currency { get; set; }
         public int? DurationDays { get; set; }

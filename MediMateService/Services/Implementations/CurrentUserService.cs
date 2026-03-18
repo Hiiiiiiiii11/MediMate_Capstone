@@ -43,22 +43,28 @@ namespace MediMateService.Services.Implementations
         }
         public async Task<bool> CheckAccess(Guid memberId, Guid callerId)
         {
-            // 1. NẾU TỰ XEM HỒ SƠ CỦA CHÍNH MÌNH (Dependent truy cập) -> CHO QUA LUÔN
+            // 1. Tự xem hồ sơ của chính mình (Hỗ trợ cả Dependent tự xem hồ sơ của nó)
             if (memberId == callerId) return true;
 
-            // 2. Các logic kiểm tra User (Bố/Mẹ) bên dưới giữ nguyên...
             var member = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
             if (member == null) return false;
 
+            // 2. User (Chủ hộ) xem hồ sơ của Member do chính mình tạo ra
             if (member.UserId == callerId) return true;
 
+            // 3. Xem chéo hồ sơ của người khác nhưng CÙNG TRONG MỘT GIA ĐÌNH
             if (member.FamilyId != null)
             {
+                // [QUAN TRỌNG NHẤT Ở ĐÂY]: Hỗ trợ cả User (m.UserId) và Dependent (m.MemberId)
                 var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == member.FamilyId && m.UserId == callerId)).FirstOrDefault();
+                    .FindAsync(m => m.FamilyId == member.FamilyId && (m.UserId == callerId || m.MemberId == callerId))).FirstOrDefault();
+
                 if (requester != null) return true;
             }
+
             return false;
         }
+
+
     }
 }

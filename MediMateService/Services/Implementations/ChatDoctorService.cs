@@ -158,8 +158,8 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
             // Kiểm tra user có thuộc family này không
-            var isFamilyMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
+                var isFamilyMember = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember)
                 return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Bạn không có quyền truy cập tin nhắn của gia đình này.", 403);

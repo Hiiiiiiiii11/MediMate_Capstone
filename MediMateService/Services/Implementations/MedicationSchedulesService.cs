@@ -183,7 +183,7 @@ namespace MediMateService.Services.Implementations
         {
             // Kiểm tra xem User hiện tại có thuộc gia đình này không
             var isFamilyMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
+     .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember) return ApiResponse<IEnumerable<ReminderDailyResponse>>.Fail("Bạn không có quyền xem thông tin gia đình này.", 403);
 
@@ -389,7 +389,7 @@ namespace MediMateService.Services.Implementations
         {
             // Kiểm tra xem User hiện tại có thuộc gia đình này không
             var isFamilyMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
+         .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember)
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Bạn không có quyền xem thông tin gia đình này.", 403);

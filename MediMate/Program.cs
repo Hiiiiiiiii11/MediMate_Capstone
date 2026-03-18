@@ -1,4 +1,3 @@
-
 using CloudinaryDotNet;
 using DotNetEnv;
 using FirebaseAdmin;
@@ -105,6 +104,9 @@ namespace MediMate
             builder.Services.AddScoped<IPayOSService, PayOSService>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
             builder.Services.AddScoped<ITransactionService, TransactionService>();
+            builder.Services.AddScoped<IDoctorAvailabilityService, DoctorAvailabilityService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IAgoraService, AgoraService>();
             builder.Services.AddMemoryCache();
 
             builder.Services.AddHangfire(config => config

@@ -220,7 +220,7 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<ScheduleResponse>> UpdateScheduleAsync(Guid scheduleId, Guid currentUserId, UpdateScheduleRequest request)
         {
             var schedule = (await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.ScheduleId == scheduleId)).FirstOrDefault();
+      .FindAsync(s => s.ScheduleId == scheduleId, "Member")).FirstOrDefault();
 
             if (schedule == null) return ApiResponse<ScheduleResponse>.Fail("Không tìm thấy lịch.", 404);
 
@@ -315,13 +315,7 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            return ApiResponse<ScheduleResponse>.Ok(new ScheduleResponse
-            {
-                ScheduleId = schedule.ScheduleId,
-                MedicineName = schedule.MedicineName,
-                SpecificTimes = schedule.SpecificTimes,
-                IsActive = schedule.IsActive
-            }, "Cập nhật lịch thành công.");
+            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Cập nhật lịch thành công.");
         }
 
         // =======================================================

@@ -323,13 +323,30 @@ namespace MediMateService.Services.Implementations
                         summary.BMI = Math.Round(m.HealthProfile.Weight / (h * h), 2);
                     }
 
-                    // Lấy danh sách bệnh đang Active
-                    var activeConditions = m.HealthProfile.Conditions
-                        .Where(c => c.Status == "Active")
-                        .ToList();
+                    if (m.HealthProfile.Conditions != null && m.HealthProfile.Conditions.Any())
+                    {
+                        var activeConditions = m.HealthProfile.Conditions.ToList();
 
-                    summary.ActiveConditionsCount = activeConditions.Count;
-                    summary.ConditionNames = activeConditions.Select(c => c.ConditionName).ToList();
+                        summary.ActiveConditionsCount = activeConditions.Count;
+
+                        // Trả về full object Condition
+                        summary.Conditions = activeConditions.Select(c => new HealthConditionDto
+                        {
+                            ConditionId = c.ConditionId,
+                            ConditionName = c.ConditionName,
+                            // Lưu ý: Tùy thuộc vào tên property trong Model HealthConditions của bạn mà Map cho chuẩn nhé
+                            // Lúc trước tôi nhớ bạn dùng c.Notes và c.DiagnosisDate, nếu DB của bạn là Description thì đổi lại cho khớp
+                            Description = c.Description, // hoặc c.Description tùy DB của bạn
+                            DiagnosedDate = c.DiagnosedDate,
+                            Status = c.Status
+                        }).ToList();
+                    }
+                    else
+                    {
+                        // Đảm bảo mảng không bị null
+                        summary.ActiveConditionsCount = 0;
+                        summary.Conditions = new List<HealthConditionDto>();
+                    }
                 }
 
                 result.Add(summary);

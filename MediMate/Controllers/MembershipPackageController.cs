@@ -42,6 +42,7 @@ namespace MediMate.Controllers
             var result = await _packageService.CreateAsync(new CreateMembershipPackageDto
             {
                 PackageName = request.PackageName,
+                IsActive = request.IsActive,
                 Price = request.Price,
                 Currency = request.Currency,
                 DurationDays = request.DurationDays,
@@ -61,6 +62,7 @@ namespace MediMate.Controllers
             var result = await _packageService.UpdateAsync(packageId, new UpdateMembershipPackageDto
             {
                 PackageName = request.PackageName,
+                IsActive = request.IsActive,
                 Price = request.Price,
                 Currency = request.Currency,
                 DurationDays = request.DurationDays,

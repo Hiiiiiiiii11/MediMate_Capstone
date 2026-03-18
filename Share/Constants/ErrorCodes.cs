@@ -30,6 +30,9 @@ namespace Share.Constants
         // Doctor / Manager
         public const string DoctorAlreadyExists = "DOCTOR_ALREADY_EXISTS";
         public const string DoctorManagerAlreadyExists = "DOCTOR_MANAGER_ALREADY_EXISTS";
+
+        // Membership package
+        public const string MembershipPackageInUse = "MEMBERSHIP_PACKAGE_IN_USE";
     }
 }
 

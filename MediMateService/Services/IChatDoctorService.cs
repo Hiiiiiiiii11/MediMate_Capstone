@@ -18,5 +18,15 @@ namespace MediMateService.Services
 
         // Đánh dấu toàn bộ tin nhắn của đối phương là "Đã đọc"
         Task<ApiResponse<bool>> MarkMessagesAsReadAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest);
+
+        Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId);
+
+        // 2. Lấy tất cả các phiên chat của một Bác sĩ (Dành cho Doctor)
+        // Mục đích: Hiển thị tab "Tin nhắn" trên app của bác sĩ
+        Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByDoctorIdAsync(Guid doctorId, Guid currentUserId);
+
+        // 3. Lấy thông tin chi tiết của 1 phiên chat (Header Chat)
+        // Mục đích: Khi ấn vào phòng chat, cần gọi API này để lấy Avatar, Tên người đối diện, Trạng thái (Active/Ended)
+        Task<ApiResponse<ChatSessionSummaryResponse>> GetSessionDetailsAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest);
     }
 }

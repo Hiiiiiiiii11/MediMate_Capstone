@@ -28,7 +28,7 @@ namespace MediMateRepository.Data
         public DbSet<Doctors> Doctors { get; set; }
         public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
         public DbSet<Appointments> Appointments { get; set; }
-        public DbSet<DoctorBankAccount> DoctorBankAccounts { get; set; } 
+        public DbSet<DoctorBankAccount> DoctorBankAccounts { get; set; }
         public DbSet<DoctorDocument> DoctorDocuments { get; set; }
 
         public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
@@ -47,6 +47,7 @@ namespace MediMateRepository.Data
         public DbSet<RagBaseConfig> RagBaseConfigs { get; set; }         // THÊM MỚI
         public DbSet<RagBaseDocument> RagBaseDocuments { get; set; }     // THÊM MỚI
         public DbSet<RagBaseEmbedding> RagBaseEmbeddings { get; set; }
+        public DbSet<Notifications> Notifications { get; set; }
 
 
 
@@ -94,6 +95,7 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<RagBaseConfig>().HasKey(rc => rc.ConfigId);
             modelBuilder.Entity<RagBaseDocument>().HasKey(rd => rd.RagDocumentId);
             modelBuilder.Entity<RagBaseEmbedding>().HasKey(re => re.EmbeddingId);
+            modelBuilder.Entity<Notifications>().HasKey(re => re.NotificationId);
 
 
 
@@ -396,13 +398,19 @@ namespace MediMateRepository.Data
                 .HasForeignKey(m => m.SenderId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.NoAction);
+            //modelBuilder.Entity<ChatDoctorMessages>()
+            //    .HasOne(m => m.Sender)
+            //    .WithMany()
+            //    .HasForeignKey(m => m.SenderId)
+            //    .IsRequired(false)
+            //    .OnDelete(DeleteBehavior.NoAction);
 
-            modelBuilder.Entity<ChatDoctorMessages>()
-                .HasOne(m => m.DoctorSender)
-                .WithMany()
-                .HasForeignKey(m => m.SenderId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.NoAction);
+            //modelBuilder.Entity<ChatDoctorMessages>()
+            //    .HasOne(m => m.DoctorSender)
+            //    .WithMany()
+            //    .HasForeignKey(m => m.SenderId)
+            //    .IsRequired(false)
+            //    .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<ChatDoctorMessages>()
                 .HasOne(m => m.ConsultantSession)
@@ -424,7 +432,10 @@ namespace MediMateRepository.Data
                 .HasForeignKey(re => re.RagDocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
+
     }
+
 }
 //dotnet ef migrations add InitialDB --project MediMateRepository --startup-project MediMate
 //dotnet ef database update --project MediMateRepository --startup-project MediMate
+

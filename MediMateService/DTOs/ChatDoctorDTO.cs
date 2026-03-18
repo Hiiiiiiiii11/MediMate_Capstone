@@ -28,4 +28,23 @@ namespace MediMateService.DTOs
         public bool IsRead { get; set; }
         public DateTime SendAt { get; set; }
     }
+
+    public class ChatSessionSummaryResponse
+    {
+        public Guid SessionId { get; set; }
+
+        // Thông tin người đối diện (Nếu là User đăng nhập thì hiện tên Bác sĩ, và ngược lại)
+        public string PartnerName { get; set; } = string.Empty;
+        public string? PartnerAvatar { get; set; }
+
+        // Trạng thái phiên khám (Active, Ended, Cancelled...)
+        public string Status { get; set; } = string.Empty;
+
+        // Nội dung tin nhắn cuối cùng (để hiển thị rút gọn ở danh sách)
+        public string? LastMessage { get; set; }
+        public DateTime? LastMessageTime { get; set; }
+
+        // Số tin nhắn chưa đọc trong cái phòng chat này
+        public int UnreadCount { get; set; }
+    }
 }

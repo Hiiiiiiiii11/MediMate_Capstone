@@ -4,6 +4,7 @@ namespace MediMateService.DTOs
     {
         public Guid PackageId { get; set; }
         public string PackageName { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
         public decimal Price { get; set; }
         public string Currency { get; set; } = "VND";
         public int DurationDays { get; set; }
@@ -11,11 +12,13 @@ namespace MediMateService.DTOs
         public int OcrLimit { get; set; }
         public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
+        public int ActiveSubscriberCount { get; set; }
     }
 
     public class CreateMembershipPackageDto
     {
         public string PackageName { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
         public decimal Price { get; set; }
         public string Currency { get; set; } = "VND";
         public int DurationDays { get; set; }
@@ -28,6 +31,7 @@ namespace MediMateService.DTOs
     public class UpdateMembershipPackageDto
     {
         public string? PackageName { get; set; }
+        public bool? IsActive { get; set; }
         public decimal? Price { get; set; }
         public string? Currency { get; set; }
         public int? DurationDays { get; set; }

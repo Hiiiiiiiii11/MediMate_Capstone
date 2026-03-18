@@ -9,5 +9,6 @@ namespace MediMateService.Services
     public interface IReminderJobService
     {
         Task CheckAndNotifyOverdueReminder(Guid reminderId);
+        Task NotifyUpcomingAppointmentAsync(Guid appointmentId);
     }
 }

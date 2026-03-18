@@ -14,13 +14,12 @@ namespace MediMateRepository.Model
         public Guid MemberId { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
-        public string RecordUrl { get; set; }
+        public string? RecordUrl { get; set; }
         public string Status { get; set; }
-        public string DoctorNote { get; set; }
-        public virtual Members Member { get; set; }
-        public virtual Doctors Doctor { get; set; }
+        public string? DoctorNote { get; set; }
         public virtual Appointments Appointment { get; set; }
         public virtual ICollection<ChatDoctorMessages> Messages { get; set; } = new List<ChatDoctorMessages>();
-
+        public virtual Members Member { get; set; } = null!;
+        public virtual Doctors Doctor { get; set; } = null!;
     }
 }

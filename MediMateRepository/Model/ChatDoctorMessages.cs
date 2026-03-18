@@ -16,9 +16,8 @@ namespace MediMateRepository.Model
         public string? AttachmentUrl { get; set; }
         public bool IsRead { get; set; }
         public DateTime SendAt { get; set; }
+
         public virtual ConsultationSessions ConsultantSession { get; set; }
-        public virtual Members Sender { get; set; }
-        public virtual Doctors DoctorSender { get; set; }
     }
     public enum SenderType
     {

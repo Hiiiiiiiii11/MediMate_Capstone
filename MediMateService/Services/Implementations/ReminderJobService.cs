@@ -7,11 +7,13 @@ namespace MediMateService.Services.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFirebaseNotificationService _firebaseService;
+        private readonly INotificationService _notificationService;
 
-        public ReminderJobService(IUnitOfWork unitOfWork, IFirebaseNotificationService firebaseService)
+        public ReminderJobService(IUnitOfWork unitOfWork, IFirebaseNotificationService firebaseService, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _firebaseService = firebaseService;
+            _notificationService = notificationService;
         }
 
         public async Task CheckAndNotifyOverdueReminder(Guid reminderId)
@@ -73,6 +75,49 @@ namespace MediMateService.Services.Implementations
                 _unitOfWork.Repository<MedicationReminders>().Update(reminder);
                 await _unitOfWork.CompleteAsync();
             }
+        }
+
+        public async Task NotifyUpcomingAppointmentAsync(Guid appointmentId)
+        {
+            // 1. Lấy thông tin lịch khám từ DB
+            var appointment = await _unitOfWork.Repository<Appointments>().GetByIdAsync(appointmentId);
+
+            // NẾU LỊCH BỊ HỦY HOẶC CHƯA DUYỆT -> KHÔNG LÀM GÌ CẢ (Hủy ngầm Job)
+            if (appointment == null || appointment.Status != "Approved") return;
+
+            // 2. Kiểm tra lại giờ giấc (Phòng trường hợp lịch bị dời ngày, cái Job cũ vẫn chạy)
+            var appointmentFullDateTime = appointment.AppointmentDate.Date.Add(appointment.AppointmentTime);
+            var timeDifference = appointmentFullDateTime - DateTime.Now;
+
+            // Nếu còn đúng khoảng 14 - 16 phút nữa là tới giờ khám thì mới gửi (tránh gửi sai do dời lịch)
+            if (timeDifference.TotalMinutes < 0 || timeDifference.TotalMinutes > 20) return;
+
+            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(appointment.DoctorId);
+
+            if (member == null || doctor == null) return;
+
+            string timeString = appointment.AppointmentTime.ToString(@"hh\:mm");
+
+            // 3. Bắn thông báo
+            if (member.UserId.HasValue)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: member.UserId.Value,
+                    title: "⏰ Sắp đến giờ khám!",
+                    message: $"Bạn có lịch khám online với Bác sĩ {doctor.FullName} vào lúc {timeString} (15 phút nữa). Vui lòng chuẩn bị!",
+                    type: "UPCOMING_APPOINTMENT",
+                    referenceId: appointment.AppointmentId
+                );
+            }
+
+            await _notificationService.SendNotificationAsync(
+                userId: doctor.UserId,
+                title: "⏰ Sắp đến giờ làm việc!",
+                message: $"Bạn có lịch khám online với bệnh nhân {member.FullName} vào lúc {timeString} (15 phút nữa).",
+                type: "UPCOMING_APPOINTMENT",
+                referenceId: appointment.AppointmentId
+            );
         }
     }
 }

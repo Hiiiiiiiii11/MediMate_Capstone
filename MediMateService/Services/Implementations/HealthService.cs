@@ -175,7 +175,7 @@ namespace MediMateService.Services.Implementations
         {
             if (!await _currentUserService.CheckAccess(memberId, userId))
             {
-                return ApiResponse<bool>.Fail("Access Denied", 403);
+                return ApiResponse<bool>.Fail("Bạn không có quyền thực hiện", 403);
             }
 
             // Phải đảm bảo Profile đã tồn tại
@@ -232,7 +232,7 @@ namespace MediMateService.Services.Implementations
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
             if (!await _currentUserService.CheckAccess(profile.MemberId, userId))
             {
-                return ApiResponse<bool>.Fail("Access Denied", 403);
+                return ApiResponse<bool>.Fail("Bạn không có quyền thực hiện", 403);
             }
             string conditionName = condition.ConditionName;
 
@@ -433,7 +433,7 @@ namespace MediMateService.Services.Implementations
                 if (targetMember != null && targetMember.FamilyId.HasValue)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+      .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                     if (doer != null)
                     {

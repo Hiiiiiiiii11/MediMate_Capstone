@@ -68,12 +68,12 @@ namespace MediMateService.DTOs
         public Guid MemberId { get; set; }
         public string FullName { get; set; }
         public string AvatarUrl { get; set; }
-        public bool HasProfile { get; set; } // Đã tạo hồ sơ chưa
+        public bool HasProfile { get; set; }
+        public string BloodType { get; set; }
+        public double BMI { get; set; }
+        public int ActiveConditionsCount { get; set; }
 
-        // Thông tin tóm tắt (nếu HasProfile = true)
-        public string? BloodType { get; set; }
-        public double? BMI { get; set; }
-        public int ActiveConditionsCount { get; set; } // Số lượng bệnh đang điều trị
-        public List<string> ConditionNames { get; set; } = new List<string>(); // List tên bệnh ngắn gọn
+        // SỬA Ở ĐÂY: Đổi từ List<string> sang List<HealthConditionDto>
+        public List<HealthConditionDto> Conditions { get; set; } = new List<HealthConditionDto>();
     }
 }

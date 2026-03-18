@@ -2,6 +2,7 @@
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
+using Share.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,12 +16,14 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IUploadPhotoService _uploadPhotoService;
+        private readonly INotificationService _notificationService;
 
-        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService)
+        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<IEnumerable<ChatDoctorMessageResponse>>> GetSessionMessagesAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
@@ -84,6 +87,23 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(message);
             await _unitOfWork.CompleteAsync();
+
+            Guid receiverUserId = isDoctorRequest ? session.Member.UserId ?? Guid.Empty : session.Doctor.UserId;
+
+            // 2. Tên người vừa gửi để hiện lên thông báo
+            string senderName = isDoctorRequest ? (session.Doctor?.FullName ?? "Bác sĩ") : (session.Member?.FullName ?? "Bệnh nhân");
+
+            // 3. Nội dung thông báo (Nếu chỉ gửi ảnh thì hiện chữ "[Hình ảnh đính kèm]")
+            string notifBody = string.IsNullOrWhiteSpace(request.Content) ? "[Hình ảnh đính kèm]" : request.Content;
+
+            // Bắn thông báo! (Tự động lưu DB và gọi Firebase)
+            await _notificationService.SendNotificationAsync(
+                userId: receiverUserId,
+                title: $"💬 Tin nhắn mới từ {senderName}",
+                message: notifBody,
+                type: ChatActionTypes.NEW_CHAT_MESSAGE,
+                referenceId: sessionId // Gửi kèm SessionId để lúc bấm vào thông báo App sẽ mở thẳng phòng chat này ra
+            );
 
             // Dùng hàm MapToResponse cho tin nhắn vừa tạo
             return ApiResponse<ChatDoctorMessageResponse>.Ok(MapToResponse(message, session));

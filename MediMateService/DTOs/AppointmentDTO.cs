@@ -38,7 +38,10 @@ namespace MediMateService.DTOs
 
     public class AvailableSlotDto
     {
-        public TimeSpan Time { get; set; } // Đổi từ int sang TimeSpan
+        // Thêm trường này để Frontend lấy được ID truyền vào API Create Appointment
+        public Guid AvailabilityId { get; set; }
+
+        public TimeSpan Time { get; set; }
         public string DisplayTime { get; set; } = string.Empty;
         public bool IsBooked { get; set; }
     }

@@ -104,6 +104,7 @@ namespace MediMate
             builder.Services.AddScoped<IPayOSService, PayOSService>();
             builder.Services.AddScoped<IDoctorAvailabilityService, DoctorAvailabilityService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IAgoraService, AgoraService>();
             builder.Services.AddMemoryCache();
 
             builder.Services.AddHangfire(config => config

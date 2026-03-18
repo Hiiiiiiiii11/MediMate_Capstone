@@ -3,6 +3,7 @@ using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
 using Share.Common;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -18,7 +19,16 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<List<MembershipPackageDto>>> GetAllAsync()
         {
             var packages = await _unitOfWork.Repository<MembershipPackages>().GetAllAsync();
-            var result = packages.Select(MapToDto).ToList();
+            var activeSubs = await _unitOfWork.Repository<FamilySubscriptions>()
+                .FindAsync(s => s.Status == "Active");
+
+            var activeCountsByPackageId = activeSubs
+                .GroupBy(s => s.PackageId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var result = packages
+                .Select(p => MapToDto(p, activeCountsByPackageId.TryGetValue(p.PackageId, out var c) ? c : 0))
+                .ToList();
             return ApiResponse<List<MembershipPackageDto>>.Ok(result, "Lấy danh sách gói thành viên thành công.");
         }
 
@@ -37,6 +47,7 @@ namespace MediMateService.Services.Implementations
             {
                 PackageId = Guid.NewGuid(),
                 PackageName = dto.PackageName,
+                IsActive = dto.IsActive,
                 Price = dto.Price,
                 Currency = dto.Currency,
                 DurationDays = dto.DurationDays,
@@ -59,6 +70,7 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy gói thành viên.");
 
             if (dto.PackageName != null) package.PackageName = dto.PackageName;
+            if (dto.IsActive.HasValue) package.IsActive = dto.IsActive.Value;
             if (dto.Price.HasValue) package.Price = dto.Price.Value;
             if (dto.Currency != null) package.Currency = dto.Currency;
             if (dto.DurationDays.HasValue) package.DurationDays = dto.DurationDays.Value;
@@ -79,23 +91,34 @@ namespace MediMateService.Services.Implementations
             if (package == null)
                 throw new NotFoundException("Không tìm thấy gói thành viên.");
 
+            var activeSubs = await _unitOfWork.Repository<FamilySubscriptions>()
+                .FindAsync(s => s.PackageId == packageId && s.Status == "Active");
+            if (activeSubs.Any())
+            {
+                throw new ConflictException(
+                    "Không thể xóa gói đang có người sử dụng.",
+                    ErrorCodes.MembershipPackageInUse);
+            }
+
             _unitOfWork.Repository<MembershipPackages>().Remove(package);
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<bool>.Ok(true, "Xóa gói thành viên thành công.");
         }
 
-        private static MembershipPackageDto MapToDto(MembershipPackages p) => new()
+        private static MembershipPackageDto MapToDto(MembershipPackages p, int activeSubscriberCount = 0) => new()
         {
             PackageId = p.PackageId,
             PackageName = p.PackageName,
+            IsActive = p.IsActive,
             Price = p.Price,
             Currency = p.Currency,
             DurationDays = p.DurationDays,
             MemberLimit = p.MemberLimit,
             OcrLimit = p.OcrLimit,
             ConsultantLimit = p.ConsultantLimit,
-            Description = p.Description
+            Description = p.Description,
+            ActiveSubscriberCount = activeSubscriberCount
         };
     }
 }

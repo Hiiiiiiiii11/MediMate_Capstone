@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260317201554_AddIsActiveToMembershipPackages")]
+    partial class AddIsActiveToMembershipPackages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -78,9 +81,6 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime>("AppointmentDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<TimeSpan>("AppointmentTime")
-                        .HasColumnType("interval");
-
                     b.Property<Guid>("AvailabilityId")
                         .HasColumnType("uuid");
 
@@ -142,6 +142,8 @@ namespace MediMateRepository.Migrations
                     b.HasKey("ChatDoctorMessageId");
 
                     b.HasIndex("ConsultanSessionId");
+
+                    b.HasIndex("SenderId");
 
                     b.ToTable("ChatDoctorMessages");
                 });
@@ -217,6 +219,7 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("DoctorNote")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("EndedAt")
@@ -226,6 +229,7 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("RecordUrl")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("StartedAt")
@@ -835,6 +839,7 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("CustomSetting")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("EnableEmailNotification")
@@ -864,45 +869,6 @@ namespace MediMateRepository.Migrations
                         .IsUnique();
 
                     b.ToTable("NotificationSettings");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Notifications", b =>
-                {
-                    b.Property<Guid>("NotificationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("ReferenceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("NotificationId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Payments", b =>
@@ -1451,7 +1417,21 @@ namespace MediMateRepository.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MediMateRepository.Model.Doctors", "DoctorSender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("MediMateRepository.Model.Members", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("ConsultantSession");
+
+                    b.Navigation("DoctorSender");
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.ChatbotMessages", b =>
@@ -1702,17 +1682,6 @@ namespace MediMateRepository.Migrations
                         .IsRequired();
 
                     b.Navigation("Member");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Notifications", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Payments", b =>

@@ -94,10 +94,12 @@ public class PayOSService : IPayOSService
             var transaction = new Transactions
             {
                 TransactionId = Guid.NewGuid(),
+                TransactionCode = $"PKG{orderCode}",
                 PaymentId = payment.PaymentId,
                 GatewayName = "PayOS",
                 GatewayTransactionId = orderCode.ToString(),
                 TransactionStatus = "Pending",
+                TransactionType = "Tiền nhận vào",
                 AmountPaid = 0 // Will update on success
             };
             await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
@@ -238,6 +240,7 @@ public class PayOSService : IPayOSService
             // Update Transaction
             transaction.TransactionStatus = "Success";
             transaction.AmountPaid = transaction.Payment.Amount;
+            transaction.PaidAt = DateTime.UtcNow;
 
             // Update Payment
             transaction.Payment.Status = "Success";

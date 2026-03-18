@@ -42,11 +42,19 @@ namespace MediMate.Controllers
             try
             {
                 var result = await _authenticationService.VerifyOtpAsync(request);
-                return !result.Success ? StatusCode(result.Code, result) : (IActionResult)Ok(result);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Code, result);
+                }
+
+                var token = result.Data?.AccessToken;
+                SetAuthCookie(token);
+
+                return Ok(ApiResponse<object>.Ok(new { token }, "Kích hoạt và đăng nhập thành công."));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Success = false, Message = "L?i h? th?ng: " + ex.Message });
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
 

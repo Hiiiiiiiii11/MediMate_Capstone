@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using Share.Common;
 
 
@@ -6,7 +6,7 @@ namespace MediMateService.Services
 {
     public interface IUserService
     {
-        Task<ApiResponse<IEnumerable<UserProfileResponse>>> GetAllUsersAsync();
+        Task<ApiResponse<PagedResult<UserProfileResponse>>> GetAllUsersAsync(int pageNumber = 1, int pageSize = 10);
         
         // Admin tạo Doctor Manager
         Task<ApiResponse<UserProfileResponse>> CreateDoctorManagerAsync(CreateDoctorManagerDto request);

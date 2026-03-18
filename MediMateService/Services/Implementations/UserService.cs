@@ -17,15 +17,20 @@ namespace MediMateService.Services.Implementations
             _uploadPhotoService = uploadPhotoService;
             _emailService = emailService;
         }
-        public async Task<ApiResponse<IEnumerable<UserProfileResponse>>> GetAllUsersAsync()
+        public async Task<ApiResponse<PagedResult<UserProfileResponse>>> GetAllUsersAsync(int pageNumber = 1, int pageSize = 10)
         {
             // 1. Lấy toàn bộ user từ DB
             // Sử dụng GetAllAsync từ GenericRepository
             var users = await _unitOfWork.Repository<User>().GetAllAsync();
+            var totalCount = users.Count();
 
             // 2. Map từ Entity sang DTO
             // Lưu ý: Nếu data lớn, nên dùng AutoMapper hoặc Select trực tiếp từ IQueryable (tùy GenericRepo hỗ trợ)
-            var userDtos = users.Select(u => new UserProfileResponse
+            var userDtos = users
+                .OrderByDescending(u => u.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new UserProfileResponse
             {
                 UserId = u.UserId,
                 PhoneNumber = u.PhoneNumber,
@@ -39,8 +44,16 @@ namespace MediMateService.Services.Implementations
                 CreatedAt = u.CreatedAt
             }).ToList();
 
+            var result = new PagedResult<UserProfileResponse>
+            {
+                Items = userDtos,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
             // 3. Trả về kết quả
-            return ApiResponse<IEnumerable<UserProfileResponse>>.Ok(userDtos, "Lấy danh sách người dùng thành công.");
+            return ApiResponse<PagedResult<UserProfileResponse>>.Ok(result, "Lấy danh sách người dùng thành công.");
         }
 
         public async Task<ApiResponse<UserProfileResponse>> CreateDoctorManagerAsync(CreateDoctorManagerDto request)

@@ -392,12 +392,12 @@ namespace MediMateRepository.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<ChatDoctorMessages>()
-                .HasOne(m => m.Sender)
-                .WithMany()
-                .HasForeignKey(m => m.SenderId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.NoAction);
+            //modelBuilder.Entity<ChatDoctorMessages>()
+            //    .HasOne(m => m.Sender)
+            //    .WithMany()
+            //    .HasForeignKey(m => m.SenderId)
+            //    .IsRequired(false)
+            //    .OnDelete(DeleteBehavior.NoAction);
             //modelBuilder.Entity<ChatDoctorMessages>()
             //    .HasOne(m => m.Sender)
             //    .WithMany()

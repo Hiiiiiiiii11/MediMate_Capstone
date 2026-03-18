@@ -53,7 +53,7 @@ namespace MediMateService.Services.Implementations
         {
             // 1. Kiểm tra xem user có thuộc family này không
             var requester = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).FirstOrDefault();
+                .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).FirstOrDefault();
 
             if (requester == null)
             {

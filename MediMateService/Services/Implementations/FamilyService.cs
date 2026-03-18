@@ -245,7 +245,7 @@ namespace MediMateService.Services.Implementations
 
             // Kiểm tra xem User có phải là thành viên của gia đình này không
             var isMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).Any();
+    .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).Any();
 
             if (!isMember)
             {
@@ -300,7 +300,7 @@ namespace MediMateService.Services.Implementations
 
                 // Lấy thông tin người thực hiện để lưu MemberId
                 var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+    .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                 if (doer != null)
                 {

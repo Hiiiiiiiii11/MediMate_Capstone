@@ -146,11 +146,11 @@ namespace MediMateService.Services.Implementations
 
         // --- HÀM 2: CHỦ FAMILY QUÉT QR ĐỂ NHẬN MEMBER ---
 
-        public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetMembersByFamilyIdAsync(Guid familyId, Guid userId)
+        public async Task<ApiResponse<IEnumerable<MemberResponse>>> GetMembersByFamilyIdAsync(Guid familyId, Guid memberId)
         {
             // Check quyền: User phải thuộc Family đó mới được xem danh sách
             var currentUserMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+                .FindAsync(m => m.FamilyId == familyId && m.MemberId  == memberId)).FirstOrDefault();
 
             if (currentUserMember == null)
             {

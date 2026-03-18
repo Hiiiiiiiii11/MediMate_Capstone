@@ -30,6 +30,8 @@ namespace MediMate.Controllers
 
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
+
+
         }
     }
 }

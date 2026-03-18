@@ -12,7 +12,6 @@ namespace MediMateRepository.Model
         public string? PaymentContent { get; set; }
         public string Status { get; set; } = "Pending";
         public DateTime CreatedAt { get; set; } = DateTime.Now;
-
         public virtual FamilySubscriptions Subscription { get; set; } = null!;
         public virtual User User { get; set; } = null!;
     }

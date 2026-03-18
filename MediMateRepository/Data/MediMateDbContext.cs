@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediMateRepository.Data
@@ -38,6 +38,8 @@ namespace MediMateRepository.Data
         public DbSet<FamilySubscriptions> FamilySubscriptions { get; set; }
         public DbSet<Payments> Payments { get; set; }
         public DbSet<Transactions> Transactions { get; set; }
+        public DbSet<DoctorPayout> DoctorPayouts { get; set; }
+        public DbSet<DoctorPayoutRate> DoctorPayoutRates { get; set; }
         public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
         public DbSet<ChatDoctorMessages> ChatDoctorMessages { get; set; }
 
@@ -83,6 +85,9 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<FamilySubscriptions>().HasKey(fs => fs.SubscriptionId);
             modelBuilder.Entity<Payments>().HasKey(p => p.PaymentId);
             modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
+            modelBuilder.Entity<Transactions>().HasIndex(t => t.TransactionCode).IsUnique();
+            modelBuilder.Entity<DoctorPayout>().HasKey(dp => dp.PayoutId);
+            modelBuilder.Entity<DoctorPayoutRate>().HasKey(dpr => dpr.RateId);
             modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.ConsultanSessionId);
             modelBuilder.Entity<ChatDoctorMessages>().HasKey(cm => cm.ChatDoctorMessageId);
 
@@ -357,13 +362,42 @@ namespace MediMateRepository.Data
                 .HasForeignKey(p => p.SubscriptionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Payments 1-N Transactions
+            // Payments 1-N Transactions (nullable FK)
             modelBuilder.Entity<Transactions>()
                 .HasOne(t => t.Payment)
                 .WithMany()
                 .HasForeignKey(t => t.PaymentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // DoctorPayoutRate 1-N DoctorPayout
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.Rate)
+                .WithMany()
+                .HasForeignKey(dp => dp.RateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ConsultationSessions 1-N DoctorPayout
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.ConsultationSession)
+                .WithMany()
+                .HasForeignKey(dp => dp.ConsultationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // DoctorPayout 1-N Transactions (nullable FK)
+            modelBuilder.Entity<Transactions>()
+                .HasOne(t => t.Payout)
+                .WithMany()
+                .HasForeignKey(t => t.PayoutId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ChatDoctorMessages>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
             //modelBuilder.Entity<ChatDoctorMessages>()
             //    .HasOne(m => m.Sender)
             //    .WithMany()

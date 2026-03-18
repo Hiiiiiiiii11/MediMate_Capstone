@@ -24,11 +24,11 @@ namespace MediMate.Controllers
 
         [HttpGet]
         // [Authorize(Roles = Roles.Admin)] // Bỏ comment nếu muốn chỉ Admin mới xem được
-        public async Task<IActionResult> GetAllUsers()
+        public async Task<IActionResult> GetAllUsers([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var result = await _userService.GetAllUsersAsync();
+                var result = await _userService.GetAllUsersAsync(pageNumber, pageSize);
 
                 // Luôn trả về 200 OK kèm data (kể cả list rỗng)
                 return Ok(result);

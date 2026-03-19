@@ -34,6 +34,7 @@ namespace MediMateService.DTOs
         public decimal TransactionFee { get; set; }
         public decimal TotalAmount { get; set; }
         public string TransactionCode { get; set; } = string.Empty;
+        public string PaymentCode { get; set; } = string.Empty;
         public DateTime? AppointmentDate { get; set; }
         public string PaymentMethod { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;

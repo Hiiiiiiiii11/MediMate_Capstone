@@ -130,6 +130,7 @@ namespace MediMateService.Services.Implementations
                 Content = transaction.Payment?.PaymentContent ?? "",
                 Amount = transaction.Payment?.Amount ?? transaction.Payout?.Amount ?? 0,
                 TransactionCode = transaction.TransactionCode,
+                PaymentCode = transaction.GatewayTransactionId ?? "",
                 AppointmentDate = transaction.PaidAt,
                 PaymentMethod = transaction.GatewayName ?? "Chuyển khoản",
                 PaymentStatus = transaction.TransactionStatus

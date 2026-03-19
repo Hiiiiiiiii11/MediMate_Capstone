@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -59,11 +60,7 @@ namespace MediMateService.Services.Implementations
                             ? query.OrderByDescending(t => t.Payment.CreatedAt) 
                             : query.OrderBy(t => t.Payment.CreatedAt);
                         break;
-                    case "totalamount":
-                        query = filter.IsDescending 
-                            ? query.OrderByDescending(t => t.AmountPaid) 
-                            : query.OrderBy(t => t.AmountPaid);
-                        break;
+
                     default:
                         query = filter.IsDescending 
                             ? query.OrderByDescending(t => t.Payment.CreatedAt) 
@@ -87,7 +84,7 @@ namespace MediMateService.Services.Implementations
                 TransactionCode = t.TransactionCode,
                 TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.UtcNow,
                 TransactionType = t.TransactionType,
-                TotalAmount = t.AmountPaid,
+                TotalAmount = t.Payment?.Amount ?? t.Payout?.Amount ?? 0,
                 Status = t.TransactionStatus
             }).ToList();
 
@@ -123,17 +120,15 @@ namespace MediMateService.Services.Implementations
             var detail = new TransactionDetailDto
             {
                 TransactionId = transaction.TransactionId,
-                SenderName = transaction.TransactionType == "Tiền nhận vào"
+                SenderName = transaction.TransactionType == TransactionTypes.MoneyReceived
                     ? (transaction.Payment?.User?.FullName ?? "Unknown")
                     : "MediMate",
-                ReceiverName = transaction.TransactionType == "Tiền nhận vào"
+                ReceiverName = transaction.TransactionType == TransactionTypes.MoneyReceived
                     ? "MediMate"
-                    : "Bác sĩ",
+                    : $"Bác sĩ {transaction.Payout?.ConsultationSession?.Doctor?.FullName}",
                 TransactionType = transaction.TransactionType,
-                Content = transaction.Payment?.PaymentContent ?? "Không có nội dung",
+                Content = transaction.Payment?.PaymentContent ?? "",
                 Amount = transaction.Payment?.Amount ?? transaction.Payout?.Amount ?? 0,
-                TransactionFee = 0,
-                TotalAmount = transaction.AmountPaid,
                 TransactionCode = transaction.TransactionCode,
                 AppointmentDate = transaction.PaidAt,
                 PaymentMethod = transaction.GatewayName ?? "Chuyển khoản",

@@ -8,6 +8,7 @@ using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations;
 
@@ -99,7 +100,7 @@ public class PayOSService : IPayOSService
                 GatewayName = "PayOS",
                 GatewayTransactionId = orderCode.ToString(),
                 TransactionStatus = "Pending",
-                TransactionType = "Tiền nhận vào",
+                TransactionType = TransactionTypes.MoneyReceived,
                 AmountPaid = 0 // Will update on success
             };
             await _unitOfWork.Repository<Transactions>().AddAsync(transaction);

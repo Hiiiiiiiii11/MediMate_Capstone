@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Threading.Tasks;
@@ -23,6 +24,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseCollectionDto>), 201)]
         public async Task<IActionResult> Create([FromBody] CreateRagBaseCollectionRequest request)
         {
             try
@@ -38,6 +40,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<RagBaseCollectionDto>>), 200)]
         public async Task<IActionResult> GetAll()
         {
             try
@@ -52,6 +55,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseCollectionDto>), 200)]
         public async Task<IActionResult> GetById(Guid id)
         {
             try
@@ -66,6 +70,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseCollectionDto>), 200)]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRagBaseCollectionRequest request)
         {
             try
@@ -81,6 +86,7 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

@@ -1,8 +1,9 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 
 namespace MediMate.Controllers
@@ -21,6 +22,7 @@ namespace MediMate.Controllers
         [HttpGet("images")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")] 
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<PrescriptionImageDetailDto>>), 200)]
         public async Task<IActionResult> GetImagesPaginated([FromQuery] PrescriptionImageFilter filter)
         {
             try
@@ -37,6 +39,7 @@ namespace MediMate.Controllers
         [HttpGet("document")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<DoctorDocumentDto>>), 200)]
         public async Task<IActionResult> GetDocumentsPaginated([FromQuery] DoctorDocumentFilter filter)
         {
             try

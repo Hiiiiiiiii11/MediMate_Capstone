@@ -2,6 +2,7 @@ using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 [Route("api/v1/families")]
 [ApiController]
@@ -20,6 +21,7 @@ public class FamilyController : ControllerBase
     }
     // 1. API: Tạo chế độ cá nhân (Không cần body request)
     [HttpPost("personal")]
+    [ProducesResponseType(typeof(ApiResponse<FamilyResponse>), 200)]
     public async Task<IActionResult> CreatePersonal()
     {
         try
@@ -37,8 +39,9 @@ public class FamilyController : ControllerBase
 
     // 2. API: Tạo gia đình (Cần nhập tên gia đình)
     [HttpPost("shared")]
+    [ProducesResponseType(typeof(ApiResponse<FamilyResponse>), 200)]
     public async Task<IActionResult> CreateShared([FromBody] CreateSharedFamilyRequest request)
-    {
+        {
         try
         {
             var userId = _currentUserService.UserId;
@@ -54,6 +57,7 @@ public class FamilyController : ControllerBase
     }
     // 3. API: Lấy danh sách (Sẽ trả về cả 2 loại, FE tự filter dựa vào field 'type')
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FamilyResponse>>), 200)]
     public async Task<IActionResult> GetMyFamilies()
     {
         try
@@ -71,6 +75,7 @@ public class FamilyController : ControllerBase
     }
  
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<FamilyResponse>), 200)]
     public async Task<IActionResult> GetFamilyById(Guid id)
     {
         try
@@ -90,6 +95,7 @@ public class FamilyController : ControllerBase
 
     // PUT: api/v1/families/{id}
     [HttpPut("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<FamilyResponse>), 200)]
     public async Task<IActionResult> UpdateFamily(Guid id, [FromBody] UpdateFamilyRequest request)
     {
         try
@@ -109,6 +115,7 @@ public class FamilyController : ControllerBase
 
     // DELETE: api/v1/families/{id}
     [HttpDelete("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     public async Task<IActionResult> DeleteFamily(Guid id)
     {
         try
@@ -126,6 +133,7 @@ public class FamilyController : ControllerBase
     }
 
     [HttpGet("{id}/subscription")]
+    [ProducesResponseType(typeof(ApiResponse<FamilySubscriptionResponse>), 200)]
     public async Task<IActionResult> GetMyFamilySubscription(Guid id)
     {
         try

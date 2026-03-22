@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Threading.Tasks;
@@ -26,6 +27,7 @@ namespace MediMate.Controllers
 
         [HttpPost("doctors/{doctorId}")]
         //[Authorize(Roles = Roles.Doctor)]
+        [ProducesResponseType(typeof(ApiResponse<PrescriptionByDoctorDto>), 201)]
         public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreatePrescriptionByDoctorRequest request)
         {
             try
@@ -41,6 +43,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<PrescriptionByDoctorDto>), 200)]
         public async Task<IActionResult> GetById(Guid id)
         {
             try
@@ -55,6 +58,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("sessions/{sessionId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<PrescriptionByDoctorDto>>), 200)]
         public async Task<IActionResult> GetBySessionId(Guid sessionId)
         {
             try
@@ -69,6 +73,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("members/{memberId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<PrescriptionByDoctorDto>>), 200)]
         public async Task<IActionResult> GetByMemberId(Guid memberId)
         {
             try
@@ -84,6 +89,7 @@ namespace MediMate.Controllers
 
         [HttpPut("{id}")]
         //[Authorize(Roles = Roles.Doctor)]
+        [ProducesResponseType(typeof(ApiResponse<PrescriptionByDoctorDto>), 200)]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePrescriptionByDoctorRequest request)
         {
             try

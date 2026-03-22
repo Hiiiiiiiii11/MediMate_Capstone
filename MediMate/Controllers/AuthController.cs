@@ -23,6 +23,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("register")]
+        [ProducesResponseType(typeof(ApiResponse<AutheticationResponse>), 200)]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             try
@@ -37,6 +38,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("verify-otp")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
         {
             try
@@ -59,6 +61,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("login/user")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginUser([FromBody] LoginRequest request)
         {
             try
@@ -81,6 +84,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("login/remain")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginRemain([FromBody] LoginRequest request)
         {
             try
@@ -102,6 +106,7 @@ namespace MediMate.Controllers
             }
         }
         [HttpPost("login-dependent")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginDependent([FromBody] DependentQrLoginRequest request)
         {
             try
@@ -123,6 +128,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPost("logout")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Logout()
         {
           

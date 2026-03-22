@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +24,7 @@ namespace MediMateApi.Controllers
         /// Xem cấu hình thông báo của một thành viên
         /// </summary>
         [HttpGet("members/{memberId}")]
+        [ProducesResponseType(typeof(ApiResponse<NotificationSettingResponse>), 200)]
         public async Task<IActionResult> GetSetting(Guid memberId)
         {
             try
@@ -48,6 +49,7 @@ namespace MediMateApi.Controllers
             /// Cập nhật cấu hình thông báo (Chỉ cần gửi những trường muốn đổi)
             /// </summary>
             [HttpPut("members/{memberId}")]
+            [ProducesResponseType(typeof(ApiResponse<NotificationSettingResponse>), 200)]
         public async Task<IActionResult> UpdateSetting(Guid memberId, [FromBody] UpdateNotificationSettingRequest request)
         {
             try

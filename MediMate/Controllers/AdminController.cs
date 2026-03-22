@@ -24,6 +24,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("doctors")]
+        [ProducesResponseType(typeof(ApiResponse<ManagementDoctorResponse>), 200)]
         public async Task<IActionResult> CreateDoctor([FromBody] CreateDoctorRequest request)
         {
             var data = await _doctorService.CreateDoctorAsync(new CreateDoctorDto
@@ -36,6 +37,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("doctor-managers")]
+        [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), 200)]
         public async Task<IActionResult> CreateDoctorManager([FromBody] CreateDoctorManagerRequest request)
         {
             var data = await _userService.CreateDoctorManagerAsync(new CreateDoctorManagerDto

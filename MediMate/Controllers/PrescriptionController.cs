@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 [Route("api/v1/prescriptions")]
 [ApiController]
@@ -20,8 +21,9 @@ public class PrescriptionController : ControllerBase
     // POST: api/v1/prescriptions/member/{memberId}
     // Lưu đơn thuốc mới (sau khi UI đã OCR xong)
     [HttpPost("member/{memberId}")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionResponse>), 201)]
     public async Task<IActionResult> CreatePrescription(Guid memberId, [FromBody] CreatePrescriptionRequest request)
-    {
+        {
         try
         {
             var userId = _currentUserService.UserId;
@@ -39,8 +41,9 @@ public class PrescriptionController : ControllerBase
     // GET: api/v1/prescriptions/member/{memberId}
     // Lấy danh sách đơn thuốc của member
     [HttpGet("member/{memberId}")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PrescriptionResponse>>), 200)]
     public async Task<IActionResult> GetByMember(Guid memberId)
-    {
+        {
         try
         {
             var userId = _currentUserService.UserId;
@@ -56,8 +59,9 @@ public class PrescriptionController : ControllerBase
     // GET: api/v1/prescriptions/{id}
     // Xem chi tiết đơn thuốc
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionResponse>), 200)]
     public async Task<IActionResult> GetDetail(Guid id)
-    {
+        {
         try
         {
             var userId = _currentUserService.UserId;
@@ -72,8 +76,9 @@ public class PrescriptionController : ControllerBase
         }
     }
         [HttpPut("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionResponse>), 200)]
     public async Task<IActionResult> UpdatePrescription(Guid id, [FromBody] UpdatePrescriptionRequest request)
-    {
+        {
         try
         {
             var userId = _currentUserService.UserId;
@@ -90,8 +95,9 @@ public class PrescriptionController : ControllerBase
 
     // DELETE: api/v1/prescriptions/{id}
     [HttpDelete("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     public async Task<IActionResult> DeletePrescription(Guid id)
-    {
+        {
         try { 
         var userId = _currentUserService.UserId;
         var result = await _prescriptionService.DeletePrescriptionAsync(id, userId);
@@ -108,8 +114,9 @@ public class PrescriptionController : ControllerBase
     // POST: api/v1/prescriptions/{id}/images
     // Upload thêm ảnh cho đơn thuốc
     [HttpPost("{id}/images")]
+    [ProducesResponseType(typeof(ApiResponse<string>), 200)]
     public async Task<IActionResult> AddImage(Guid id, IFormFile file)
-    {
+        {
         try { 
         var userId = _currentUserService.UserId;
         var result = await _prescriptionService.AddImageToPrescriptionAsync(id, userId, file);

@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Security.Claims;
@@ -27,6 +28,7 @@ namespace MediMate.Controllers
         [HttpPost("doctors/{doctorId}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorDocumentDto>), 201)]
         public async Task<IActionResult> Create(Guid doctorId, [FromBody] CreateDoctorDocumentRequest request)
         {
             try
@@ -47,6 +49,7 @@ namespace MediMate.Controllers
         [HttpGet("doctors/{doctorId}")]
         //[Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<DoctorDocumentDto>>), 200)]
         public async Task<IActionResult> GetByDoctorId(Guid doctorId)
         {
             try
@@ -63,6 +66,7 @@ namespace MediMate.Controllers
         [HttpGet("{id}")]
         //[Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorDocumentDto>), 200)]
         public async Task<IActionResult> GetById(Guid id)
         {
             try
@@ -79,6 +83,7 @@ namespace MediMate.Controllers
         [HttpPut("{id}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorDocumentDto>), 200)]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDoctorDocumentRequest request)
         {
             try
@@ -97,6 +102,7 @@ namespace MediMate.Controllers
         [HttpDelete("{id}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
@@ -118,6 +124,7 @@ namespace MediMate.Controllers
         [HttpPatch("{id}/review")]
         //[Authorize(Roles = $"{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorDocumentDto>), 200)]
         public async Task<IActionResult> ReviewDocument(Guid id, [FromBody] ReviewDoctorDocumentRequest request)
         {
             try

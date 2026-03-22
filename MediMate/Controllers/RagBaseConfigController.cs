@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Threading.Tasks;
@@ -23,6 +24,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseConfigDto>), 201)]
         public async Task<IActionResult> CreateConfig([FromBody] CreateRagBaseConfigRequest request)
         {
             try
@@ -38,6 +40,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseConfigDto>), 200)]
         public async Task<IActionResult> GetConfig()
         {
             try
@@ -52,6 +55,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseConfigDto>), 200)]
         public async Task<IActionResult> UpdateConfig([FromBody] UpdateRagBaseConfigRequest request)
         {
             try

@@ -21,6 +21,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<List<MembershipPackageDto>>), 200)]
         public async Task<IActionResult> GetAll()
         {
             var result = await _packageService.GetAllAsync();
@@ -28,6 +29,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{packageId}")]
+        [ProducesResponseType(typeof(ApiResponse<MembershipPackageDto>), 200)]
         public async Task<IActionResult> GetById(Guid packageId)
         {
             var result = await _packageService.GetByIdAsync(packageId);
@@ -37,6 +39,7 @@ namespace MediMate.Controllers
         [HttpPost]
         //[Authorize(Roles = Roles.Admin)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<MembershipPackageDto>), 200)]
         public async Task<IActionResult> Create([FromBody] CreateMembershipPackageRequest request)
         {
             var result = await _packageService.CreateAsync(new CreateMembershipPackageDto
@@ -57,6 +60,7 @@ namespace MediMate.Controllers
         [HttpPut("{packageId}")]
         //[Authorize(Roles = Roles.Admin)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<MembershipPackageDto>), 200)]
         public async Task<IActionResult> Update(Guid packageId, [FromBody] UpdateMembershipPackageRequest request)
         {
             var result = await _packageService.UpdateAsync(packageId, new UpdateMembershipPackageDto
@@ -77,6 +81,7 @@ namespace MediMate.Controllers
         [HttpDelete("{packageId}")]
         //[Authorize(Roles = Roles.Admin)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Delete(Guid packageId)
         {
             var result = await _packageService.DeleteAsync(packageId);

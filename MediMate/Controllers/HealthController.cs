@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 [Route("api/v1/health")]
 [ApiController]
@@ -19,6 +20,7 @@ public class HealthController : ControllerBase
 
     // GET: api/v1/health/member/{memberId}
     [HttpGet("member/{memberId}")]
+    [ProducesResponseType(typeof(ApiResponse<HealthProfileResponse>), 200)]
     public async Task<IActionResult> GetProfile(Guid memberId)
     {
         try
@@ -36,6 +38,7 @@ public class HealthController : ControllerBase
     }
     // POST: create member healthprofile
     [HttpPost("member/{memberId}")]
+    [ProducesResponseType(typeof(ApiResponse<HealthProfileResponse>), 201)]
     public async Task<IActionResult> CreateProfile(Guid memberId, [FromBody] CreateHealthProfileRequest request)
     {
         try
@@ -55,6 +58,7 @@ public class HealthController : ControllerBase
     }
     // PUT: api/v1/health/member/{memberId} -> Cập nhật chiều cao/cân nặng
     [HttpPut("member/{memberId}")]
+    [ProducesResponseType(typeof(ApiResponse<HealthProfileResponse>), 200)]
     public async Task<IActionResult> UpdateProfile(Guid memberId, [FromBody] UpdateHealthProfileRequest request)
     {
         try
@@ -73,6 +77,7 @@ public class HealthController : ControllerBase
 
     // POST: api/v1/health/member/{memberId}/conditions -> Thêm bệnh
     [HttpPost("member/{memberId}/conditions")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     public async Task<IActionResult> AddCondition(Guid memberId, [FromBody] AddConditionRequest request)
     {
         try
@@ -91,6 +96,7 @@ public class HealthController : ControllerBase
 
     // DELETE: api/v1/health/conditions/{conditionId} -> Xóa bệnh
     [HttpDelete("conditions/{conditionId}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     public async Task<IActionResult> RemoveCondition(Guid conditionId)
     {
         try
@@ -107,6 +113,7 @@ public class HealthController : ControllerBase
         }
     }
     [HttpGet("family/{familyId}")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FamilyHealthSummaryResponse>>), 200)]
     public async Task<IActionResult> GetFamilyHealthSummary(Guid familyId)
     {
         try
@@ -126,6 +133,7 @@ public class HealthController : ControllerBase
     // 2. GET: api/v1/health/conditions/{conditionId}
     // Xem chi tiết 1 bệnh án
     [HttpGet("conditions/{conditionId}")]
+    [ProducesResponseType(typeof(ApiResponse<HealthConditionDto>), 200)]
     public async Task<IActionResult> GetConditionDetail(Guid conditionId)
     {
         try
@@ -145,6 +153,7 @@ public class HealthController : ControllerBase
     // 3. PUT: api/v1/health/conditions/{conditionId}
     // Cập nhật bệnh án
     [HttpPut("conditions/{conditionId}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     public async Task<IActionResult> UpdateCondition(Guid conditionId, [FromBody] UpdateConditionRequest request)
     {
         try

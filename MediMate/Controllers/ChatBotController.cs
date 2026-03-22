@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +26,7 @@ namespace MediMateApi.Controllers
         /// Lấy danh sách các phiên chat (Sessions) của một thành viên
         /// </summary>
         [HttpGet("members/{memberId}/sessions")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ChatSessionResponse>>), 200)]
         public async Task<IActionResult> GetMemberSessions(Guid memberId)
         {
             try
@@ -51,6 +52,7 @@ namespace MediMateApi.Controllers
             /// Gửi tin nhắn cho Bot AI (Tạo phiên mới nếu SessionId null)
             /// </summary>
             [HttpPost("members/{memberId}/messages")]
+            [ProducesResponseType(typeof(ApiResponse<ChatMessageResponse>), 200)]
         public async Task<IActionResult> SendMessage(Guid memberId, [FromBody] SendMessageRequest request)
         {
             try
@@ -81,6 +83,7 @@ namespace MediMateApi.Controllers
         /// Lấy toàn bộ lịch sử tin nhắn trong 1 phiên chat cụ thể
         /// </summary>
         [HttpGet("sessions/{sessionId}/messages")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ChatMessageResponse>>), 200)]
         public async Task<IActionResult> GetSessionMessages(Guid sessionId)
         {
             try
@@ -106,6 +109,7 @@ namespace MediMateApi.Controllers
         /// Xóa (ẩn) một phiên chat
         /// </summary>
         [HttpDelete("sessions/{sessionId}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeleteSession(Guid sessionId)
         {
             try

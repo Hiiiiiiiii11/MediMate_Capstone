@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +21,7 @@ namespace MediMate.Controllers
 
         [Authorize]
         [HttpPost("action")]
+        [ProducesResponseType(typeof(ApiResponse<MedicationLogResponse>), 200)]
         public async Task<IActionResult> LogMedicationAction([FromBody] LogMedicationRequest request)
         {
             try
@@ -50,6 +51,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpGet("member/{memberId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<MedicationLogResponse>>), 200)]
         public async Task<IActionResult> GetMemberLogs(Guid memberId, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
             try
@@ -72,6 +74,7 @@ namespace MediMate.Controllers
         /// </summary>
         [Authorize]
         [HttpGet("family/{familyId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<MedicationLogResponse>>), 200)]
         public async Task<IActionResult> GetFamilyLogs(Guid familyId, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
             try
@@ -95,6 +98,7 @@ namespace MediMate.Controllers
         /// </summary>
         [Authorize]
         [HttpGet("stats/{scheduleId}")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> GetAdherenceStats(Guid scheduleId)
         {
             try

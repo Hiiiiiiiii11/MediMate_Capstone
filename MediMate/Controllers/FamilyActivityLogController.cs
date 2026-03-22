@@ -1,6 +1,8 @@
-﻿using MediMateService.Services;
+using MediMateService.DTOs;
+using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 namespace MediMate.Controllers
 {
@@ -18,6 +20,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpGet("families/{familyId}/activity-logs")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ActivityLogResponse>>), 200)]
         public async Task<IActionResult> GetFamilyActivityLogs(Guid familyId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             try

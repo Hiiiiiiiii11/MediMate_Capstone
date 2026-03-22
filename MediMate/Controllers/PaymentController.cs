@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +23,7 @@ namespace MediMate.Controllers
 
         [HttpPost("create")]
         [Authorize]
+        [ProducesResponseType(typeof(PaymentLinkResponse), 200)]
         public async Task<IActionResult> CreatePaymentLink([FromBody] CreatePaymentRequest request, CancellationToken cancellationToken)
         {
             try
@@ -39,6 +40,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("info/{orderCode}")]
+        [ProducesResponseType(typeof(PaymentStatusResponse), 200)]
         public async Task<IActionResult> GetPaymentInfo(int orderCode, CancellationToken cancellationToken)
         {
             try
@@ -55,6 +57,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("webhook")]
+        [ProducesResponseType(typeof(object), 200)]
         public async Task<IActionResult> PaymentWebhook([FromBody] JsonElement webhookData, CancellationToken cancellationToken)
         {
             try

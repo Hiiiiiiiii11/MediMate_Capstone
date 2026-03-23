@@ -198,18 +198,8 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member"); // Join tới bảng Member để lấy Tên
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(r => new ReminderDailyResponse
-            {
-                ReminderId = r.ReminderId,
-                ScheduleId = r.ScheduleId,
-                MemberId = r.Schedule.MemberId,
-                MemberName = r.Schedule.Member.FullName, // Tên người cần uống thuốc
-                MedicineName = r.Schedule.MedicineName,
-                Dosage = r.Schedule.Dosage,
-                ReminderTime = r.ReminderTime,
-                EndTime = r.EndTime,
-                Status = r.Status
-            });
+            var response = reminders.OrderBy(r => r.ReminderTime)
+                             .Select(MapToReminderDailyResponse);
 
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
@@ -317,7 +307,22 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Cập nhật lịch thành công.");
         }
+        public async Task<ApiResponse<ScheduleDetailResponse>> GetScheduleByIdAsync(Guid scheduleId, Guid currentUserId)
+        {
+            var schedule = (await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(
+                    s => s.ScheduleId == scheduleId,
+                    includeProperties: "Member,PrescriptionMedicines.Prescription"
+                )).FirstOrDefault();
 
+            if (schedule == null)
+                return ApiResponse<ScheduleDetailResponse>.Fail("Không tìm thấy lịch uống thuốc.", 404);
+
+            if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
+                return ApiResponse<ScheduleDetailResponse>.Fail("Bạn không có quyền xem thông tin này.", 403);
+
+            return ApiResponse<ScheduleDetailResponse>.Ok(MapToDetailResponse(schedule));
+        }
         // =======================================================
         // 3. XÓA LỊCH (DELETE)
         // =======================================================
@@ -405,16 +410,34 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
+
+
+        private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
+        {
+            return new ReminderDailyResponse
+            {
+                ReminderId = r.ReminderId,
+                ScheduleId = r.ScheduleId,
+                MemberId = r.Schedule.MemberId,
+                MemberName = r.Schedule.Member?.FullName ?? "Unknown",
+                MedicineName = r.Schedule.MedicineName,
+                Dosage = r.Schedule.Dosage,
+                Instructions = r.Schedule.Instructions, // Lấy từ Schedule gốc sang
+                ReminderTime = r.ReminderTime,
+                EndTime = r.EndTime,
+                Status = r.Status
+            };
+        }
         private ScheduleResponse MapToResponse(MedicationSchedules schedule)
         {
             return new ScheduleResponse
             {
                 ScheduleId = schedule.ScheduleId,
                 MemberId = schedule.MemberId,
-                // Check null an toàn trong trường hợp không include bảng Member
                 MemberName = schedule.Member?.FullName ?? "Unknown",
                 MedicineName = schedule.MedicineName,
                 Dosage = schedule.Dosage,
+                Frequency = schedule.Frequency,
                 SpecificTimes = schedule.SpecificTimes,
                 StartDate = schedule.StartDate,
                 EndDate = schedule.EndDate,
@@ -422,20 +445,41 @@ namespace MediMateService.Services.Implementations
             };
         }
 
-        private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
+        // Mapper cho chi tiết (Đầy đủ thông tin + Đơn thuốc)
+        private ScheduleDetailResponse MapToDetailResponse(MedicationSchedules schedule)
         {
-            return new ReminderDailyResponse
+            var response = new ScheduleDetailResponse
             {
-                ReminderId = r.ReminderId,
-                ScheduleId = r.ScheduleId,                  // Giờ sẽ không bị 0000000 nữa
-                MemberId = r.Schedule.MemberId,             // Giờ sẽ không bị 0000000 nữa
-                MemberName = r.Schedule.Member?.FullName,   // Lấy tên bệnh nhân
-                MedicineName = r.Schedule.MedicineName,
-                Dosage = r.Schedule.Dosage,                 // Lấy liều lượng (viên, ml...)
-                ReminderTime = r.ReminderTime,
-                EndTime = r.EndTime,
-                Status = r.Status
+                ScheduleId = schedule.ScheduleId,
+                MemberId = schedule.MemberId,
+                MemberName = schedule.Member?.FullName ?? "Unknown",
+                PrescriptionMedicineId = schedule.PrescriptionMedicineId,
+                MedicineName = schedule.MedicineName,
+                Dosage = schedule.Dosage,
+                Frequency = schedule.Frequency,
+                SpecificTimes = schedule.SpecificTimes,
+                Instructions = schedule.Instructions,
+                StartDate = schedule.StartDate,
+                EndDate = schedule.EndDate,
+                IsActive = schedule.IsActive,
+                CreateAt = schedule.CreateAt
             };
+
+            // Mapping thông tin đơn thuốc nếu có link tới PrescriptionMedicines
+            if (schedule.PrescriptionMedicines?.Prescription != null)
+            {
+                var p = schedule.PrescriptionMedicines.Prescription;
+                response.Prescription = new PrescriptionInfoResponse
+                {
+                    PrescriptionId = p.PrescriptionId,
+                    PrescriptionCode = p.PrescriptionCode,
+                    HospitalName = p.HospitalName,
+                    DoctorName = p.DoctorName,
+                    PrescriptionDate = p.PrescriptionDate
+                };
+            }
+
+            return response;
         }
     }
 }

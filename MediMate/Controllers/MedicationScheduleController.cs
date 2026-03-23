@@ -83,6 +83,22 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpGet("schedules-detail/{scheduleId}")]
+        [ProducesResponseType(typeof(ApiResponse<ScheduleDetailResponse>), 200)]
+        public async Task<IActionResult> GetScheduleById(Guid scheduleId)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.GetScheduleByIdAsync(scheduleId, callerId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpPut("schedules/{scheduleId}")]
         [ProducesResponseType(typeof(ApiResponse<ScheduleResponse>), 200)]

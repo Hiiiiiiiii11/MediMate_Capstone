@@ -52,7 +52,7 @@ namespace MediMateService.Services.Implementations
 
                 // Cài đặt Token hết hạn sau 1 tiếng (3600 giây)
                 uint expirationTimeInSeconds = 3600;
-                uint currentTimeStamp = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                uint currentTimeStamp = (uint)DateTimeOffset.Now.ToUnixTimeSeconds();
                 uint privilegeExpiredTs = currentTimeStamp + expirationTimeInSeconds;
 
                 // Xác định quyền: Nếu truyền vào "publisher" thì isPublisher = true (Được phép bật Camera/Mic)

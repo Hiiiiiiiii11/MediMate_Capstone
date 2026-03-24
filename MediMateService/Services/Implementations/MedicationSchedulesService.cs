@@ -582,7 +582,7 @@ namespace MediMateService.Services.Implementations
                     PrescriptionDate = p.PrescriptionDate,
 
                     // --- THÊM ĐOẠN MAP MEDICINES VÀO ĐÂY ---
-                    Medicines = p.PrescriptionMedicines?.Select(m => new PrescriptionMedicineDto
+                    Medicines = p.PrescriptionMedicines?.Select(m => new PrescriptionMedicineResponse
                     {
                         PrescriptionMedicineId = m.PrescriptionMedicineId,
                         MedicineName = m.MedicineName,
@@ -590,7 +590,7 @@ namespace MediMateService.Services.Implementations
                         Unit = m.Unit,
                         Quantity = m.Quantity,
                         Instructions = m.Instructions
-                    }).ToList() ?? new List<PrescriptionMedicineDto>()
+                    }).ToList() ?? new List<PrescriptionMedicineResponse>()
                 };
             }
 

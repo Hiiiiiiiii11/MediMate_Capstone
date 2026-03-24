@@ -63,7 +63,7 @@ public class PayOSService : IPayOSService
             {
                 throw new InvalidOperationException($"Gia đình hiện có {memberCount} thành viên, vượt quá giới hạn {package.MemberLimit} của gói này. Vui lòng chọn gói cao hơn.");
             }
-            int orderCode = (int)(DateTime.UtcNow.Ticks % int.MaxValue);
+            int orderCode = (int)(DateTime.Now.Ticks % int.MaxValue);
             var subscription = new FamilySubscriptions
             {
                 SubscriptionId = Guid.NewGuid(),
@@ -71,8 +71,8 @@ public class PayOSService : IPayOSService
                 PackageId = request.PackageId,
                 UserId = userId,
                 // Dates will be finalized when payment succeeds
-                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                EndDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                StartDate = DateOnly.FromDateTime(DateTime.Now),
+                EndDate = DateOnly.FromDateTime(DateTime.Now),
                 Status = "Pending",
                 AutoRenew = false
             };
@@ -87,7 +87,7 @@ public class PayOSService : IPayOSService
                 Amount = package.Price,
                 PaymentContent = $"Mua goi {package.PackageName}",
                 Status = "Pending",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
             await _unitOfWork.Repository<Payments>().AddAsync(payment);
 
@@ -125,7 +125,7 @@ public class PayOSService : IPayOSService
                 },
                 cancelUrl = request.CancelUrl ?? _defaultCancelUrl,
                 returnUrl = request.ReturnUrl ?? _defaultReturnUrl,
-                expiredAt = (int?)DateTime.UtcNow.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
+                expiredAt = (int?)DateTime.Now.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
             };
 
             var signature = CreateSignature(payload);
@@ -241,7 +241,7 @@ public class PayOSService : IPayOSService
             // Update Transaction
             transaction.TransactionStatus = "Success";
             transaction.AmountPaid = transaction.Payment.Amount;
-            transaction.PaidAt = DateTime.UtcNow;
+            transaction.PaidAt = DateTime.Now;
 
             // Update Payment
             transaction.Payment.Status = "Success";
@@ -261,7 +261,7 @@ public class PayOSService : IPayOSService
 
             // 2. Activate new subscription and initialize counts
             sub.Status = "Active";
-            sub.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            sub.StartDate = DateOnly.FromDateTime(DateTime.Now);
             sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
             sub.RemainingOcrCount = sub.Package.OcrLimit;
             sub.RemainingConsultantCount = sub.Package.ConsultantLimit;

@@ -49,6 +49,22 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpPost("members/{memberId}/schedules/bulk")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<ScheduleResponse>>), 201)]
+        public async Task<IActionResult> CreateBulkSchedules(Guid memberId, [FromBody] CreateBulkScheduleRequest request)
+        {
+            try
+            {
+                var response = await _scheduleService.CreateBulkSchedulesAsync(memberId, _currentUserService.UserId, request);
+                if (!response.Success) return StatusCode(response.Code, response);
+                return StatusCode(201, response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpGet("members/{memberId}/schedules")]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<ScheduleResponse>>), 200)]

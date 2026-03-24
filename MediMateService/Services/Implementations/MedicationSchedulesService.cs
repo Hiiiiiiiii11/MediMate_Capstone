@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
@@ -37,7 +37,7 @@ namespace MediMateService.Services.Implementations
             {
                 ScheduleId = Guid.NewGuid(),
                 MemberId = memberId,
-                PrescriptionMedicineId = request.PrescriptionMedicineId,
+                PrescriptionId = request.PrescriptionId,
                 MedicineName = request.MedicineName,
                 Dosage = request.Dosage,
                 SpecificTimes = request.SpecificTimes,
@@ -310,10 +310,11 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<ScheduleDetailResponse>> GetScheduleByIdAsync(Guid scheduleId, Guid currentUserId)
         {
             var schedule = (await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(
-                    s => s.ScheduleId == scheduleId,
-                    includeProperties: "Member,PrescriptionMedicines.Prescription"
-                )).FirstOrDefault();
+        .FindAsync(
+            s => s.ScheduleId == scheduleId,
+            // SỬA Ở ĐÂY: Thêm Prescription.PrescriptionMedicines
+            includeProperties: "Member,Prescription,Prescription.PrescriptionMedicines"
+        )).FirstOrDefault();
 
             if (schedule == null)
                 return ApiResponse<ScheduleDetailResponse>.Fail("Không tìm thấy lịch uống thuốc.", 404);
@@ -411,6 +412,106 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
 
+        // =======================================================
+        // TẠO NHIỀU LỊCH UỐNG THUỐC CÙNG LÚC (TỪ 1 ĐƠN THUỐC)
+        // =======================================================
+        public async Task<ApiResponse<List<ScheduleResponse>>> CreateBulkSchedulesAsync(Guid memberId, Guid currentUserId, CreateBulkScheduleRequest request)
+        {
+            if (!await _currentUserService.CheckAccess(memberId, currentUserId))
+                return ApiResponse<List<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
+
+            var createdSchedules = new List<MedicationSchedules>();
+            var allReminders = new List<MedicationReminders>();
+
+            // 1. Lặp qua từng loại thuốc trong request để tạo Lịch
+            foreach (var item in request.Schedules)
+            {
+                var schedule = new MedicationSchedules
+                {
+                    ScheduleId = Guid.NewGuid(),
+                    MemberId = memberId,
+                    PrescriptionId = request.PrescriptionId, // Gắn chung 1 Đơn thuốc
+                    MedicineName = item.MedicineName,
+                    Dosage = item.Dosage,
+                    Frequency = item.Frequency,
+                    SpecificTimes = item.SpecificTimes,
+                    StartDate = item.StartDate.Date,
+                    EndDate = item.EndDate?.Date,
+                    Instructions = item.Instructions,
+                    IsActive = true,
+                    CreateAt = DateTime.Now
+                };
+
+                await _unitOfWork.Repository<MedicationSchedules>().AddAsync(schedule);
+                createdSchedules.Add(schedule);
+
+                // 2. Phân tích khung giờ cho TỪNG loại thuốc
+                var timeRanges = ParseTimeRanges(item.SpecificTimes);
+                var endGenDate = item.EndDate ?? DateTime.Now.AddDays(30).Date;
+
+                for (var date = schedule.StartDate; date <= endGenDate; date = date.AddDays(1))
+                {
+                    foreach (var range in timeRanges)
+                    {
+                        var startTime = date.Add(range.Start);
+                        var endTime = date.Add(range.End);
+                        if (endTime <= startTime) endTime = endTime.AddDays(1);
+
+                        if (endTime > DateTime.Now)
+                        {
+                            var reminder = new MedicationReminders
+                            {
+                                ReminderId = Guid.NewGuid(),
+                                ScheduleId = schedule.ScheduleId,
+                                ReminderDate = date,
+                                ReminderTime = startTime,
+                                EndTime = endTime,
+                                Status = "Pending"
+                            };
+                            await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
+                            allReminders.Add(reminder);
+                        }
+                    }
+                }
+            }
+
+            // 3. Lưu toàn bộ Lịch và Nhắc nhở vào Database (Chỉ tốn 1 lần gọi DB)
+            await _unitOfWork.CompleteAsync();
+
+            // 4. Lên lịch Hangfire cho TẤT CẢ nhắc nhở vừa tạo
+            foreach (var reminder in allReminders)
+            {
+                _backgroundJobClient.Schedule<IReminderJobService>(
+                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
+                    new DateTimeOffset(reminder.EndTime)
+                );
+            }
+
+            // 5. Ghi Log Activity
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember != null && targetMember.FamilyId.HasValue)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
+                        entityId: request.PrescriptionId ?? Guid.Empty, // Log gộp theo Đơn thuốc
+                        description: $"Đã thiết lập {createdSchedules.Count} lịch uống thuốc mới cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+
+            // Trả về danh sách Lịch vừa tạo
+            var responseData = createdSchedules.Select(MapToResponse).ToList();
+            return ApiResponse<List<ScheduleResponse>>.Ok(responseData, "Đã tạo lịch uống thuốc thành công.");
+        }
+
 
         private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
         {
@@ -435,13 +536,16 @@ namespace MediMateService.Services.Implementations
                 ScheduleId = schedule.ScheduleId,
                 MemberId = schedule.MemberId,
                 MemberName = schedule.Member?.FullName ?? "Unknown",
+                PrescriptionId = schedule.PrescriptionId,
                 MedicineName = schedule.MedicineName,
                 Dosage = schedule.Dosage,
                 Frequency = schedule.Frequency,
                 SpecificTimes = schedule.SpecificTimes,
                 StartDate = schedule.StartDate,
                 EndDate = schedule.EndDate,
-                IsActive = schedule.IsActive
+                IsActive = schedule.IsActive,
+                CreateAt = schedule.CreateAt
+                 
             };
         }
 
@@ -453,7 +557,7 @@ namespace MediMateService.Services.Implementations
                 ScheduleId = schedule.ScheduleId,
                 MemberId = schedule.MemberId,
                 MemberName = schedule.Member?.FullName ?? "Unknown",
-                PrescriptionMedicineId = schedule.PrescriptionMedicineId,
+                PrescriptionId = schedule.PrescriptionId,
                 MedicineName = schedule.MedicineName,
                 Dosage = schedule.Dosage,
                 Frequency = schedule.Frequency,
@@ -465,17 +569,28 @@ namespace MediMateService.Services.Implementations
                 CreateAt = schedule.CreateAt
             };
 
-            // Mapping thông tin đơn thuốc nếu có link tới PrescriptionMedicines
-            if (schedule.PrescriptionMedicines?.Prescription != null)
+            // Mapping thông tin đơn thuốc nếu có link tới Prescription
+            if (schedule.Prescription != null)
             {
-                var p = schedule.PrescriptionMedicines.Prescription;
+                var p = schedule.Prescription;
                 response.Prescription = new PrescriptionInfoResponse
                 {
                     PrescriptionId = p.PrescriptionId,
                     PrescriptionCode = p.PrescriptionCode,
                     HospitalName = p.HospitalName,
                     DoctorName = p.DoctorName,
-                    PrescriptionDate = p.PrescriptionDate
+                    PrescriptionDate = p.PrescriptionDate,
+
+                    // --- THÊM ĐOẠN MAP MEDICINES VÀO ĐÂY ---
+                    Medicines = p.PrescriptionMedicines?.Select(m => new PrescriptionMedicineDto
+                    {
+                        PrescriptionMedicineId = m.PrescriptionMedicineId,
+                        MedicineName = m.MedicineName,
+                        Dosage = m.Dosage,
+                        Unit = m.Unit,
+                        Quantity = m.Quantity,
+                        Instructions = m.Instructions
+                    }).ToList() ?? new List<PrescriptionMedicineDto>()
                 };
             }
 

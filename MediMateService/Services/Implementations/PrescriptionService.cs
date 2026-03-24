@@ -322,6 +322,135 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<bool>.Ok(true, "Đã xóa đơn thuốc.");
         }
 
+
+        public async Task<ApiResponse<PrescriptionMedicineResponse>> AddMedicineAsync(Guid prescriptionId, Guid userId, AddMedicineRequest request)
+        {
+            var prescription = await _unitOfWork.Repository<Prescriptions>().GetByIdAsync(prescriptionId);
+            if (prescription == null) return ApiResponse<PrescriptionMedicineResponse>.Fail("Không tìm thấy đơn thuốc.", 404);
+
+            if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
+                return ApiResponse<PrescriptionMedicineResponse>.Fail("Không có quyền thực hiện.", 403);
+
+            var newMedicine = new PrescriptionMedicines
+            {
+                PrescriptionMedicineId = Guid.NewGuid(),
+                PrescriptionId = prescriptionId,
+                MedicineName = request.MedicineName,
+                Dosage = request.Dosage ?? "",
+                Unit = request.Unit ?? "",
+                Quantity = request.Quantity,
+                Instructions = request.Instructions ?? "",
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+
+            await _unitOfWork.Repository<PrescriptionMedicines>().AddAsync(newMedicine);
+            await _unitOfWork.CompleteAsync();
+
+            var responseDto = new PrescriptionMedicineResponse
+            {
+                PrescriptionMedicineId = newMedicine.PrescriptionMedicineId,
+                MedicineName = newMedicine.MedicineName,
+                Dosage = newMedicine.Dosage,
+                Unit = newMedicine.Unit,
+                Quantity = newMedicine.Quantity,
+                Instructions = newMedicine.Instructions
+            };
+
+            return ApiResponse<PrescriptionMedicineResponse>.Ok(responseDto, "Thêm thuốc thành công.");
+        }
+
+        // =======================================================
+        // 2. CẬP NHẬT 1 LOẠI THUỐC
+        // =======================================================
+        public async Task<ApiResponse<PrescriptionMedicineResponse>> UpdateMedicineAsync(Guid medicineId, Guid userId, UpdateMedicineRequest request)
+        {
+            var medicine = (await _unitOfWork.Repository<PrescriptionMedicines>()
+                .FindAsync(m => m.PrescriptionMedicineId == medicineId, "Prescription")).FirstOrDefault();
+
+            if (medicine == null)
+                return ApiResponse<PrescriptionMedicineResponse>.Fail("Không tìm thấy loại thuốc này.", 404);
+
+            if (!await _currentUserService.CheckAccess(medicine.Prescription.MemberId, userId))
+                return ApiResponse<PrescriptionMedicineResponse>.Fail("Không có quyền thực hiện.", 403);
+
+            bool hasChanges = false;
+
+            // --- BẮT ĐẦU MAPPING: CHỈ UPDATE NẾU CÓ TRUYỀN DATA VÀ DATA KHÁC DB ---
+
+            if (!string.IsNullOrWhiteSpace(request.MedicineName) && medicine.MedicineName != request.MedicineName)
+            {
+                medicine.MedicineName = request.MedicineName;
+                hasChanges = true;
+            }
+
+            // Với Dosage, Unit, Instructions: Có thể FE muốn truyền chuỗi rỗng "" để xóa trắng dữ liệu
+            // Nên ta chỉ check khác null
+            if (request.Dosage != null && medicine.Dosage != request.Dosage)
+            {
+                medicine.Dosage = request.Dosage;
+                hasChanges = true;
+            }
+
+            if (request.Unit != null && medicine.Unit != request.Unit)
+            {
+                medicine.Unit = request.Unit;
+                hasChanges = true;
+            }
+
+            if (request.Quantity.HasValue && medicine.Quantity != request.Quantity.Value)
+            {
+                medicine.Quantity = request.Quantity.Value;
+                hasChanges = true;
+            }
+
+            if (request.Instructions != null && medicine.Instructions != request.Instructions)
+            {
+                medicine.Instructions = request.Instructions;
+                hasChanges = true;
+            }
+
+            // --- LƯU VÀO DB NẾU CÓ SỰ THAY ĐỔI ---
+            if (hasChanges)
+            {
+                medicine.UpdatedAt = DateTime.Now;
+                _unitOfWork.Repository<PrescriptionMedicines>().Update(medicine);
+                await _unitOfWork.CompleteAsync();
+            }
+
+            // Map lại ra DTO để trả về cho Frontend
+            var responseDto = new PrescriptionMedicineResponse
+            {
+                PrescriptionMedicineId = medicine.PrescriptionMedicineId,
+                MedicineName = medicine.MedicineName,
+                Dosage = medicine.Dosage,
+                Unit = medicine.Unit,
+                Quantity = medicine.Quantity,
+                Instructions = medicine.Instructions
+            };
+
+            return ApiResponse<PrescriptionMedicineResponse>.Ok(responseDto, "Cập nhật thuốc thành công.");
+        }
+
+        // =======================================================
+        // 3. XÓA 1 LOẠI THUỐC
+        // =======================================================
+        public async Task<ApiResponse<bool>> DeleteMedicineAsync(Guid medicineId, Guid userId)
+        {
+            var medicine = (await _unitOfWork.Repository<PrescriptionMedicines>()
+                .FindAsync(m => m.PrescriptionMedicineId == medicineId, "Prescription")).FirstOrDefault();
+
+            if (medicine == null) return ApiResponse<bool>.Fail("Không tìm thấy loại thuốc này.", 404);
+
+            if (!await _currentUserService.CheckAccess(medicine.Prescription.MemberId, userId))
+                return ApiResponse<bool>.Fail("Không có quyền thực hiện.", 403);
+
+            _unitOfWork.Repository<PrescriptionMedicines>().Remove(medicine);
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, "Đã xóa thuốc khỏi đơn.");
+        }
+
         // --- HÀM 3: UPLOAD ẢNH CHO ĐƠN THUỐC ĐÃ CÓ ---
         //cần check lại
         public async Task<ApiResponse<string>> AddImageToPrescriptionAsync(Guid prescriptionId, Guid userId, IFormFile file)
@@ -379,7 +508,7 @@ namespace MediMateService.Services.Implementations
                 Status = p.Status,
                 Notes = p.Notes,
                 Images = p.PrescriptionImages.Select(i => new PrescriptionImageDto { ImageUrl = i.ImageUrl, OcrRawData = i.OcrRawData }).ToList(),
-                Medicines = p.PrescriptionMedicines.Select(m => new PrescriptionMedicineDto
+                Medicines = p.PrescriptionMedicines.Select(m => new PrescriptionMedicineResponse
                 {
                     PrescriptionMedicineId = m.PrescriptionMedicineId,
                     MedicineName = m.MedicineName,

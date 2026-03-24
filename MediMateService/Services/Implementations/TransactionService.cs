@@ -82,7 +82,7 @@ namespace MediMateService.Services.Implementations
             {
                 TransactionId = t.TransactionId,
                 TransactionCode = t.TransactionCode,
-                TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.UtcNow,
+                TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.Now,
                 TransactionType = t.TransactionType,
                 TotalAmount = t.Payment?.Amount ?? t.Payout?.Amount ?? 0,
                 Status = t.TransactionStatus

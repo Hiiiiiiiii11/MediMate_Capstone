@@ -78,7 +78,7 @@ namespace MediMateService.DTOs
 
         // ĐƯA DANH SÁCH THUỐC VÀO ĐÂY: 
         // Vì danh sách thuốc là CỦA ĐƠN THUỐC, nên để trong object này sẽ hợp lý về mặt dữ liệu hơn.
-        public List<PrescriptionMedicineDto> Medicines { get; set; } = new List<PrescriptionMedicineDto>();
+        public List<PrescriptionMedicineResponse> Medicines { get; set; } = new List<PrescriptionMedicineResponse>();
     }
 
     public class CreateBulkScheduleRequest

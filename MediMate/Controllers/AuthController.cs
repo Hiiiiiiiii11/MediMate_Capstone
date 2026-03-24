@@ -170,7 +170,7 @@ namespace MediMate.Controllers
                 Secure = true,
                 SameSite = SameSiteMode.None,
                 Path = "/",
-                Expires = DateTime.UtcNow.AddHours(_jwtSettings.ExpirationHours)
+                Expires = DateTime.Now.AddHours(_jwtSettings.ExpirationHours)
             });
         }
     }

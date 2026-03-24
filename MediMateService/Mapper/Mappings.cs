@@ -64,7 +64,7 @@ namespace MediMateService.Mapper
             CreateMap<PrescriptionImages, PrescriptionImageDto>()
                 .ReverseMap(); // Dùng ReverseMap để map ngược từ DTO -> Entity
 
-            CreateMap<PrescriptionMedicines, PrescriptionMedicineDto>()
+            CreateMap<PrescriptionMedicines, PrescriptionMedicineResponse>()
                 .ReverseMap();
 
             // Map cha: Prescription

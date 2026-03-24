@@ -116,13 +116,59 @@ public class PrescriptionController : ControllerBase
     [HttpPost("{id}/images")]
     [ProducesResponseType(typeof(ApiResponse<string>), 200)]
     public async Task<IActionResult> AddImage(Guid id, IFormFile file)
+    {
+        try
         {
-        try { 
-        var userId = _currentUserService.UserId;
-        var result = await _prescriptionService.AddImageToPrescriptionAsync(id, userId, file);
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.AddImageToPrescriptionAsync(id, userId, file);
 
-        if (!result.Success) return StatusCode(result.Code, result);
+            if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+
+    [HttpPost("{prescriptionId}/medicines")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionMedicineResponse>), 200)]
+    public async Task<IActionResult> AddMedicine(Guid prescriptionId, [FromBody] AddMedicineRequest request)
+    {
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var response = await _prescriptionService.AddMedicineAsync(prescriptionId, userId, request);
+            return StatusCode(response.Code, response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+    [HttpPut("medicines/{medicineId}")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionMedicineResponse>), 200)]
+    public async Task<IActionResult> UpdateMedicine(Guid medicineId, [FromBody] UpdateMedicineRequest request)
+    {
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var response = await _prescriptionService.UpdateMedicineAsync(medicineId, userId, request);
+            return StatusCode(response.Code, response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+    [HttpDelete("medicines/{medicineId}")]
+    public async Task<IActionResult> DeleteMedicine(Guid medicineId)
+    {
+        try
+        {
+            var userId = _currentUserService.UserId;
+        var response = await _prescriptionService.DeleteMedicineAsync(medicineId, userId);
+            return StatusCode(response.Code, response);
         }
         catch (Exception ex)
         {

@@ -29,9 +29,15 @@ namespace MediMateService.Services.Implementations
             _notificationService = notificationService;
             _backgroundJobClient = backgroundJobClient;
         }
-
+        //check lịch availability
         public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
         {
+            var requestedDateTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
+            // Thêm bộ đệm 15 phút (Không cho đặt lịch sát giờ quá để Bác sĩ còn chuẩn bị)
+            if (requestedDateTime < DateTime.Now.AddMinutes(15))
+            {
+                throw new BadRequestException("Không thể đặt lịch trong quá khứ hoặc quá sát giờ hiện tại.");
+            }
             var member = await _unitOfWork.Repository<Members>().GetByIdAsync(request.MemberId);
             if (member == null)
             {
@@ -112,7 +118,8 @@ namespace MediMateService.Services.Implementations
                 DoctorId = request.DoctorId,
                 MemberId = request.MemberId,
                 AvailabilityId = request.AvailabilityId,
-                AppointmentDate = request.AppointmentDate,
+                AppointmentDate = request.AppointmentDate, // Lấy đúng ngày user chọn
+                AppointmentTime = request.AppointmentTime,
                 Status = "Pending",
                 CreatedAt = DateTime.Now
             };
@@ -267,7 +274,23 @@ namespace MediMateService.Services.Implementations
         {
             var result = new List<AvailableSlotDto>();
 
-            // 1. Kiểm tra bác sĩ có xin nghỉ nguyên ngày không
+            // 1. ÉP CHUẨN NGÀY: Chuyển mọi thứ về múi giờ Local và chỉ lấy phần Ngày (Date)
+            DateTime targetDate = date.ToLocalTime().Date;
+            DateTime today = DateTime.Now.Date;
+
+            // Nếu tra cứu ngày trong quá khứ -> Cứ im lặng trả về mảng rỗng []
+            if (targetDate < today)
+            {
+                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ không có ca làm việc hiện tại");
+            }
+
+            // 1. Chặn ngay từ vòng gửi xe nếu user cố tình xem ngày hôm qua
+            if (date.Date < DateTime.Now.Date)
+            {
+                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Không thể tra cứu lịch của ngày trong quá khứ.");
+            }
+
+            // 2. Kiểm tra bác sĩ có xin nghỉ nguyên ngày không
             var isDayOff = (await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
                 .FindAsync(e => e.DoctorId == doctorId
                                  && e.Date.Date == date.Date
@@ -278,7 +301,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ xin nghỉ phép ngày này.");
             }
 
-            // 2. Lấy danh sách ca làm việc của thứ này
+            // 3. Lấy danh sách ca làm việc (Đã bao gồm check a.IsActive == true)
             string dayOfWeekString = date.DayOfWeek.ToString();
             var availabilities = await _unitOfWork.Repository<DoctorAvailability>()
                 .FindAsync(a => a.DoctorId == doctorId
@@ -290,7 +313,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ không có ca làm việc vào ngày này.");
             }
 
-            // 3. Lấy các lịch đã bị người khác đặt mất
+            // 4. Lấy các lịch đã bị người khác đặt mất
             var bookedAppointments = await _unitOfWork.Repository<Appointments>()
                 .FindAsync(a => a.DoctorId == doctorId
                                  && a.AppointmentDate.Date == date.Date
@@ -299,22 +322,23 @@ namespace MediMateService.Services.Implementations
 
             var bookedTimes = bookedAppointments.Select(a => a.AppointmentTime).ToList();
 
-            // 4. CHIA SLOT THỜI GIAN (60 phút/slot)
+            // 5. CHIA SLOT THỜI GIAN (60 phút/slot)
             TimeSpan slotDuration = TimeSpan.FromMinutes(60);
 
-            // [NEW] Lấy thời gian hiện tại để so sánh (nếu ngày đặt là ngày hôm nay)
+            // LOGIC MỚI: Xử lý triệt để thời gian quá khứ
             bool isToday = date.Date == DateTime.Now.Date;
             TimeSpan currentTime = DateTime.Now.TimeOfDay;
+            // Buffer: Ví dụ bây giờ là 10h15, thì slot 10h-11h sẽ bị ẩn luôn, chỉ hiện từ slot 11h trở đi
+            TimeSpan bufferTime = TimeSpan.FromMinutes(30);
 
             foreach (var shift in availabilities)
             {
                 TimeSpan currentSlotTime = shift.StartTime;
 
-                // Chạy vòng lặp từ StartTime đến khi chạm mốc EndTime
                 while (currentSlotTime + slotDuration <= shift.EndTime)
                 {
-                    // [NEW] Nếu ngày khám là HÔM NAY và slot này ĐÃ QUA -> Bỏ qua, không hiển thị
-                    if (isToday && currentSlotTime <= currentTime)
+                    // NẾU LÀ HÔM NAY: Ẩn các slot có giờ bắt đầu <= Giờ hiện tại + 30 phút
+                    if (isToday && currentSlotTime <= currentTime.Add(bufferTime))
                     {
                         currentSlotTime = currentSlotTime.Add(slotDuration);
                         continue;
@@ -322,23 +346,19 @@ namespace MediMateService.Services.Implementations
 
                     result.Add(new AvailableSlotDto
                     {
-                        AvailabilityId = shift.DoctorAvailabilityId, // Frontend cần cái này để gọi API đặt lịch
+                        AvailabilityId = shift.DoctorAvailabilityId,
                         Time = currentSlotTime,
                         DisplayTime = $"{currentSlotTime:hh\\:mm} - {currentSlotTime + slotDuration:hh\\:mm}",
                         IsBooked = bookedTimes.Contains(currentSlotTime)
                     });
 
-                    // Cộng thêm 60 phút cho vòng lặp tiếp theo
                     currentSlotTime = currentSlotTime.Add(slotDuration);
                 }
             }
 
-            // Sắp xếp slot theo thứ tự thời gian từ sáng đến chiều
             result = result.OrderBy(x => x.Time).ToList();
-
             return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Lấy danh sách giờ khám thành công.");
         }
-
 
         public async Task<AppointmentDto> UpdateAppointmentAsync(Guid appointmentId, Guid userId, UpdateAppointmentDto request)
         {
@@ -392,6 +412,13 @@ namespace MediMateService.Services.Implementations
                 if (session != null)
                 {
                     session.Status = request.Status;
+
+                    // [NEW] Ghi nhận thời gian kết thúc buổi khám
+                    if (request.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        session.EndedAt = DateTime.Now;
+                    }
+
                     await _appointmentRepository.UpdateSessionAsync(session);
                 }
             }
@@ -420,11 +447,17 @@ namespace MediMateService.Services.Implementations
                         );
                     }
                 }
+                else if (request.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    title = "🏁 Buổi khám đã hoàn thành";
+                    message = $"Buổi tư vấn của {member.FullName} đã kết thúc. Vui lòng kiểm tra lại tin nhắn để xem toa thuốc hoặc lời dặn dò của bác sĩ (nếu có).";
+                }
                 else if (request.Status.Equals("Rejected", StringComparison.OrdinalIgnoreCase))
                 {
                     title = "❌ Lịch khám bị từ chối";
                     message = $"Rất tiếc, bác sĩ không thể tiếp nhận lịch khám của {member.FullName}. Lượt khám đã được hoàn trả lại cho bạn.";
                 }
+
 
                 if (!string.IsNullOrEmpty(title))
                 {

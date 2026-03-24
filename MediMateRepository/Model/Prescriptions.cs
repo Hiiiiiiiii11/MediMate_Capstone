@@ -22,7 +22,6 @@ namespace MediMateRepository.Model
         public virtual Members Member { get; set; }
         public virtual ICollection<PrescriptionImages> PrescriptionImages { get; set; } = new List<PrescriptionImages>();
         public virtual ICollection<PrescriptionMedicines> PrescriptionMedicines { get; set; } = new List<PrescriptionMedicines>();
-        public virtual ICollection<MedicationSchedules> MedicationSchedules { get; set; } = new List<MedicationSchedules>();
 
     }
 }

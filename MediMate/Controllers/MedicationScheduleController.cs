@@ -134,6 +134,24 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpPut("schedule-details/{detailId}")]
+        [ProducesResponseType(typeof(ApiResponse<ScheduleDetailItemResponse>), 200)]
+        public async Task<IActionResult> UpdateScheduleDetail(Guid detailId, [FromBody] UpdateScheduleDetailRequest request)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.UpdateScheduleDetailAsync(detailId, callerId, request);
+
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
         [HttpDelete("schedules/{scheduleId}")]
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeleteSchedule(Guid scheduleId)

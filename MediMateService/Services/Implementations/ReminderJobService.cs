@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 
 namespace MediMateService.Services.Implementations
@@ -36,9 +36,18 @@ namespace MediMateService.Services.Implementations
                 bool canSendToMember = settings == null || settings.EnablePushNotification;
                 bool canSendToFamily = settings == null || settings.EnableFamilyAlert;
 
+                var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                    .FindAsync(d => d.ScheduleId == reminder.ScheduleId 
+                                     && d.StartDate.Date <= reminder.ReminderDate.Date 
+                                     && d.EndDate.Date >= reminder.ReminderDate.Date, 
+                           includeProperties: "PrescriptionMedicine");
+                string medicineNames = scheduleDetails.Any() 
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                    : "Thuốc theo lịch";
+
                 string title = "⚠️ Nhắc nhở uống thuốc!";
-                string bodyMember = $"Đã đến giờ uống {reminder.Schedule.Dosage} {reminder.Schedule.MedicineName}. Hãy uống thuốc và xác nhận trên app nhé!";
-                string bodyFamily = $"{targetMember.FullName} có lịch uống {reminder.Schedule.MedicineName} bây giờ. Hãy nhắc nhở nhé!";
+                string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
+                string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
 
                 var data = new Dictionary<string, string> { { "reminderId", reminderId.ToString() } };
 

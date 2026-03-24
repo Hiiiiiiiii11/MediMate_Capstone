@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using Share.Common;
 using System;
 using System.Collections.Generic;
@@ -19,6 +19,7 @@ namespace MediMateService.Services
 
         // 2. Cập nhật Schedule
         Task<ApiResponse<ScheduleResponse>> UpdateScheduleAsync(Guid scheduleId, Guid currentUserId, UpdateScheduleRequest request);
+        Task<ApiResponse<ScheduleDetailItemResponse>> UpdateScheduleDetailAsync(Guid detailId, Guid currentUserId, UpdateScheduleDetailRequest request);
 
         // 3. Xóa Schedule
         Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId);

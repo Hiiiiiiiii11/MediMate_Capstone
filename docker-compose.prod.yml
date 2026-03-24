@@ -52,6 +52,11 @@ services:
       PayOS__BaseUrl: ${PayOS__BaseUrl}
       PayOS__ReturnUrl: ${PayOS__ReturnUrl}
       PayOS__CancelUrl: ${PayOS__CancelUrl}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      AGORA_APP_ID: ${AGORA_APP_ID}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE}
     depends_on:
       postgres:
         condition: service_healthy

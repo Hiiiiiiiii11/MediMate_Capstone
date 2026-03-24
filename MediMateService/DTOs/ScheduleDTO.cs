@@ -8,22 +8,22 @@ namespace MediMateService.DTOs
 {
     public class CreateScheduleRequest
     {
-        public Guid? PrescriptionId { get; set; }
-        public string Dosage { get; set; } = string.Empty;
-        public string MedicineName { get; set; } = string.Empty;
-        public string Frequency { get; set; } = string.Empty;
-        public string SpecificTimes { get; set; } = string.Empty; // VD: "08:00-09:00, 19:00-20:00"
+        public string ScheduleName { get; set; } = string.Empty; // Sáng, Trưa, Tối
+        public TimeSpan TimeOfDay { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
-        public string Instructions { get; set; } = string.Empty;
     }
     public class UpdateScheduleRequest
     {
-        public string MedicineName { get; set; } = string.Empty;
-        public string Dosage { get; set; } = string.Empty;
-        public string SpecificTimes { get; set; } = string.Empty;
+        public string ScheduleName { get; set; } = string.Empty;
+        public TimeSpan TimeOfDay { get; set; }
         public DateTime? EndDate { get; set; }
-        public string Instructions { get; set; } = string.Empty;
+    }
+    public class UpdateScheduleDetailRequest
+    {
+        public string? Dosage { get; set; } // Null if user doesn't want to update
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
     }
     public class MedicationActionRequest
     {
@@ -32,21 +32,28 @@ namespace MediMateService.DTOs
         public DateTime ActualTime { get; set; } // Giờ bấm nút
     }
 
+    public class ScheduleDetailItemResponse 
+    {
+        public Guid DetailId { get; set; }
+        public Guid PrescriptionMedicineId { get; set; }
+        public string MedicineName { get; set; } = string.Empty;
+        public string Dosage { get; set; } = string.Empty;
+        public string Instructions { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+    }
+
     public class ScheduleResponse
     {
         public Guid ScheduleId { get; set; }
         public Guid MemberId { get; set; }
         public string MemberName { get; set; } = string.Empty;
-        public Guid? PrescriptionId { get; set; } // Liên kết với đơn thuốc
-        public string MedicineName { get; set; } = string.Empty;
-        public string Dosage { get; set; } = string.Empty;
-        public string Frequency { get; set; } = string.Empty; // Bổ sung
-        public string SpecificTimes { get; set; } = string.Empty;
-        public string Instructions { get; set; } = string.Empty; // Bổ sung để hiển thị cách dùng
-        public DateTime StartDate { get; set; }
-        public DateTime? EndDate { get; set; }
+        public string ScheduleName { get; set; } = string.Empty;
+        public TimeSpan TimeOfDay { get; set; }
         public bool IsActive { get; set; }
-        public DateTime CreateAt { get; set; } // Bổ sung
+        public DateTime CreatedAt { get; set; }
+
+        public List<ScheduleDetailItemResponse> ScheduleDetails { get; set; } = new List<ScheduleDetailItemResponse>();
     }
 
     public class ReminderDailyResponse
@@ -55,9 +62,10 @@ namespace MediMateService.DTOs
         public Guid ScheduleId { get; set; }
         public Guid MemberId { get; set; }
         public string MemberName { get; set; } = string.Empty;
-        public string MedicineName { get; set; } = string.Empty;
-        public string Dosage { get; set; } = string.Empty;
-        public string Instructions { get; set; } = string.Empty; // Bổ sung để người dùng biết cách uống ngay tại màn nhắc nhở
+        public string ScheduleName { get; set; } = string.Empty; 
+        
+        public List<ScheduleDetailItemResponse> Medicines { get; set; } = new List<ScheduleDetailItemResponse>();
+
         public DateTime ReminderTime { get; set; }
         public DateTime EndTime { get; set; }
         public string Status { get; set; } = string.Empty;
@@ -65,7 +73,8 @@ namespace MediMateService.DTOs
 
     public class ScheduleDetailResponse : ScheduleResponse
     {
-        public PrescriptionInfoResponse? Prescription { get; set; }
+        // Removed Prescription since a schedule may span multiple prescriptions
+        // We only return the list of Medicines directly below
     }
 
     public class PrescriptionInfoResponse
@@ -76,8 +85,6 @@ namespace MediMateService.DTOs
         public string? DoctorName { get; set; }
         public DateTime? PrescriptionDate { get; set; }
 
-        // ĐƯA DANH SÁCH THUỐC VÀO ĐÂY: 
-        // Vì danh sách thuốc là CỦA ĐƠN THUỐC, nên để trong object này sẽ hợp lý về mặt dữ liệu hơn.
         public List<PrescriptionMedicineResponse> Medicines { get; set; } = new List<PrescriptionMedicineResponse>();
     }
 

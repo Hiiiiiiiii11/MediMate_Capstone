@@ -1,9 +1,10 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.AspNetCore.Http;
 using Share.Common;
 using Share.Constants;
+using Hangfire;
 
 namespace MediMateService.Services.Implementations
 {
@@ -13,13 +14,15 @@ namespace MediMateService.Services.Implementations
         private readonly ICurrentUserService _currentUserService;
         private readonly IUploadPhotoService _uploadPhotoService;
         private readonly IActivityLogService _activityLogService;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
-        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService)
+        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
             _activityLogService = activityLogService;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
@@ -105,6 +108,12 @@ namespace MediMateService.Services.Implementations
             // 5. Lưu vào DB (EF Core tự xử lý Transaction lưu cả 3 bảng)
             await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
             await _unitOfWork.CompleteAsync();
+
+            // 6. Phân bổ thuốc vào các khung thời gian
+            foreach (var med in prescription.PrescriptionMedicines)
+            {
+                await AutoDistributeMedicineAsync(memberId, med, prescription.PrescriptionDate);
+            }
 
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
             if (targetMember != null && targetMember.FamilyId.HasValue)
@@ -251,6 +260,15 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<Prescriptions>().Update(prescription);
             await _unitOfWork.CompleteAsync();
 
+            // Phân bổ thuốc mới nếu có
+            if (request.Medicines != null)
+            {
+                foreach (var med in prescription.PrescriptionMedicines)
+                {
+                    await AutoDistributeMedicineAsync(prescription.MemberId, med, prescription.PrescriptionDate);
+                }
+            }
+
             if (hasChanges)
             {
                 var newData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
@@ -347,6 +365,8 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<PrescriptionMedicines>().AddAsync(newMedicine);
             await _unitOfWork.CompleteAsync();
 
+            await AutoDistributeMedicineAsync(prescription.MemberId, newMedicine, prescription.PrescriptionDate);
+
             var responseDto = new PrescriptionMedicineResponse
             {
                 PrescriptionMedicineId = newMedicine.PrescriptionMedicineId,
@@ -415,7 +435,19 @@ namespace MediMateService.Services.Implementations
             {
                 medicine.UpdatedAt = DateTime.Now;
                 _unitOfWork.Repository<PrescriptionMedicines>().Update(medicine);
+
+                // Dọn dẹp detail cũ nếu hướng dẫn hoặc số lượng đổi
+                var oldDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                    .FindAsync(d => d.PrescriptionMedicineId == medicineId);
+                foreach (var d in oldDetails)
+                {
+                    _unitOfWork.Repository<MedicationScheduleDetails>().Remove(d);
+                }
+
                 await _unitOfWork.CompleteAsync();
+
+                // Phân bổ lại
+                await AutoDistributeMedicineAsync(medicine.Prescription.MemberId, medicine, medicine.Prescription.PrescriptionDate);
             }
 
             // Map lại ra DTO để trả về cho Frontend
@@ -520,6 +552,182 @@ namespace MediMateService.Services.Implementations
             };
         }
 
+        private async Task AutoDistributeMedicineAsync(Guid memberId, PrescriptionMedicines med, DateTime prescriptionDate)
+        {
+            var now = DateTime.Now.Date; // Lấy ngày thực tế lúc tạo/sửa trên app thay vì ngày ghi trên đơn thuốc
 
+            var lowerInst = (med.Instructions ?? "").ToLower();
+            int totalSessions = 0;
+            bool hasMorning = lowerInst.Contains("sáng");
+            bool hasNoon = lowerInst.Contains("trưa");
+            bool hasAfternoon = lowerInst.Contains("chiều");
+            bool hasEvening = lowerInst.Contains("tối");
+
+            if (!hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
+            {
+                hasMorning = true;
+                if (med.Quantity > 1) hasEvening = true;
+            }
+
+            if (hasMorning) totalSessions++;
+            if (hasNoon) totalSessions++;
+            if (hasAfternoon) totalSessions++;
+            if (hasEvening) totalSessions++;
+
+            double days = totalSessions > 0 ? (double)med.Quantity / totalSessions : 1;
+            if (days < 1) days = 1;
+
+            DateTime endDate = now.AddDays(Math.Ceiling(days) - 1);
+            if (endDate < now) endDate = now;
+
+            var existingSchedules = (await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.MemberId == memberId)).ToList();
+
+            var modifiedScheduleIds = new List<Guid>();
+
+            if (hasMorning)
+            {
+                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("sáng"))
+                    ?? await CreateDefaultSchedule(memberId, "Buổi sáng", new TimeSpan(8, 0, 0));
+                
+                string specificDosage = ExtractDosageForSession(med.Instructions, "sáng", med.Dosage);
+                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
+                modifiedScheduleIds.Add(schedule.ScheduleId);
+                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+            }
+
+            if (hasNoon)
+            {
+                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("trưa"))
+                    ?? await CreateDefaultSchedule(memberId, "Buổi trưa", new TimeSpan(12, 0, 0));
+                
+                string specificDosage = ExtractDosageForSession(med.Instructions, "trưa", med.Dosage);
+                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
+                modifiedScheduleIds.Add(schedule.ScheduleId);
+                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+            }
+
+            if (hasAfternoon)
+            {
+                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("chiều"))
+                    ?? await CreateDefaultSchedule(memberId, "Buổi chiều", new TimeSpan(14, 0, 0));
+                
+                string specificDosage = ExtractDosageForSession(med.Instructions, "chiều", med.Dosage);
+                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
+                modifiedScheduleIds.Add(schedule.ScheduleId);
+                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+            }
+
+            if (hasEvening)
+            {
+                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("tối"))
+                    ?? await CreateDefaultSchedule(memberId, "Buổi tối", new TimeSpan(20, 0, 0));
+                
+                string specificDosage = ExtractDosageForSession(med.Instructions, "tối", med.Dosage);
+                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
+                modifiedScheduleIds.Add(schedule.ScheduleId);
+                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+            }
+
+            await _unitOfWork.CompleteAsync();
+
+            var existingReminders = await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId) && r.ReminderDate >= now && r.ReminderDate <= endDate);
+
+            var newReminders = new List<MedicationReminders>();
+
+            foreach (var sId in modifiedScheduleIds)
+            {
+                var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(sId);
+                
+                for (var date = now.Date; date <= endDate.Date; date = date.AddDays(1))
+                {
+                    var reminderTime = date.Add(schedule.TimeOfDay);
+                    var endTime = reminderTime.AddHours(2);
+
+                    if (endTime > DateTime.Now)
+                    {
+                        if (!existingReminders.Any(r => r.ScheduleId == sId && r.ReminderDate == date))
+                        {
+                            var reminder = new MedicationReminders
+                            {
+                                ReminderId = Guid.NewGuid(),
+                                ScheduleId = sId,
+                                ReminderDate = date,
+                                ReminderTime = reminderTime,
+                                EndTime = endTime,
+                                Status = "Pending"
+                            };
+                            await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
+                            newReminders.Add(reminder);
+                        }
+                    }
+                }
+            }
+
+            await _unitOfWork.CompleteAsync();
+
+            foreach (var reminder in newReminders)
+            {
+                _backgroundJobClient.Schedule<IReminderJobService>(
+                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
+                    new DateTimeOffset(reminder.EndTime)
+                );
+            }
+        }
+
+        private async Task<MedicationSchedules> CreateDefaultSchedule(Guid memberId, string name, TimeSpan time)
+        {
+            var schedule = new MedicationSchedules
+            {
+                ScheduleId = Guid.NewGuid(),
+                MemberId = memberId,
+                ScheduleName = name,
+                TimeOfDay = time,
+                IsActive = true,
+                CreatedAt = DateTime.Now
+            };
+            await _unitOfWork.Repository<MedicationSchedules>().AddAsync(schedule);
+            // Save immediately to ensure it can be found by subsequent calls if needed
+            await _unitOfWork.CompleteAsync();
+            return schedule;
+        }
+
+        private async Task AddDetailAsync(Guid scheduleId, PrescriptionMedicines med, DateTime start, DateTime end, string specificDosage)
+        {
+            var detail = new MedicationScheduleDetails
+            {
+                ScheduleDetailId = Guid.NewGuid(),
+                ScheduleId = scheduleId,
+                PrescriptionMedicineId = med.PrescriptionMedicineId,
+                Dosage = specificDosage,
+                StartDate = start,
+                EndDate = end
+            };
+            await _unitOfWork.Repository<MedicationScheduleDetails>().AddAsync(detail);
+        }
+
+        private string ExtractDosageForSession(string instructions, string sessionName, string defaultDosage)
+        {
+            if (string.IsNullOrWhiteSpace(instructions)) return defaultDosage ?? "1 Viên";
+
+            string lowerInst = instructions.ToLower();
+            string lowerSession = sessionName.ToLower();
+
+            int idx = lowerInst.IndexOf(lowerSession);
+            if (idx == -1) return defaultDosage ?? "1 Viên";
+
+            string sub = lowerInst.Substring(idx);
+            
+            int endIdx = sub.IndexOf(',');
+            if (endIdx == -1) endIdx = sub.IndexOf('-');
+            if (endIdx == -1) endIdx = sub.IndexOf('.');
+
+            string sessionPart = endIdx != -1 ? sub.Substring(0, endIdx) : sub;
+
+            string finalDosage = sessionPart.Replace(lowerSession, "").Trim();
+
+            return string.IsNullOrWhiteSpace(finalDosage) ? (defaultDosage ?? "1 Viên") : finalDosage;
+        }
     }
 }

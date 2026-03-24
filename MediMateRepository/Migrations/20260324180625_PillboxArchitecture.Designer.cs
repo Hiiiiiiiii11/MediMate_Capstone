@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260324180625_PillboxArchitecture")]
+    partial class PillboxArchitecture
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1622,7 +1625,7 @@ namespace MediMateRepository.Migrations
             modelBuilder.Entity("MediMateRepository.Model.DoctorDocument", b =>
                 {
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
-                        .WithMany("DoctorDocuments")
+                        .WithMany()
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1988,8 +1991,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Appointments");
 
                     b.Navigation("Availabilities");
-
-                    b.Navigation("DoctorDocuments");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>

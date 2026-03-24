@@ -326,7 +326,7 @@ namespace MediMateRepository.Data
             // Doctors 1-N DoctorDocument (THÊM MỚI)
             modelBuilder.Entity<DoctorDocument>()
                 .HasOne(dd => dd.Doctor)
-                .WithMany()
+                .WithMany(d => d.DoctorDocuments)
                 .HasForeignKey(dd => dd.DoctorId)
                 .OnDelete(DeleteBehavior.Cascade);
 

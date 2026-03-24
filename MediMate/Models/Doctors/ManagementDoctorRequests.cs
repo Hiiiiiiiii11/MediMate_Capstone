@@ -70,7 +70,8 @@ namespace MediMate.Models.Doctors
 
         public IFormFile? AvatarImage { get; set; }
 
-        public IFormFile? LicenseImage { get; set; }
+        [MaxLength(3)]
+        public List<IFormFile>? LicenseImage { get; set; }
 
         [Range(0, 80)]
         public int YearsOfExperience { get; set; }

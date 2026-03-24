@@ -14,12 +14,18 @@ namespace MediMate.Controllers
     public class DoctorController : ControllerBase
     {
         private readonly IDoctorService _doctorService;
+        private readonly IDoctorDocumentService _doctorDocumentService;
         private readonly IRatingService _ratingService;
         private readonly IUploadPhotoService _uploadPhotoService;
 
-        public DoctorController(IDoctorService doctorService, IRatingService ratingService, IUploadPhotoService uploadPhotoService)
+        public DoctorController(
+            IDoctorService doctorService,
+            IDoctorDocumentService doctorDocumentService,
+            IRatingService ratingService,
+            IUploadPhotoService uploadPhotoService)
         {
             _doctorService = doctorService;
+            _doctorDocumentService = doctorDocumentService;
             _ratingService = ratingService;
             _uploadPhotoService = uploadPhotoService;
         }
@@ -85,12 +91,35 @@ namespace MediMate.Controllers
         {
             var userId = GetCurrentUserId();
             var doc = await _doctorService.GetMyProfileAsync(userId);
-            
-            string? licenseImageUrl = doc.LicenseImage;
-            if (request.LicenseImage != null)
+
+            if (request.LicenseImage != null && request.LicenseImage.Count > 3)
             {
-                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.LicenseImage);
-                licenseImageUrl = uploadResult.OriginalUrl;
+                return BadRequest(ApiResponse<object>.Fail("Chỉ được tải lên tối đa 3 LicenseImage.", 400));
+            }
+
+            string? licenseImageUrl = doc.LicenseImage;
+            if (request.LicenseImage != null && request.LicenseImage.Count > 0)
+            {
+                var uploadedLicenseUrls = new List<string>();
+
+                foreach (var file in request.LicenseImage)
+                {
+                    var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
+                    uploadedLicenseUrls.Add(uploadResult.OriginalUrl);
+
+                    var createDocumentResponse = await _doctorDocumentService.CreateAsync(doc.DoctorId, userId, new CreateDoctorDocumentRequest
+                    {
+                        FileUrl = uploadResult.OriginalUrl,
+                        Type = DoctorDocumentTypes.PracticeLicense
+                    });
+
+                    if (!createDocumentResponse.Success)
+                    {
+                        return StatusCode(createDocumentResponse.Code, createDocumentResponse);
+                    }
+                }
+
+                licenseImageUrl = uploadedLicenseUrls.FirstOrDefault();
             }
 
             string? avatarUrl = null;

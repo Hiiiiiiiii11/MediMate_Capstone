@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
 
 namespace MediMate.Models.Doctors
 {
@@ -55,12 +56,26 @@ namespace MediMate.Models.Doctors
 
     public class SubmitDoctorRequest
     {
+        [Required]
         public string FullName { get; set; } = string.Empty;
+
+        [Required]
         public string Specialty { get; set; } = string.Empty;
+
+        [Required]
         public string CurrentHospitalName { get; set; } = string.Empty;
+
+        [Url]
+        public string? AvatarUrl { get; set; }
+
+        [Required]
         public string LicenseNumber { get; set; } = string.Empty;
+
         public IFormFile? LicenseImage { get; set; }
+
+        [Range(0, 80)]
         public int YearsOfExperience { get; set; }
+
         public string Bio { get; set; } = string.Empty;
     }
 }

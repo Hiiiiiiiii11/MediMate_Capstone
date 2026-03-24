@@ -196,6 +196,12 @@ namespace MediMateService.Services.Implementations
             doctor.LicenseImage = dto.LicenseImage;
             doctor.YearsOfExperience = dto.YearsOfExperience;
             doctor.Bio = dto.Bio;
+
+            if (!string.IsNullOrWhiteSpace(dto.AvatarUrl) && doctor.User != null)
+            {
+                doctor.User.AvatarUrl = dto.AvatarUrl.Trim();
+            }
+
             doctor.Status = DoctorStatuses.Pending;
             doctor.RejectionReason = null;
 

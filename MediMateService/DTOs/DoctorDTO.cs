@@ -33,6 +33,7 @@
         public string FullName { get; set; } = string.Empty;
         public string Specialty { get; set; } = string.Empty;
         public string CurrentHospitalName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
         public string LicenseNumber { get; set; } = string.Empty;
         public string? LicenseImage { get; set; }
         public int YearsOfExperience { get; set; }

@@ -94,6 +94,14 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet("doctors/me")]
+        public async Task<IActionResult> GetAppointmentsByCurrentDoctor()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _appointmentService.GetAppointmentsByDoctorUserIdAsync(userId);
+            return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch khám của bác sĩ thành công."));
+        }
+
         [HttpPut("{appointmentId}/cancel")]
         public async Task<IActionResult> CancelAppointment(Guid appointmentId, [FromBody] CancelAppointmentRequest request)
         {

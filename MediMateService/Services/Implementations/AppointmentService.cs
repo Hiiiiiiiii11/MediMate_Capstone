@@ -250,6 +250,19 @@ namespace MediMateService.Services.Implementations
             return merged.Select(MapAppointment).ToList();
         }
 
+        public async Task<List<AppointmentDto>> GetAppointmentsByDoctorUserIdAsync(Guid userId)
+        {
+            var doctor = (await _unitOfWork.Repository<Doctors>()
+                .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+
+            if (doctor == null)
+            {
+                throw new NotFoundException("Không tìm thấy hồ sơ bác sĩ cho tài khoản hiện tại.");
+            }
+
+            return await GetAppointmentsByDoctorIdAsync(doctor.DoctorId);
+        }
+
         public async Task<ApiResponse<List<AvailableSlotDto>>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)
         {
             var result = new List<AvailableSlotDto>();

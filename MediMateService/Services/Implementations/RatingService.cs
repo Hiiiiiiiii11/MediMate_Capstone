@@ -9,14 +9,16 @@ namespace MediMateService.Services.Implementations
     {
         private readonly IRatingRepository _ratingRepository;
         private readonly IDoctorRepository _doctorRepository;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public RatingService(IRatingRepository ratingRepository, IDoctorRepository doctorRepository)
+        public RatingService(IRatingRepository ratingRepository, IDoctorRepository doctorRepository, IUnitOfWork unitOfWork)
         {
             _ratingRepository = ratingRepository;
             _doctorRepository = doctorRepository;
+            _unitOfWork = unitOfWork;
         }
 
-        public async Task<RatingDto> CreateRatingAsync(Guid userId, Guid sessionId, CreateRatingDto request)
+        public async Task<RatingDto> CreateRatingAsync(Guid callerId, bool isDependent, Guid sessionId, CreateRatingDto request)
         {
             if (request.Score is < 1 or > 5)
             {
@@ -29,13 +31,19 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy phiên khám.");
             }
 
-            //check if this user is the person who have this consultation session
-            if (session.MemberId != userId)
+            // Dependent: callerId chính là MemberId → so sánh thẳng
+            // User thường: callerId là UserId → tìm Member và so sánh member.UserId
+            bool hasAccess = isDependent
+                ? session.MemberId == callerId
+                : (await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId))?.UserId == callerId;
+
+            if (!hasAccess)
             {
-                throw new BadRequestException("Bạn không có quyền đánh giá phiên khám này.");
+                throw new ForbiddenException("Bạn không có quyền đánh giá phiên khám này.");
             }
 
-            if (!string.Equals(session.Status, "Ended", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(session.Status, "Ended", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(session.Status, "Completed", StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException("Chỉ được đánh giá khi phiên khám đã hoàn tất.");
             }
@@ -64,12 +72,15 @@ namespace MediMateService.Services.Implementations
             };
 
             await _ratingRepository.AddRatingAsync(rating);
-
-            var doctorRatings = await _ratingRepository.GetRatingsByDoctorIdAsync(session.DoctorId);
-            doctor.AverageRating = doctorRatings.Count == 0 ? 0 : doctorRatings.Average(r => r.Score);
-            await _doctorRepository.UpdateDoctorAsync(doctor);
+            await UpdateDoctorAverageRatingAsync(session.DoctorId);
 
             return MapToRatingDto(rating);
+        }
+
+        public async Task<RatingDto?> GetRatingByIdAsync(Guid ratingId)
+        {
+            var rating = await _ratingRepository.GetRatingByIdAsync(ratingId);
+            return rating != null ? MapToRatingDto(rating) : null;
         }
 
         public async Task<List<DoctorReviewDto>> GetDoctorReviewsAsync(Guid doctorId)
@@ -82,6 +93,70 @@ namespace MediMateService.Services.Implementations
 
             var ratings = await _ratingRepository.GetRatingsByDoctorIdAsync(doctorId);
             return ratings.Select(MapToDoctorReviewDto).ToList();
+        }
+
+        public async Task<RatingDto> UpdateRatingAsync(Guid callerId, bool isDependent, Guid ratingId, CreateRatingDto request)
+        {
+            if (request.Score is < 1 or > 5)
+            {
+                throw new BadRequestException("Score phải trong khoảng từ 1 đến 5.");
+            }
+
+            var rating = await _ratingRepository.GetRatingByIdAsync(ratingId);
+            if (rating == null)
+            {
+                throw new NotFoundException("Không tìm thấy đánh giá.");
+            }
+
+            bool hasAccess = isDependent
+                ? rating.MemberId == callerId
+                : (await _unitOfWork.Repository<Members>().GetByIdAsync(rating.MemberId))?.UserId == callerId;
+
+            if (!hasAccess)
+            {
+                throw new ForbiddenException("Bạn không có quyền chỉnh sửa đánh giá này.");
+            }
+
+            rating.Score = request.Score;
+            rating.Comment = request.Comment?.Trim() ?? string.Empty;
+
+            await _ratingRepository.UpdateRatingAsync(rating);
+            await UpdateDoctorAverageRatingAsync(rating.DoctorId);
+
+            return MapToRatingDto(rating);
+        }
+
+        public async Task DeleteRatingAsync(Guid callerId, bool isDependent, Guid ratingId)
+        {
+            var rating = await _ratingRepository.GetRatingByIdAsync(ratingId);
+            if (rating == null)
+            {
+                throw new NotFoundException("Không tìm thấy đánh giá.");
+            }
+
+            bool hasAccess = isDependent
+                ? rating.MemberId == callerId
+                : (await _unitOfWork.Repository<Members>().GetByIdAsync(rating.MemberId))?.UserId == callerId;
+
+            if (!hasAccess)
+            {
+                throw new ForbiddenException("Bạn không có quyền xóa đánh giá này.");
+            }
+
+            var doctorId = rating.DoctorId;
+            await _ratingRepository.DeleteRatingAsync(rating);
+            await UpdateDoctorAverageRatingAsync(doctorId);
+        }
+
+        private async Task UpdateDoctorAverageRatingAsync(Guid doctorId)
+        {
+            var doctor = await _doctorRepository.GetDoctorByIdAsync(doctorId);
+            if (doctor != null)
+            {
+                var doctorRatings = await _ratingRepository.GetRatingsByDoctorIdAsync(doctorId);
+                doctor.AverageRating = doctorRatings.Count == 0 ? 0 : (float)Math.Round(doctorRatings.Average(r => r.Score), 1);
+                await _doctorRepository.UpdateDoctorAsync(doctor);
+            }
         }
 
         private static RatingDto MapToRatingDto(Ratings rating)

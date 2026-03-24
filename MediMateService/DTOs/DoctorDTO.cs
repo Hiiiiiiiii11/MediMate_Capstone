@@ -91,9 +91,24 @@
     {
         public Guid DocumentId { get; set; }
         public Guid DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public string? DoctorSpecialty { get; set; }
         public string FileUrl { get; set; } = string.Empty;
+        public string? DocumentName { get; set; }
+        public string? DocumentType { get; set; }
+        public string? IssuedBy { get; set; }
+        public DateTime? IssuedAt { get; set; }
         public string Type { get; set; } = string.Empty; // VD: "Bằng cấp", "Chứng chỉ hành nghề"
         public string Status { get; set; } = string.Empty; // "Pending", "Approved", "Rejected"
+        public string? RejectReason { get; set; }
+        public DateTime? SubmittedAt { get; set; }
+        public string? ReviewedByName { get; set; }
+        public DateTime? ReviewedAt { get; set; }
+        public string? FileMimeType { get; set; }
+        public string? FileExtension { get; set; }
+        public long? FileSizeBytes { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public string? ReviewBy { get; set; }
         public string? ReviewAt { get; set; }
         public string? Note { get; set; }

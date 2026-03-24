@@ -24,6 +24,7 @@ namespace MediMate.Controllers
 
         [HttpGet("doctors/{doctorId}/available-slots")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<AvailableSlotDto>>), 200)]
         public async Task<IActionResult> GetAvailableSlots(Guid doctorId, [FromQuery] DateTime date)
         {
             try
@@ -37,6 +38,7 @@ namespace MediMate.Controllers
             }
         }
         [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 201)]
         public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequest request)
         {
             try
@@ -73,6 +75,7 @@ namespace MediMate.Controllers
 
         }
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentResponse>>), 200)]
         public async Task<IActionResult> GetAppointments()
         {
             var userId = _currentUserService.UserId;
@@ -81,6 +84,7 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<List<AppointmentResponse>>.Ok(response, "Lấy danh sách lịch hẹn thành công."));
         }
         [HttpGet("doctors/{doctorId}")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
         public async Task<IActionResult> GetAppointmentsByDoctor(Guid doctorId)
         {
             try
@@ -94,7 +98,16 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet("doctors/me")]
+        public async Task<IActionResult> GetAppointmentsByCurrentDoctor()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _appointmentService.GetAppointmentsByDoctorUserIdAsync(userId);
+            return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch khám của bác sĩ thành công."));
+        }
+
         [HttpPut("{appointmentId}/cancel")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentResponse>), 200)]
         public async Task<IActionResult> CancelAppointment(Guid appointmentId, [FromBody] CancelAppointmentRequest request)
         {
             var userId = _currentUserService.UserId;
@@ -108,6 +121,7 @@ namespace MediMate.Controllers
 
        
         [HttpPut("{appointmentId}/status")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
         public async Task<IActionResult> UpdateAppointmentStatus(Guid appointmentId, [FromBody] UpdateAppointmentRequest request)
         {
             try

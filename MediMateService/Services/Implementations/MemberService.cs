@@ -1,3 +1,4 @@
+using AutoMapper.Execution;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs; // Nhớ cài package QRCoder
@@ -150,7 +151,7 @@ namespace MediMateService.Services.Implementations
         {
             // Check quyền: User phải thuộc Family đó mới được xem danh sách
             var currentUserMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+         .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
             if (currentUserMember == null)
             {
@@ -176,7 +177,7 @@ namespace MediMateService.Services.Implementations
             if (member.FamilyId != null)
             {
                 var isFamilyMate = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == member.FamilyId && m.UserId == userId)).Any();
+    .FindAsync(m => m.FamilyId == member.FamilyId && (m.UserId == userId || m.MemberId == userId))).Any();
 
                 if (!isFamilyMate)
                 {
@@ -194,14 +195,14 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<MemberResponse>.Fail("Member not found", 404);
             }
-            bool isSelf = member.UserId == userId;
+            bool isSelf = (member.UserId == userId || member.MemberId == userId);
             bool isOwner = false;
             Members doer = null;
 
             if (member.FamilyId != null)
             {
                 var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == member.FamilyId && m.UserId == userId)).FirstOrDefault();
+    .FindAsync(m => m.FamilyId == member.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
                 if (requester != null && requester.Role == Roles.Owner)
                 {
                     isOwner = true;
@@ -253,12 +254,12 @@ namespace MediMateService.Services.Implementations
             }
             Guid familyId = memberToRemove.FamilyId.Value;
             // Check quyền
-            bool isSelf = memberToRemove.UserId == userId; // Tự rời nhóm
+            bool isSelf = (memberToRemove.UserId == userId || memberToRemove.MemberId == userId); // Tự rời nhóm
             bool isOwner = false; // Chủ kick
             Members doer = null;
 
             var requester = (await _unitOfWork.Repository<Members>()
-                 .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+                 .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
             if (requester != null)
             {
@@ -306,7 +307,7 @@ namespace MediMateService.Services.Implementations
             }
 
             // Check quyền
-            bool isSelf = memberToRemove.UserId == userId; // Tự rời nhóm
+            bool isSelf = (memberToRemove.UserId == userId || memberToRemove.MemberId == userId); // Tự rời nhóm
             bool isOwner = false; // Chủ kick
             Members doer = null;
             Guid? familyId = memberToRemove.FamilyId;
@@ -314,7 +315,7 @@ namespace MediMateService.Services.Implementations
             if (familyId != null)
             {
                 var requester = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+                    .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                 if (requester != null)
                 {

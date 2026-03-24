@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +20,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("token/{sessionId}")]
+        [ProducesResponseType(typeof(ApiResponse<string>), 200)]
         public async Task<IActionResult> GetToken(Guid sessionId, [FromQuery] string role = "publisher")
         {
             // Để Agora tự động cấp UID ngẫu nhiên
@@ -30,6 +31,8 @@ namespace MediMate.Controllers
 
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
+
+
         }
     }
 }

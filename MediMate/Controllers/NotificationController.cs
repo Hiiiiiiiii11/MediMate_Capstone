@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace MediMate.Controllers
 
         // 1. Lấy danh sách thông báo của User đang đăng nhập
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<NotificationDto>>), 200)]
         public async Task<IActionResult> GetMyNotifications()
         {
             var userId = _currentUserService.UserId;
@@ -35,6 +37,7 @@ namespace MediMate.Controllers
 
         // 2. Đánh dấu 1 thông báo là đã đọc
         [HttpPut("{notificationId}/read")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> MarkAsRead(Guid notificationId)
         {
             var userId = _currentUserService.UserId;
@@ -46,6 +49,7 @@ namespace MediMate.Controllers
 
         // 3. Đánh dấu tất cả là đã đọc
         [HttpPut("read-all")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> MarkAllAsRead()
         {
             var userId = _currentUserService.UserId;

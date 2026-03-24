@@ -3,6 +3,7 @@ using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 
 namespace MediMate.Controllers
@@ -24,6 +25,7 @@ namespace MediMate.Controllers
 
         [HttpGet]
         // [Authorize(Roles = Roles.Admin)] // Bỏ comment nếu muốn chỉ Admin mới xem được
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<UserProfileResponse>>), 200)]
         public async Task<IActionResult> GetAllUsers([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -41,6 +43,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpGet("me")]
+        [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), 200)]
         public async Task<IActionResult> GetMyProfile()
         {
             try
@@ -59,6 +62,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPut("me")]
+        [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), 200)]
         public async Task<IActionResult> UpdateMyProfile([FromForm] UpdateProfileRequest request)
         {
             try
@@ -77,6 +81,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPut("me/change-password")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
             try
@@ -95,6 +100,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPut("admin/deactivate")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeactivateMyAccount(Guid userId)
         {
             try
@@ -114,6 +120,7 @@ namespace MediMate.Controllers
 
         [Authorize]
         [HttpPut("admin/activate")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> ActivateMyAccount(Guid userId)
         {
             try
@@ -134,6 +141,7 @@ namespace MediMate.Controllers
         // DELETE: api/v1/users/me
         [Authorize]
         [HttpDelete("me")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeleteMyAccount([FromBody] DeleteAccountRequest request)
         {
             try

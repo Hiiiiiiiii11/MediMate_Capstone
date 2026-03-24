@@ -31,7 +31,7 @@ namespace MediMateService.Services.Implementations
             var doctor = await _doctorRepository.GetDoctorByIdAsync(appointment.DoctorId);
             var isDoctorOwner = doctor != null && doctor.UserId == userId;
             var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(appointment.MemberId);
-            var isUserOwner = member?.UserId == userId;
+            var isUserOwner = member?.UserId == userId || member?.MemberId == userId;
             if (!isDoctorOwner && !isUserOwner)
             {
                 throw new ForbiddenException("Bạn không có quyền xem phiên tư vấn này.");

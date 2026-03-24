@@ -1,3 +1,4 @@
+using Share.Constants;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -16,7 +17,7 @@ namespace MediMateRepository.Model
         public string? GatewayTransactionId { get; set; }
         public string TransactionStatus { get; set; } = "Pending";
         public decimal AmountPaid { get; set; }
-        public string TransactionType { get; set; } = "Tiền nhận vào";
+        public string TransactionType { get; set; } = TransactionTypes.MoneyReceived;
         public string? GatewayResponse { get; set; }
         public DateTime? PaidAt { get; set; }
         public virtual Payments? Payment { get; set; }

@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediMateService.DTOs;
 using MediMateService.Services;
 using System;
 using System.Threading.Tasks;
+using Share.Common;
 
 namespace MediMate.Controllers
 {
@@ -32,6 +33,7 @@ namespace MediMate.Controllers
         //hàm này sẽ tự động nhận diện caller là User hay Dependent dựa vào claim trong token, nên không cần truyền memberId hay familyId qua query nữa
 
         [HttpPost("members/{memberId}/schedules")]
+        [ProducesResponseType(typeof(ApiResponse<ScheduleResponse>), 200)]
         public async Task<IActionResult> CreateSchedule(Guid memberId, [FromBody] CreateScheduleRequest request)
         {
             try
@@ -47,8 +49,25 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpPost("members/{memberId}/schedules/bulk")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<ScheduleResponse>>), 201)]
+        public async Task<IActionResult> CreateBulkSchedules(Guid memberId, [FromBody] CreateBulkScheduleRequest request)
+        {
+            try
+            {
+                var response = await _scheduleService.CreateBulkSchedulesAsync(memberId, _currentUserService.UserId, request);
+                if (!response.Success) return StatusCode(response.Code, response);
+                return StatusCode(201, response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpGet("members/{memberId}/schedules")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ScheduleResponse>>), 200)]
         public async Task<IActionResult> GetMemberSchedules(Guid memberId)
         {
             try
@@ -65,6 +84,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("families/{familyId}/schedules")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ScheduleResponse>>), 200)]
         public async Task<IActionResult> GetFamilySchedules(Guid familyId)
         {
             try
@@ -79,8 +99,25 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpGet("schedules-detail/{scheduleId}")]
+        [ProducesResponseType(typeof(ApiResponse<ScheduleDetailResponse>), 200)]
+        public async Task<IActionResult> GetScheduleById(Guid scheduleId)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.GetScheduleByIdAsync(scheduleId, callerId);
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpPut("schedules/{scheduleId}")]
+        [ProducesResponseType(typeof(ApiResponse<ScheduleResponse>), 200)]
         public async Task<IActionResult> UpdateSchedule(Guid scheduleId, [FromBody] UpdateScheduleRequest request)
         {
             try
@@ -98,6 +135,7 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("schedules/{scheduleId}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeleteSchedule(Guid scheduleId)
         {
             try
@@ -138,6 +176,7 @@ namespace MediMate.Controllers
         //    }
         //}
         [HttpGet("members/{memberId}/reminders/daily")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ReminderDailyResponse>>), 200)]
         public async Task<IActionResult> GetDailyReminders(Guid memberId, [FromQuery] DateTime date)
         {
             var callerId = _currentUserService.UserId; // Có thể là User(Bố/Mẹ)
@@ -148,6 +187,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("families/{familyId}/reminders/daily")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ReminderDailyResponse>>), 200)]
         public async Task<IActionResult> GetFamilyDailyReminders(Guid familyId, [FromQuery] DateTime date)
         {
             try
@@ -165,6 +205,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("reminders/{reminderId}/action")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> MarkReminderAction(Guid reminderId, [FromBody] MedicationActionRequest request)
         {
             try

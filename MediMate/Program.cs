@@ -19,6 +19,7 @@ using Microsoft.OpenApi.Models;
 using Share.Cloudinaries;
 using Share.Common;
 using Share.Jwt;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
@@ -107,6 +108,7 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorAvailabilityService, DoctorAvailabilityService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddScoped<IAgoraService, AgoraService>();
+            builder.Services.AddScoped<IMedicationLogService, MedicationLogService>();
             builder.Services.AddMemoryCache();
 
             builder.Services.AddHangfire(config => config
@@ -211,6 +213,13 @@ namespace MediMate
                         Array.Empty<string>()
                     }
                 });
+
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                if (File.Exists(xmlPath))
+                {
+                    c.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+                }
             });
             builder.Services.Configure<JwtSettings>(
             builder.Configuration.GetSection("JWT")

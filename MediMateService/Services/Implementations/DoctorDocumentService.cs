@@ -53,6 +53,49 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<IEnumerable<DoctorDocumentDto>>.Ok(response);
         }
 
+        public async Task<ApiResponse<PagedResult<DoctorDocumentDto>>> GetAllAsync(DoctorDocumentFilter filter)
+        {
+            filter ??= new DoctorDocumentFilter();
+
+            if (filter.PageNumber <= 0) filter.PageNumber = 1;
+            if (filter.PageSize <= 0) filter.PageSize = 10;
+
+            var query = _unitOfWork.Repository<DoctorDocument>().GetQueryable();
+
+            if (filter.DoctorId.HasValue)
+                query = query.Where(d => d.DoctorId == filter.DoctorId.Value);
+
+            if (!string.IsNullOrWhiteSpace(filter.Status))
+                query = query.Where(d => d.Status == filter.Status);
+
+            if (!string.IsNullOrWhiteSpace(filter.Type))
+                query = query.Where(d => d.Type.Contains(filter.Type));
+
+            var totalCount = query.Count();
+
+            query = (filter.SortBy ?? string.Empty).ToLower() switch
+            {
+                "status" => filter.IsDescending ? query.OrderByDescending(d => d.Status) : query.OrderBy(d => d.Status),
+                "type" => filter.IsDescending ? query.OrderByDescending(d => d.Type) : query.OrderBy(d => d.Type),
+                _ => filter.IsDescending ? query.OrderByDescending(d => d.CreatedAt) : query.OrderBy(d => d.CreatedAt)
+            };
+
+            var items = query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToList();
+
+            var result = new PagedResult<DoctorDocumentDto>
+            {
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                Items = items.Select(MapToDto).ToList()
+            };
+
+            return ApiResponse<PagedResult<DoctorDocumentDto>>.Ok(result);
+        }
+
         public async Task<ApiResponse<DoctorDocumentDto>> GetByIdAsync(Guid documentId)
         {
             var document = await _unitOfWork.Repository<DoctorDocument>().GetByIdAsync(documentId);

@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 
 namespace MediMate.Controllers
 {
@@ -19,6 +20,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("get-all")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<MemberResponse>>), 200)]
         public async Task<IActionResult> GetAllMembers()
         {
             try
@@ -34,6 +36,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPost("create-dependent-member")]
+        [ProducesResponseType(typeof(ApiResponse<MemberResponse>), 200)]
         public async Task<IActionResult> CreateDependentMember([FromBody] CreateDependentRequest request)
         {
             try
@@ -52,6 +55,7 @@ namespace MediMate.Controllers
 
         [Authorize]
         [HttpPost("add-user-member-by-phone")]
+        [ProducesResponseType(typeof(ApiResponse<MemberResponse>), 200)]
         public async Task<IActionResult> AddUserMemberByPhone([FromBody] AddUserMemberRequest request)
         {
             try
@@ -69,6 +73,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpPost("user-join")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> UserJoinFamily([FromBody] JoinFamilyByCodeRequest request)
         {
             try
@@ -87,6 +92,7 @@ namespace MediMate.Controllers
 
         [Authorize]
         [HttpPost("generate-dependent-logincode")]
+        [ProducesResponseType(typeof(ApiResponse<MemberQrResponse>), 200)]
         public async Task<IActionResult> GenerateLoginCode(Guid memberId)
         {
             try
@@ -132,6 +138,7 @@ namespace MediMate.Controllers
         // API: Tạo hồ sơ phụ thuộc -> Nhận QR
         [AllowAnonymous] // Không cần token
         [HttpPost("dependent-join")]
+        [ProducesResponseType(typeof(ApiResponse<InitDependentResponse>), 200)]
         public async Task<IActionResult> CreateDependentByCode([FromBody] InitDependentRequest request)
         {
             // Bắt buộc request phải có JoinCode, truyền null cho userId
@@ -152,6 +159,7 @@ namespace MediMate.Controllers
         //}
 
         [HttpGet("family/{familyId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<MemberResponse>>), 200)]
         public async Task<IActionResult> GetMembersByFamily(Guid familyId)
         {
             try
@@ -171,6 +179,7 @@ namespace MediMate.Controllers
 
         // GET: api/v1/members/{id} -> Chi tiết 1 thành viên
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<MemberResponse>), 200)]
         public async Task<IActionResult> GetMemberById(Guid id)
         {
             try
@@ -191,6 +200,7 @@ namespace MediMate.Controllers
         // PUT: api/v1/members/{id} -> Sửa thông tin
         [Authorize]
         [HttpPut("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<MemberResponse>), 200)]
         public async Task<IActionResult> UpdateMember(Guid id, [FromForm] UpdateMemberRequest request)
         {
             try
@@ -210,6 +220,7 @@ namespace MediMate.Controllers
         // DELETE: api/v1/members/{id} -> Xóa/Rời nhóm
         [Authorize]
         [HttpPut("remove/{id}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> RemoveMember(Guid id)
         {
             try
@@ -227,6 +238,7 @@ namespace MediMate.Controllers
         }
         [Authorize]
         [HttpDelete("delete/{id}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> DeleteMember(Guid id)
         {
             try

@@ -98,6 +98,7 @@ namespace MediMate.Controllers
                 FullName = request.FullName,
                 Specialty = request.Specialty,
                 CurrentHospitalName = request.CurrentHospitalName,
+                AvatarUrl = request.AvatarUrl,
                 LicenseNumber = request.LicenseNumber,
                 LicenseImage = licenseImageUrl,
                 YearsOfExperience = request.YearsOfExperience,

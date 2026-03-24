@@ -65,11 +65,10 @@ namespace MediMate.Models.Doctors
         [Required]
         public string CurrentHospitalName { get; set; } = string.Empty;
 
-        [Url]
-        public string? AvatarUrl { get; set; }
-
         [Required]
         public string LicenseNumber { get; set; } = string.Empty;
+
+        public IFormFile? AvatarImage { get; set; }
 
         public IFormFile? LicenseImage { get; set; }
 

@@ -93,12 +93,19 @@ namespace MediMate.Controllers
                 licenseImageUrl = uploadResult.OriginalUrl;
             }
 
+            string? avatarUrl = null;
+            if (request.AvatarImage != null)
+            {
+                var avatarUploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarImage);
+                avatarUrl = avatarUploadResult.OriginalUrl;
+            }
+
             var data = await _doctorService.SubmitPendingAsync(doc.DoctorId, new SubmitDoctorDto
             {
                 FullName = request.FullName,
                 Specialty = request.Specialty,
                 CurrentHospitalName = request.CurrentHospitalName,
-                AvatarUrl = request.AvatarUrl,
+                AvatarUrl = avatarUrl,
                 LicenseNumber = request.LicenseNumber,
                 LicenseImage = licenseImageUrl,
                 YearsOfExperience = request.YearsOfExperience,

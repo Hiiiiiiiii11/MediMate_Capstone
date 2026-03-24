@@ -66,12 +66,12 @@ namespace MediMate.Controllers
         [HttpGet]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
-        [ProducesResponseType(typeof(ApiResponse<IEnumerable<DoctorDocumentDto>>), 200)]
-        public async Task<IActionResult> GetAll()
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<DoctorDocumentDto>>), 200)]
+        public async Task<IActionResult> GetAll([FromQuery] DoctorDocumentFilter filter)
         {
             try
             {
-                var response = await _documentService.GetAllAsync();
+                var response = await _documentService.GetAllAsync(filter);
                 return StatusCode(response.Code, response);
             }
             catch (Exception ex)

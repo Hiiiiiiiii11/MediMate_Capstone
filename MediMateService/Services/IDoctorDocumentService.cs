@@ -16,7 +16,7 @@ namespace MediMateService.Services
         Task<ApiResponse<bool>> DeleteAsync(Guid documentId, Guid currentUserId);
 
         // Dùng chung
-        Task<ApiResponse<IEnumerable<DoctorDocumentDto>>> GetAllAsync();
+        Task<ApiResponse<PagedResult<DoctorDocumentDto>>> GetAllAsync(DoctorDocumentFilter filter);
         Task<ApiResponse<IEnumerable<DoctorDocumentDto>>> GetByDoctorIdAsync(Guid doctorId);
         Task<ApiResponse<DoctorDocumentDto>> GetByIdAsync(Guid documentId);
 

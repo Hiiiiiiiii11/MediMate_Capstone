@@ -19,6 +19,7 @@ namespace MediMateRepository.Data
         public DbSet<PrescriptionImages> PrescriptionImages { get; set; }
         public DbSet<MedicationLogs> MedicationLogs { get; set; }
         public DbSet<MedicationSchedules> MedicationSchedules { get; set; }
+        public DbSet<MedicationScheduleDetails> MedicationScheduleDetails { get; set; }
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
@@ -66,6 +67,7 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<PrescriptionImages>().HasKey(pi => pi.ImageId);
             modelBuilder.Entity<MedicationLogs>().HasKey(ml => ml.LogId);
             modelBuilder.Entity<MedicationSchedules>().HasKey(ms => ms.ScheduleId);
+            modelBuilder.Entity<MedicationScheduleDetails>().HasKey(m => m.ScheduleDetailId);
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
@@ -167,12 +169,19 @@ namespace MediMateRepository.Data
 
 
 
-            // 1. MedicationSchedules - Prescriptions (1-N)
-            modelBuilder.Entity<MedicationSchedules>()
-                .HasOne(ms => ms.Prescription)
-                .WithMany(p => p.MedicationSchedules)
-                .HasForeignKey(ms => ms.PrescriptionId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn thuốc -> Xóa lịch uống
+            // 1. MedicationSchedules - MedicationScheduleDetails (1-N)
+            modelBuilder.Entity<MedicationScheduleDetails>()
+                .HasOne(m => m.Schedule)
+                .WithMany(ms => ms.ScheduleDetails)
+                .HasForeignKey(m => m.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 1b. PrescriptionMedicines - MedicationScheduleDetails (1-N)
+            modelBuilder.Entity<MedicationScheduleDetails>()
+                .HasOne(m => m.PrescriptionMedicine)
+                .WithMany()
+                .HasForeignKey(m => m.PrescriptionMedicineId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // 2. MedicationSchedules - Members (1-N)
             modelBuilder.Entity<MedicationSchedules>()

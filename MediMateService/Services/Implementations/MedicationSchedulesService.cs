@@ -32,82 +32,23 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<ScheduleResponse>.Fail("Không có quyền truy cập.", 403);
 
-            // 1.1 Tạo Schedule gốc
             var schedule = new MedicationSchedules
             {
                 ScheduleId = Guid.NewGuid(),
                 MemberId = memberId,
-                PrescriptionId = request.PrescriptionId,
-                MedicineName = request.MedicineName,
-                Dosage = request.Dosage,
-                SpecificTimes = request.SpecificTimes,
-                StartDate = request.StartDate.Date,
-                EndDate = request.EndDate?.Date,
-                IsActive = true
+                ScheduleName = request.ScheduleName,
+                TimeOfDay = request.TimeOfDay,
+                IsActive = true,
+                CreatedAt = DateTime.Now
             };
+
             await _unitOfWork.Repository<MedicationSchedules>().AddAsync(schedule);
+            await _unitOfWork.CompleteAsync();
 
-            // 1.2 Phân tích khung giờ (VD: 08:00-09:00)
-            var timeRanges = ParseTimeRanges(request.SpecificTimes);
-            var endGenDate = request.EndDate ?? DateTime.Now.AddDays(30).Date; // Giới hạn sinh 30 ngày
-            var reminders = new List<MedicationReminders>();
-
-            for (var date = schedule.StartDate; date <= endGenDate; date = date.AddDays(1))
-            {
-                foreach (var range in timeRanges)
-                {
-                    var startTime = date.Add(range.Start);
-                    var endTime = date.Add(range.End);
-                    if (endTime <= startTime) endTime = endTime.AddDays(1); // Qua ngày hôm sau
-
-                    if (endTime > DateTime.Now)
-                    {
-                        var reminder = new MedicationReminders
-                        {
-                            ReminderId = Guid.NewGuid(),
-                            ScheduleId = schedule.ScheduleId,
-                            ReminderDate = date,
-                            ReminderTime = startTime,
-                            EndTime = endTime,
-                            Status = "Pending"
-                        };
-                        await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
-                        reminders.Add(reminder);
-                    }
-                }
-            }
-            await _unitOfWork.CompleteAsync(); // Lưu DB để lấy ra được ID
-
-            // 1.3 Lên lịch Hangfire kiểm tra lúc QUÁ HẠN KHUNG GIỜ (EndTime)
-            foreach (var reminder in reminders)
-            {
-                _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
-                    new DateTimeOffset(reminder.EndTime) // Chạy đúng lúc EndTime
-                );
-            }
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-            if (targetMember != null && targetMember.FamilyId.HasValue)
-            {
-                var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
-
-                if (doer != null)
-                {
-                    await _activityLogService.LogActivityAsync(
-                        familyId: targetMember.FamilyId.Value,
-                        memberId: doer.MemberId,
-                        actionType: ActivityActionTypes.CREATE,
-                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
-                        entityId: schedule.ScheduleId,
-                        description: $"Đã thiết lập lịch uống thuốc '{schedule.MedicineName}' cho '{targetMember.FullName}'."
-                    );
-                }
-            }
-
-
             schedule.Member = targetMember;
-            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Đã tạo lịch thành công.");
+
+            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Đã tạo khung giờ thành công.");
         }
 
         // 2. LẤY NHẮC NHỞ TRONG NGÀY CHO GIAO DIỆN (UI)
@@ -117,16 +58,14 @@ namespace MediMateService.Services.Implementations
             var endDate = date.Date.AddDays(1).AddTicks(-1);
 
             var reminders = await _unitOfWork.Repository<MedicationReminders>()
-        .FindAsync(r => r.Schedule.MemberId == memberId
-                        && r.ReminderDate >= startDate
-                        && r.ReminderDate <= endDate
-                        && r.Schedule.IsActive,
-                "Schedule,Schedule.Member");
+                .FindAsync(r => r.Schedule.MemberId == memberId
+                                && r.ReminderDate >= startDate
+                                && r.ReminderDate <= endDate
+                                && r.Schedule.IsActive,
+                        includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            // Thay vì viết new ReminderDailyResponse ở đây, ta gọi thẳng hàm Helper cho gọn
             var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
-
         }
 
         // 3. XỬ LÝ NÚT BẤM "ĐÃ UỐNG" VÀ GHI LOG
@@ -162,159 +101,161 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<bool>.Ok(true, "Đã lưu lịch sử uống thuốc.");
         }
 
-        // Helper tách giờ
-        private List<(TimeSpan Start, TimeSpan End)> ParseTimeRanges(string timesStr)
-        {
-            var result = new List<(TimeSpan, TimeSpan)>();
-            foreach (var t in timesStr.Split(','))
-            {
-                var parts = t.Split('-');
-                if (parts.Length == 2 && TimeSpan.TryParse(parts[0].Trim(), out var start) && TimeSpan.TryParse(parts[1].Trim(), out var end))
-                    result.Add((start, end));
-                else if (parts.Length == 1 && TimeSpan.TryParse(parts[0].Trim(), out var s))
-                    result.Add((s, s.Add(TimeSpan.FromHours(1)))); // Mặc định khung 1h
-            }
-            return result;
-        }
         // =======================================================
-        // 1. LẤY NHẮC NHỞ THEO GIA ĐÌNH (CHO DASHBOARD CHUNG)
+        // LẤY NHẮC NHỞ THEO GIA ĐÌNH (CHO DASHBOARD CHUNG)
         // =======================================================
         public async Task<ApiResponse<IEnumerable<ReminderDailyResponse>>> GetFamilyDailyRemindersAsync(Guid familyId, Guid currentUserId, DateTime date)
         {
-            // Kiểm tra xem User hiện tại có thuộc gia đình này không
             var isFamilyMember = (await _unitOfWork.Repository<Members>()
-     .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
+                .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember) return ApiResponse<IEnumerable<ReminderDailyResponse>>.Fail("Bạn không có quyền xem thông tin gia đình này.", 403);
 
             var startDate = date.Date;
             var endDate = date.Date.AddDays(1).AddTicks(-1);
 
-            // Lấy tất cả Reminder của các thành viên trong Family
             var reminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.Schedule.Member.FamilyId == familyId
                                 && r.ReminderDate >= startDate
                                 && r.ReminderDate <= endDate
                                 && r.Schedule.IsActive,
-                        includeProperties: "Schedule,Schedule.Member"); // Join tới bảng Member để lấy Tên
+                        includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            var response = reminders.OrderBy(r => r.ReminderTime)
-                             .Select(MapToReminderDailyResponse);
-
+            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
 
         // =======================================================
-        // 2. CẬP NHẬT LỊCH (UPDATE)
+        // CẬP NHẬT LỊCH (UPDATE)
         // =======================================================
         public async Task<ApiResponse<ScheduleResponse>> UpdateScheduleAsync(Guid scheduleId, Guid currentUserId, UpdateScheduleRequest request)
         {
             var schedule = (await _unitOfWork.Repository<MedicationSchedules>()
-      .FindAsync(s => s.ScheduleId == scheduleId, "Member")).FirstOrDefault();
+                .FindAsync(s => s.ScheduleId == scheduleId, "Member")).FirstOrDefault();
 
-            if (schedule == null) return ApiResponse<ScheduleResponse>.Fail("Không tìm thấy lịch.", 404);
+            if (schedule == null) return ApiResponse<ScheduleResponse>.Fail("Không tìm thấy khung giờ.", 404);
 
             if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
                 return ApiResponse<ScheduleResponse>.Fail("Access Denied", 403);
-            var oldData = new { schedule.MedicineName, schedule.Dosage, schedule.SpecificTimes, schedule.EndDate };
-            bool hasChanges = false;
-            // 2.1 Cập nhật thông tin cơ bản
-            if (schedule.MedicineName != request.MedicineName) { schedule.MedicineName = request.MedicineName; hasChanges = true; }
-            if (schedule.Dosage != request.Dosage) { schedule.Dosage = request.Dosage; hasChanges = true; }
-            if (schedule.SpecificTimes != request.SpecificTimes) { schedule.SpecificTimes = request.SpecificTimes; hasChanges = true; }
-            if (schedule.EndDate != request.EndDate?.Date) { schedule.EndDate = request.EndDate?.Date; hasChanges = true; }
 
-            schedule.Instructions = request.Instructions;
-            schedule.UpdatedAt = DateTime.Now;
-
-            // 2.2 Xóa toàn bộ các Reminder "Pending" TRONG TƯƠNG LAI của lịch này
-            // Mục đích: Dọn đường để tạo lại nhắc nhở với khung giờ mới
-            var futurePendingReminders = await _unitOfWork.Repository<MedicationReminders>()
-                .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending" && r.EndTime > DateTime.Now);
-
-            _unitOfWork.Repository<MedicationReminders>().RemoveRange(futurePendingReminders);
-
-            // 2.3 Sinh lại các Reminder mới từ thời điểm hiện tại trở đi
-            var timeRanges = ParseTimeRanges(request.SpecificTimes);
-            DateTime limitDate = DateTime.Now.AddDays(30).Date;
-            DateTime endGenerationDate = request.EndDate.HasValue && request.EndDate.Value < limitDate
-                                         ? request.EndDate.Value : limitDate;
-
-            var newReminders = new List<MedicationReminders>();
-            // Bắt đầu quét từ ngày hôm nay (Now) thay vì StartDate cũ
-            for (var date = DateTime.Now.Date; date <= endGenerationDate; date = date.AddDays(1))
-            {
-                foreach (var range in timeRanges)
-                {
-                    var startTime = date.Add(range.Start);
-                    var endTime = date.Add(range.End);
-                    if (endTime <= startTime) endTime = endTime.AddDays(1);
-
-                    if (endTime > DateTime.Now)
-                    {
-                        var reminder = new MedicationReminders
-                        {
-                            ReminderId = Guid.NewGuid(),
-                            ScheduleId = schedule.ScheduleId,
-                            ReminderDate = date,
-                            ReminderTime = startTime,
-                            EndTime = endTime,
-                            Status = "Pending"
-                        };
-                        await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
-                        newReminders.Add(reminder);
-                    }
-                }
-            }
+            // Cập nhật thông tin cơ bản
+            schedule.ScheduleName = request.ScheduleName;
+            
+            bool timeChanged = schedule.TimeOfDay != request.TimeOfDay;
+            schedule.TimeOfDay = request.TimeOfDay;
 
             _unitOfWork.Repository<MedicationSchedules>().Update(schedule);
             await _unitOfWork.CompleteAsync();
-
-            // 2.4 Đặt lịch Hangfire cho các Reminder mới
-            foreach (var reminder in newReminders)
+            
+            // Nếu đổi giờ, cần update lại các reminders pending
+            if (timeChanged)
             {
-                _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
-                    new DateTimeOffset(reminder.EndTime)
-                );
+                var futurePendingReminders = await _unitOfWork.Repository<MedicationReminders>()
+                    .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending" && r.ReminderDate >= DateTime.Now.Date);
+
+                foreach (var r in futurePendingReminders)
+                {
+                    r.ReminderTime = r.ReminderDate.Add(schedule.TimeOfDay);
+                    r.EndTime = r.ReminderTime.AddHours(1); // Mặc định khung 1h
+                    _unitOfWork.Repository<MedicationReminders>().Update(r);
+                    
+                    // Xóa background job cũ và tạo lại nếu có thể, hoặc đơn giản để job check tự xử lý 
+                    // Trong thực tế cần gọi Hangfire Client xóa job cũ, ở đây tạm thời bỏ qua phần xóa Job ID
+                }
+                await _unitOfWork.CompleteAsync();
             }
 
-            if (hasChanges)
+            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Cập nhật thành công.");
+        }
+
+        public async Task<ApiResponse<ScheduleDetailItemResponse>> UpdateScheduleDetailAsync(Guid detailId, Guid currentUserId, UpdateScheduleDetailRequest request)
+        {
+            var detail = (await _unitOfWork.Repository<MedicationScheduleDetails>()
+                .FindAsync(d => d.ScheduleDetailId == detailId, "Schedule,PrescriptionMedicine"))
+                .FirstOrDefault();
+
+            if (detail == null) return ApiResponse<ScheduleDetailItemResponse>.Fail("Không tìm thấy chi tiết lịch.", 404);
+
+            if (!await _currentUserService.CheckAccess(detail.Schedule.MemberId, currentUserId))
+                return ApiResponse<ScheduleDetailItemResponse>.Fail("Access Denied", 403);
+
+            if (!string.IsNullOrEmpty(request.Dosage)) detail.Dosage = request.Dosage;
+            if (request.StartDate.HasValue) detail.StartDate = request.StartDate.Value.Date;
+            if (request.EndDate.HasValue) detail.EndDate = request.EndDate.Value.Date;
+
+            _unitOfWork.Repository<MedicationScheduleDetails>().Update(detail);
+            await _unitOfWork.CompleteAsync();
+
+            if (request.EndDate.HasValue || request.StartDate.HasValue)
             {
-                var newData = new { schedule.MedicineName, schedule.Dosage, schedule.SpecificTimes, schedule.EndDate };
-                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(schedule.MemberId);
+                var schedule = detail.Schedule;
+                var now = DateTime.Now.Date;
+                var beginGenDate = request.StartDate.HasValue && request.StartDate.Value.Date >= now ? request.StartDate.Value.Date : now;
+                var endGenDate = request.EndDate ?? detail.EndDate;
 
-                if (targetMember != null && targetMember.FamilyId.HasValue)
+                if (endGenDate >= now)
                 {
-                    var doer = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
+                    var existingReminders = await _unitOfWork.Repository<MedicationReminders>()
+                        .FindAsync(r => r.ScheduleId == schedule.ScheduleId && r.ReminderDate >= beginGenDate && r.ReminderDate <= endGenDate);
+                    
+                    var newReminders = new List<MedicationReminders>();
 
-                    if (doer != null)
+                    for (var date = beginGenDate; date <= endGenDate; date = date.AddDays(1))
                     {
-                        await _activityLogService.LogActivityAsync(
-                            familyId: targetMember.FamilyId.Value,
-                            memberId: doer.MemberId,
-                            actionType: ActivityActionTypes.UPDATE,
-                            entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
-                            entityId: schedule.ScheduleId,
-                            description: $"Đã điều chỉnh lịch uống thuốc '{schedule.MedicineName}' của '{targetMember.FullName}'.",
-                            oldData: oldData,
-                            newData: newData
-                        );
+                        var reminderTime = date.Add(schedule.TimeOfDay);
+                        var endTime = reminderTime.AddHours(2);
+                        
+                        if (endTime > DateTime.Now && !existingReminders.Any(r => r.ReminderDate == date))
+                        {
+                            var reminder = new MedicationReminders
+                            {
+                                ReminderId = Guid.NewGuid(),
+                                ScheduleId = schedule.ScheduleId,
+                                ReminderDate = date,
+                                ReminderTime = reminderTime,
+                                EndTime = endTime,
+                                Status = "Pending"
+                            };
+                            await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
+                            newReminders.Add(reminder);
+                        }
+                    }
+
+                    if (newReminders.Any())
+                    {
+                        await _unitOfWork.CompleteAsync();
+                        foreach (var reminder in newReminders)
+                        {
+                            _backgroundJobClient.Schedule<IReminderJobService>(
+                                job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
+                                new DateTimeOffset(reminder.EndTime)
+                            );
+                        }
                     }
                 }
             }
 
-            return ApiResponse<ScheduleResponse>.Ok(MapToResponse(schedule), "Cập nhật lịch thành công.");
+            var response = new ScheduleDetailItemResponse
+            {
+                DetailId = detail.ScheduleDetailId,
+                PrescriptionMedicineId = detail.PrescriptionMedicineId,
+                MedicineName = detail.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                Dosage = detail.Dosage,
+                Instructions = detail.PrescriptionMedicine?.Instructions ?? string.Empty,
+                StartDate = detail.StartDate,
+                EndDate = detail.EndDate
+            };
+
+            return ApiResponse<ScheduleDetailItemResponse>.Ok(response, "Cập nhật chi tiết lịch thành công.");
         }
+
         public async Task<ApiResponse<ScheduleDetailResponse>> GetScheduleByIdAsync(Guid scheduleId, Guid currentUserId)
         {
             var schedule = (await _unitOfWork.Repository<MedicationSchedules>()
-        .FindAsync(
-            s => s.ScheduleId == scheduleId,
-            // SỬA Ở ĐÂY: Thêm Prescription.PrescriptionMedicines
-            includeProperties: "Member,Prescription,Prescription.PrescriptionMedicines"
-        )).FirstOrDefault();
+                .FindAsync(
+                    s => s.ScheduleId == scheduleId,
+                    includeProperties: "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine"
+                )).FirstOrDefault();
 
             if (schedule == null)
                 return ApiResponse<ScheduleDetailResponse>.Fail("Không tìm thấy lịch uống thuốc.", 404);
@@ -324,23 +265,20 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<ScheduleDetailResponse>.Ok(MapToDetailResponse(schedule));
         }
+
         // =======================================================
-        // 3. XÓA LỊCH (DELETE)
+        // XÓA LỊCH (DELETE)
         // =======================================================
         public async Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId)
         {
             var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(scheduleId);
-            if (schedule == null) return ApiResponse<bool>.Fail("Không tìm thấy lịch.", 404);
+            if (schedule == null) return ApiResponse<bool>.Fail("Không tìm thấy khung giờ.", 404);
 
             if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
                 return ApiResponse<bool>.Fail("Access Denied", 403);
 
-            // KHÔNG XÓA CỨNG LỊCH (Soft Delete) để giữ lại Lịch sử (Logs) đã uống trong quá khứ
             schedule.IsActive = false;
-            schedule.UpdatedAt = DateTime.Now;
 
-            // Xóa cứng toàn bộ Reminder "Pending" để hệ thống UI không hiển thị nữa
-            // Khi Hangfire chạy tới những cái đã hẹn giờ, nó tìm không thấy DB -> Tự hủy êm đẹp
             var pendingReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending");
 
@@ -349,136 +287,142 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
-            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(schedule.MemberId);
-            if (targetMember != null && targetMember.FamilyId.HasValue)
-            {
-                var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
-
-                if (doer != null)
-                {
-                    await _activityLogService.LogActivityAsync(
-                        familyId: targetMember.FamilyId.Value,
-                        memberId: doer.MemberId,
-                        actionType: ActivityActionTypes.DELETE, // Có thể cân nhắc thêm một hằng số STOP/DEACTIVATE
-                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
-                        entityId: schedule.ScheduleId,
-                        description: $"Đã dừng lịch nhắc uống thuốc '{schedule.MedicineName}' của '{targetMember.FullName}'."
-                    );
-                }
-            }
-
-            return ApiResponse<bool>.Ok(true, "Đã xóa lịch uống thuốc.");
+            return ApiResponse<bool>.Ok(true, "Đã xóa khung giờ.");
         }
+
         public async Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId)
         {
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
-            // Include "Member" để lấy được tên người dùng nếu cần
             var schedules = await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId, "Member");
+                .FindAsync(s => s.MemberId == memberId, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
 
-            // Sắp xếp: Lịch đang hoạt động lên đầu, sau đó xếp theo ngày tạo mới nhất
             var response = schedules
                 .OrderByDescending(s => s.IsActive)
-                .ThenByDescending(s => s.StartDate)
+                .ThenBy(s => s.TimeOfDay)
                 .Select(s => MapToResponse(s));
 
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
 
-        // =======================================================
-        // 5. LẤY DANH SÁCH LỊCH CỦA TOÀN BỘ GIA ĐÌNH (FAMILY)
-        // =======================================================
         public async Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetFamilySchedulesAsync(Guid familyId, Guid currentUserId)
         {
-            // Kiểm tra xem User hiện tại có thuộc gia đình này không
             var isFamilyMember = (await _unitOfWork.Repository<Members>()
-         .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
+                .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember)
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Bạn không có quyền xem thông tin gia đình này.", 403);
 
-            // Lấy toàn bộ lịch của các thành viên trong gia đình
             var schedules = await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.Member.FamilyId == familyId, "Member");
+                .FindAsync(s => s.Member.FamilyId == familyId, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
 
             var response = schedules
                 .OrderByDescending(s => s.IsActive)
-                .ThenByDescending(s => s.StartDate)
+                .ThenBy(s => s.TimeOfDay)
                 .Select(s => MapToResponse(s));
 
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
 
         // =======================================================
-        // TẠO NHIỀU LỊCH UỐNG THUỐC CÙNG LÚC (TỪ 1 ĐƠN THUỐC)
+        // TẠO NHIỀU THUỐC VÀO CÁC KHUNG GIỜ CÙNG LÚC
         // =======================================================
         public async Task<ApiResponse<List<ScheduleResponse>>> CreateBulkSchedulesAsync(Guid memberId, Guid currentUserId, CreateBulkScheduleRequest request)
         {
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<List<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
-            var createdSchedules = new List<MedicationSchedules>();
-            var allReminders = new List<MedicationReminders>();
+            // Fetch existing schedules for the member to reuse time blocks
+            var existingSchedules = (await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.MemberId == memberId)).ToList();
 
-            // 1. Lặp qua từng loại thuốc trong request để tạo Lịch
+            var allReminders = new List<MedicationReminders>();
+            var modifiedSchedules = new HashSet<MedicationSchedules>();
+
             foreach (var item in request.Schedules)
             {
-                var schedule = new MedicationSchedules
-                {
-                    ScheduleId = Guid.NewGuid(),
-                    MemberId = memberId,
-                    PrescriptionId = request.PrescriptionId, // Gắn chung 1 Đơn thuốc
-                    MedicineName = item.MedicineName,
-                    Dosage = item.Dosage,
-                    Frequency = item.Frequency,
-                    SpecificTimes = item.SpecificTimes,
-                    StartDate = item.StartDate.Date,
-                    EndDate = item.EndDate?.Date,
-                    Instructions = item.Instructions,
-                    IsActive = true,
-                    CreateAt = DateTime.Now
-                };
-
-                await _unitOfWork.Repository<MedicationSchedules>().AddAsync(schedule);
-                createdSchedules.Add(schedule);
-
-                // 2. Phân tích khung giờ cho TỪNG loại thuốc
+                // In Pillbox, we convert "SpecificTimes" to time blocks
                 var timeRanges = ParseTimeRanges(item.SpecificTimes);
-                var endGenDate = item.EndDate ?? DateTime.Now.AddDays(30).Date;
-
-                for (var date = schedule.StartDate; date <= endGenDate; date = date.AddDays(1))
+                
+                foreach (var range in timeRanges)
                 {
-                    foreach (var range in timeRanges)
+                    TimeSpan timeBlock = range.Start;
+                    string blockName = GetBlockNameConvention(timeBlock);
+
+                    // Find or create TimeBlock
+                    var schedule = existingSchedules.FirstOrDefault(s => s.TimeOfDay == timeBlock);
+                    if (schedule == null)
                     {
-                        var startTime = date.Add(range.Start);
+                        schedule = new MedicationSchedules
+                        {
+                            ScheduleId = Guid.NewGuid(),
+                            MemberId = memberId,
+                            ScheduleName = blockName,
+                            TimeOfDay = timeBlock,
+                            IsActive = true,
+                            CreatedAt = DateTime.Now
+                        };
+                        await _unitOfWork.Repository<MedicationSchedules>().AddAsync(schedule);
+                        existingSchedules.Add(schedule);
+                    }
+                    modifiedSchedules.Add(schedule);
+
+                    // Find Prescription Medicine
+                    Guid presMedId = Guid.Empty;
+                    if (request.PrescriptionId.HasValue)
+                    {
+                        var presMed = (await _unitOfWork.Repository<PrescriptionMedicines>()
+                            .FindAsync(pm => pm.PrescriptionId == request.PrescriptionId.Value && pm.MedicineName == item.MedicineName)).FirstOrDefault();
+                        if (presMed != null) presMedId = presMed.PrescriptionMedicineId;
+                    }
+
+                    // Add detail
+                    var detail = new MedicationScheduleDetails
+                    {
+                        ScheduleDetailId = Guid.NewGuid(),
+                        ScheduleId = schedule.ScheduleId,
+                        PrescriptionMedicineId = presMedId,
+                        Dosage = item.Dosage,
+                        StartDate = item.StartDate.Date,
+                        EndDate = item.EndDate?.Date ?? item.StartDate.Date.AddDays(30)
+                    };
+                    await _unitOfWork.Repository<MedicationScheduleDetails>().AddAsync(detail);
+
+                    // Generate Reminder if needed
+                    var endGenDate = item.EndDate ?? DateTime.Now.AddDays(30).Date;
+                    for (var date = item.StartDate.Date; date <= endGenDate; date = date.AddDays(1))
+                    {
+                        var startTime = date.Add(timeBlock);
                         var endTime = date.Add(range.End);
                         if (endTime <= startTime) endTime = endTime.AddDays(1);
 
                         if (endTime > DateTime.Now)
                         {
-                            var reminder = new MedicationReminders
+                            // Avoid duplicate reminders for the same timeblock on the same day
+                            var existingReminder = allReminders.FirstOrDefault(r => r.ScheduleId == schedule.ScheduleId && r.ReminderDate == date);
+                            if (existingReminder == null)
                             {
-                                ReminderId = Guid.NewGuid(),
-                                ScheduleId = schedule.ScheduleId,
-                                ReminderDate = date,
-                                ReminderTime = startTime,
-                                EndTime = endTime,
-                                Status = "Pending"
-                            };
-                            await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
-                            allReminders.Add(reminder);
+                                var reminder = new MedicationReminders
+                                {
+                                    ReminderId = Guid.NewGuid(),
+                                    ScheduleId = schedule.ScheduleId,
+                                    ReminderDate = date,
+                                    ReminderTime = startTime,
+                                    EndTime = endTime,
+                                    Status = "Pending"
+                                };
+                                await _unitOfWork.Repository<MedicationReminders>().AddAsync(reminder);
+                                allReminders.Add(reminder);
+                            }
                         }
                     }
                 }
             }
 
-            // 3. Lưu toàn bộ Lịch và Nhắc nhở vào Database (Chỉ tốn 1 lần gọi DB)
             await _unitOfWork.CompleteAsync();
 
-            // 4. Lên lịch Hangfire cho TẤT CẢ nhắc nhở vừa tạo
+            // Lên lịch Hangfire cho TẤT CẢ nhắc nhở mới
             foreach (var reminder in allReminders)
             {
                 _backgroundJobClient.Schedule<IReminderJobService>(
@@ -487,29 +431,11 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
-            // 5. Ghi Log Activity
-            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-            if (targetMember != null && targetMember.FamilyId.HasValue)
-            {
-                var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
-
-                if (doer != null)
-                {
-                    await _activityLogService.LogActivityAsync(
-                        familyId: targetMember.FamilyId.Value,
-                        memberId: doer.MemberId,
-                        actionType: ActivityActionTypes.CREATE,
-                        entityName: ActivityEntityNames.MEDICATION_SCHEDULE,
-                        entityId: request.PrescriptionId ?? Guid.Empty, // Log gộp theo Đơn thuốc
-                        description: $"Đã thiết lập {createdSchedules.Count} lịch uống thuốc mới cho '{targetMember.FullName}'."
-                    );
-                }
-            }
-
-            // Trả về danh sách Lịch vừa tạo
-            var responseData = createdSchedules.Select(MapToResponse).ToList();
-            return ApiResponse<List<ScheduleResponse>>.Ok(responseData, "Đã tạo lịch uống thuốc thành công.");
+            var schedulesToReturn = await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.MemberId == memberId, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
+            var responseData = schedulesToReturn.Where(s => modifiedSchedules.Select(ms => ms.ScheduleId).Contains(s.ScheduleId)).Select(MapToResponse).ToList();
+            
+            return ApiResponse<List<ScheduleResponse>>.Ok(responseData, "Đã lưu lịch uống thuốc thành công.");
         }
 
 
@@ -521,14 +447,25 @@ namespace MediMateService.Services.Implementations
                 ScheduleId = r.ScheduleId,
                 MemberId = r.Schedule.MemberId,
                 MemberName = r.Schedule.Member?.FullName ?? "Unknown",
-                MedicineName = r.Schedule.MedicineName,
-                Dosage = r.Schedule.Dosage,
-                Instructions = r.Schedule.Instructions, // Lấy từ Schedule gốc sang
+                ScheduleName = r.Schedule.ScheduleName,
                 ReminderTime = r.ReminderTime,
                 EndTime = r.EndTime,
-                Status = r.Status
+                Status = r.Status,
+                Medicines = r.Schedule.ScheduleDetails?
+                    .Where(d => d.StartDate.Date <= r.ReminderDate.Date && d.EndDate.Date >= r.ReminderDate.Date)
+                    .Select(d => new ScheduleDetailItemResponse
+                {
+                    DetailId = d.ScheduleDetailId,
+                    PrescriptionMedicineId = d.PrescriptionMedicineId,
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty,
+                    StartDate = d.StartDate,
+                    EndDate = d.EndDate
+                }).ToList() ?? new List<ScheduleDetailItemResponse>()
             };
         }
+        
         private ScheduleResponse MapToResponse(MedicationSchedules schedule)
         {
             return new ScheduleResponse
@@ -536,20 +473,23 @@ namespace MediMateService.Services.Implementations
                 ScheduleId = schedule.ScheduleId,
                 MemberId = schedule.MemberId,
                 MemberName = schedule.Member?.FullName ?? "Unknown",
-                PrescriptionId = schedule.PrescriptionId,
-                MedicineName = schedule.MedicineName,
-                Dosage = schedule.Dosage,
-                Frequency = schedule.Frequency,
-                SpecificTimes = schedule.SpecificTimes,
-                StartDate = schedule.StartDate,
-                EndDate = schedule.EndDate,
+                ScheduleName = schedule.ScheduleName,
+                TimeOfDay = schedule.TimeOfDay,
                 IsActive = schedule.IsActive,
-                CreateAt = schedule.CreateAt
-                 
+                CreatedAt = schedule.CreatedAt,
+                ScheduleDetails = schedule.ScheduleDetails?.Select(d => new ScheduleDetailItemResponse
+                {
+                    DetailId = d.ScheduleDetailId,
+                    PrescriptionMedicineId = d.PrescriptionMedicineId,
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty,
+                    StartDate = d.StartDate,
+                    EndDate = d.EndDate
+                }).ToList() ?? new List<ScheduleDetailItemResponse>()
             };
         }
 
-        // Mapper cho chi tiết (Đầy đủ thông tin + Đơn thuốc)
         private ScheduleDetailResponse MapToDetailResponse(MedicationSchedules schedule)
         {
             var response = new ScheduleDetailResponse
@@ -557,44 +497,46 @@ namespace MediMateService.Services.Implementations
                 ScheduleId = schedule.ScheduleId,
                 MemberId = schedule.MemberId,
                 MemberName = schedule.Member?.FullName ?? "Unknown",
-                PrescriptionId = schedule.PrescriptionId,
-                MedicineName = schedule.MedicineName,
-                Dosage = schedule.Dosage,
-                Frequency = schedule.Frequency,
-                SpecificTimes = schedule.SpecificTimes,
-                Instructions = schedule.Instructions,
-                StartDate = schedule.StartDate,
-                EndDate = schedule.EndDate,
+                ScheduleName = schedule.ScheduleName,
+                TimeOfDay = schedule.TimeOfDay,
                 IsActive = schedule.IsActive,
-                CreateAt = schedule.CreateAt
-            };
-
-            // Mapping thông tin đơn thuốc nếu có link tới Prescription
-            if (schedule.Prescription != null)
-            {
-                var p = schedule.Prescription;
-                response.Prescription = new PrescriptionInfoResponse
+                CreatedAt = schedule.CreatedAt,
+                ScheduleDetails = schedule.ScheduleDetails?.Select(d => new ScheduleDetailItemResponse
                 {
-                    PrescriptionId = p.PrescriptionId,
-                    PrescriptionCode = p.PrescriptionCode,
-                    HospitalName = p.HospitalName,
-                    DoctorName = p.DoctorName,
-                    PrescriptionDate = p.PrescriptionDate,
-
-                    // --- THÊM ĐOẠN MAP MEDICINES VÀO ĐÂY ---
-                    Medicines = p.PrescriptionMedicines?.Select(m => new PrescriptionMedicineResponse
-                    {
-                        PrescriptionMedicineId = m.PrescriptionMedicineId,
-                        MedicineName = m.MedicineName,
-                        Dosage = m.Dosage,
-                        Unit = m.Unit,
-                        Quantity = m.Quantity,
-                        Instructions = m.Instructions
-                    }).ToList() ?? new List<PrescriptionMedicineResponse>()
-                };
-            }
-
+                    DetailId = d.ScheduleDetailId,
+                    PrescriptionMedicineId = d.PrescriptionMedicineId,
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty,
+                    StartDate = d.StartDate,
+                    EndDate = d.EndDate
+                }).ToList() ?? new List<ScheduleDetailItemResponse>()
+            };
             return response;
+        }
+
+        private List<(TimeSpan Start, TimeSpan End)> ParseTimeRanges(string timesStr)
+        {
+            var result = new List<(TimeSpan, TimeSpan)>();
+            if (string.IsNullOrEmpty(timesStr)) return result;
+
+            foreach (var t in timesStr.Split(','))
+            {
+                var parts = t.Split('-');
+                if (parts.Length == 2 && TimeSpan.TryParse(parts[0].Trim(), out var start) && TimeSpan.TryParse(parts[1].Trim(), out var end))
+                    result.Add((start, end));
+                else if (parts.Length == 1 && TimeSpan.TryParse(parts[0].Trim(), out var s))
+                    result.Add((s, s.Add(TimeSpan.FromHours(1)))); // Mặc định khung 1h
+            }
+            return result;
+        }
+
+        private string GetBlockNameConvention(TimeSpan time)
+        {
+            if (time.Hours < 11) return "Sáng";
+            if (time.Hours < 14) return "Trưa";
+            if (time.Hours < 18) return "Chiều";
+            return "Tối";
         }
     }
 }

@@ -34,8 +34,8 @@ namespace MediMateService.Services.Implementations
 
             if (profile == null)
             {
-                // Nếu chưa có thì trả về object rỗng hoặc tạo mới tùy logic
-                return ApiResponse<HealthProfileResponse>.Fail("Chưa có hồ sơ sức khỏe.", 404);
+                // SỬA TẠI ĐÂY: Trả về 200 OK với data = null thay vì 404 Fail
+                return ApiResponse<HealthProfileResponse>.Ok(null, "Chưa có hồ sơ sức khỏe.");
             }
 
             return ApiResponse<HealthProfileResponse>.Ok(MapToResponse(profile));

@@ -167,13 +167,12 @@ namespace MediMateRepository.Data
 
 
 
-            // 1. MedicationSchedules - PrescriptionMedicines (1-1 ho?c 1-N tùy logic)
-            // ? đây b?n đang đ? 1 Schedule ?ng v?i 1 PrescriptionMedicineId
+            // 1. MedicationSchedules - Prescriptions (1-N)
             modelBuilder.Entity<MedicationSchedules>()
-                .HasOne(ms => ms.PrescriptionMedicines)
-                .WithMany() // M?t lo?i thu?c trong đơn có th? có nhi?u l?ch u?ng (ho?c 1, tùy b?n)
-                .HasForeignKey(ms => ms.PrescriptionMedicineId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa thu?c trong đơn -> Xóa l?ch u?ng
+                .HasOne(ms => ms.Prescription)
+                .WithMany(p => p.MedicationSchedules)
+                .HasForeignKey(ms => ms.PrescriptionId)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa đơn thuốc -> Xóa lịch uống
 
             // 2. MedicationSchedules - Members (1-N)
             modelBuilder.Entity<MedicationSchedules>()

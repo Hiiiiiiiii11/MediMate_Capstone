@@ -63,6 +63,23 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet]
+        //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<DoctorDocumentDto>>), 200)]
+        public async Task<IActionResult> GetAll()
+        {
+            try
+            {
+                var response = await _documentService.GetAllAsync();
+                return StatusCode(response.Code, response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
         [HttpGet("{id}")]
         //[Authorize(Roles = $"{Roles.Doctor},{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]

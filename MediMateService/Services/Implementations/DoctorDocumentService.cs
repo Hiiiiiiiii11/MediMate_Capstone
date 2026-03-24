@@ -53,6 +53,13 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<IEnumerable<DoctorDocumentDto>>.Ok(response);
         }
 
+        public async Task<ApiResponse<IEnumerable<DoctorDocumentDto>>> GetAllAsync()
+        {
+            var documents = await _unitOfWork.Repository<DoctorDocument>().GetAllAsync();
+            var response = documents.OrderByDescending(d => d.CreatedAt).Select(MapToDto);
+            return ApiResponse<IEnumerable<DoctorDocumentDto>>.Ok(response);
+        }
+
         public async Task<ApiResponse<DoctorDocumentDto>> GetByIdAsync(Guid documentId)
         {
             var document = await _unitOfWork.Repository<DoctorDocument>().GetByIdAsync(documentId);

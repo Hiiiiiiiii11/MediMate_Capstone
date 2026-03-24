@@ -64,9 +64,9 @@ namespace MediMateService.Services.Implementations
             if (filter.PageNumber <= 0) filter.PageNumber = 1;
             if (filter.PageSize <= 0) filter.PageSize = 10;
 
-            var query = _unitOfWork.Repository<DoctorDocument>()
-                .GetQueryable()
-                .Include(d => d.Doctor);
+            IQueryable<DoctorDocument> query = _unitOfWork.Repository<DoctorDocument>()
+    .GetQueryable()
+    .Include(d => d.Doctor);
 
             if (filter.DoctorId.HasValue)
                 query = query.Where(d => d.DoctorId == filter.DoctorId.Value);

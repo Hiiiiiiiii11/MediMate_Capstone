@@ -24,6 +24,7 @@ namespace MediMateApi.Controllers
         }
 
         [HttpPost("prescription-scan")]
+        [ProducesResponseType(typeof(ApiResponse<OcrScanResponse>), 200)]
         public async Task<IActionResult> UploadForScan(IFormFile file, [FromQuery] Guid? memberId) // <--- Đổi thành Guid?
         {
             try
@@ -76,8 +77,9 @@ namespace MediMateApi.Controllers
 
     [HttpPost("document")]
     //[Authorize(Roles = Roles.Doctor)]
+    [ProducesResponseType(typeof(object), 200)]
     public async Task<IActionResult> UploadDocument(IFormFile file)
-    {
+        {
         try
         {
             var fileUrl = await _uploadPhotoService.UploadDocumentAsync(file);

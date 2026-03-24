@@ -15,6 +15,7 @@ namespace MediMateService.Services
         Task<ApiResponse<IEnumerable<ReminderDailyResponse>>> GetDailyRemindersAsync(Guid memberId, Guid currentUserId, DateTime date);
         Task<ApiResponse<bool>> MarkReminderActionAsync(Guid reminderId, Guid currentUserId, MedicationActionRequest request);
         Task<ApiResponse<IEnumerable<ReminderDailyResponse>>> GetFamilyDailyRemindersAsync(Guid familyId, Guid currentUserId, DateTime date);
+        Task<ApiResponse<ScheduleDetailResponse>> GetScheduleByIdAsync(Guid scheduleId, Guid currentUserId);
 
         // 2. Cập nhật Schedule
         Task<ApiResponse<ScheduleResponse>> UpdateScheduleAsync(Guid scheduleId, Guid currentUserId, UpdateScheduleRequest request);
@@ -23,6 +24,7 @@ namespace MediMateService.Services
         Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId);
         Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId);
         Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetFamilySchedulesAsync(Guid familyId, Guid currentUserId);
+        Task<ApiResponse<List<ScheduleResponse>>> CreateBulkSchedulesAsync(Guid memberId, Guid currentUserId, CreateBulkScheduleRequest request);
 
     }
 }

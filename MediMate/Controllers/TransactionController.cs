@@ -2,6 +2,7 @@ using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using System;
 using System.Threading.Tasks;
 
@@ -20,6 +21,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<TransactionItemDto>>), 200)]
         public async Task<IActionResult> GetAllTransactions([FromQuery] TransactionFilterDto filter)
         {
             try
@@ -34,6 +36,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<TransactionDetailDto>), 200)]
         public async Task<IActionResult> GetTransactionDetail(Guid id)
         {
             try

@@ -26,6 +26,7 @@ namespace MediMate.Controllers
 
         [HttpGet]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<DoctorResponse>>), 200)]
         public async Task<IActionResult> GetDoctors([FromQuery] GetDoctorsRequest request)
         {
             var data = await _doctorService.GetPublicDoctorsAsync(request.Specialty);
@@ -35,6 +36,7 @@ namespace MediMate.Controllers
 
         [HttpGet("{doctorId}")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> GetDoctorById(Guid doctorId)
         {
             var data = await _doctorService.GetPublicDoctorByIdAsync(doctorId);
@@ -53,6 +55,7 @@ namespace MediMate.Controllers
 
         [HttpGet("{doctorId}/reviews")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<DoctorReviewResponse>>), 200)]
         public async Task<IActionResult> GetReviews(Guid doctorId)
         {
             var data = await _ratingService.GetDoctorReviewsAsync(doctorId);
@@ -64,6 +67,7 @@ namespace MediMate.Controllers
         [HttpGet("me")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> GetMyProfile()
         {
             var userId = GetCurrentUserId();
@@ -76,6 +80,7 @@ namespace MediMate.Controllers
         [HttpPost("me/submit")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> SubmitProfile([FromForm] SubmitDoctorRequest request)
         {
             var userId = GetCurrentUserId();
@@ -104,6 +109,7 @@ namespace MediMate.Controllers
         [HttpPatch("me/online")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Heartbeat()
         {
             var userId = GetCurrentUserId();
@@ -120,6 +126,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("activate")]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> Activate([FromBody] ActivateDoctorRequest request)
         {
             var data = await _doctorService.ActivateDoctorAsync(request.DoctorId, request.VerifyCode);

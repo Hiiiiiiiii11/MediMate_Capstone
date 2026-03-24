@@ -153,7 +153,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<UserProfileResponse>.Fail("Không tìm thấy người dùng.", 404);
             }
 
-            // 2. Cập nhật dữ liệu
+            // 2. Cập nhật dữ liệu cho User
             if (!string.IsNullOrEmpty(request.FullName))
             {
                 user.FullName = request.FullName;
@@ -166,29 +166,50 @@ namespace MediMateService.Services.Implementations
             {
                 user.DateOfBirth = request.DateOfBirth.Value;
             }
-
             if (!string.IsNullOrEmpty(request.Gender))
             {
                 user.Gender = request.Gender;
             }
 
-
-            // Chỉ cập nhật Avatar nếu có dữ liệu mới (Nếu null thì giữ nguyên hoặc xử lý theo logic riêng)
+            // Chỉ cập nhật Avatar nếu có dữ liệu mới
             if (request.AvatarFile != null)
             {
-                // Gọi hàm upload mới
+                // Gọi hàm upload
                 var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarFile);
-
-                // Lưu link vào DB
-                // Với Avatar, ta thường dùng OriginalUrl (đã được crop face ở service)
                 user.AvatarUrl = uploadResult.OriginalUrl;
             }
 
-            // 3. Lưu vào DB
+            // --- LOGIC ĐỒNG BỘ XUỐNG BẢNG MEMBER ---
+            // 3. Tìm tất cả các Member (trong các gia đình) đang liên kết với UserId này
+            var linkedMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == userId);
+
+            if (linkedMembers != null && linkedMembers.Any())
+            {
+                foreach (var member in linkedMembers)
+                {
+                    // Cập nhật thông tin Member ăn theo User
+                    member.FullName = user.FullName;
+
+                    if (user.DateOfBirth.HasValue)
+                        member.DateOfBirth = user.DateOfBirth.Value;
+
+                    if (!string.IsNullOrEmpty(user.Gender))
+                        member.Gender = user.Gender;
+
+                    if (!string.IsNullOrEmpty(user.AvatarUrl))
+                        member.AvatarUrl = user.AvatarUrl;
+
+                    // Đánh dấu Member này đã bị thay đổi
+                    _unitOfWork.Repository<Members>().Update(member);
+                }
+            }
+            // ----------------------------------------
+
+            // 4. Lưu vào DB (Bao gồm cả User và danh sách Member vừa bị sửa sẽ được lưu cùng 1 lúc)
             _unitOfWork.Repository<User>().Update(user);
             await _unitOfWork.CompleteAsync();
 
-            // 4. Trả về data mới
+            // 5. Trả về data mới
             return await GetProfileAsync(userId);
         }
 

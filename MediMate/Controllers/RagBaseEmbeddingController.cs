@@ -1,7 +1,8 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share.Common;
 using Share.Constants;
 using System;
 using System.Threading.Tasks;
@@ -23,6 +24,7 @@ namespace MediMate.Controllers
 
         // Thường AI Service/Tool ngoài (Python) sẽ gọi API này để insert vector vào DB
         [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseEmbeddingDto>), 201)]
         public async Task<IActionResult> Create([FromBody] CreateRagBaseEmbeddingRequest request)
         {
             try
@@ -38,6 +40,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("documents/{documentId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<RagBaseEmbeddingDto>>), 200)]
         public async Task<IActionResult> GetByDocumentId(Guid documentId)
         {
             try
@@ -52,6 +55,7 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseEmbeddingDto>), 200)]
         public async Task<IActionResult> GetById(Guid id)
         {
             try
@@ -66,6 +70,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<RagBaseEmbeddingDto>), 200)]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRagBaseEmbeddingRequest request)
         {
             try
@@ -81,6 +86,7 @@ namespace MediMate.Controllers
         }
 
         [HttpDelete("{id}")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

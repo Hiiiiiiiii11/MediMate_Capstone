@@ -1,4 +1,4 @@
-﻿namespace MediMateService.DTOs
+namespace MediMateService.DTOs
 {
     public class DoctorDto
     {
@@ -42,13 +42,14 @@
 
     public class UpdateDoctorDto
     {
-        public string FullName { get; set; } = string.Empty;
-        public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
-        public string LicenseNumber { get; set; } = string.Empty;
+        public string? FullName { get; set; }
+        public string? Specialty { get; set; }
+        public string? CurrentHospitalName { get; set; }
+        public string? LicenseNumber { get; set; }
         public string? LicenseImage { get; set; }
-        public int YearsOfExperience { get; set; }
-        public string Bio { get; set; } = string.Empty;
+        public int? YearsOfExperience { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 
     public class RejectDoctorDto

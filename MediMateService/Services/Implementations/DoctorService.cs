@@ -170,15 +170,38 @@ namespace MediMateService.Services.Implementations
             var doctor = doctors.FirstOrDefault(d => d.UserId == userId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy hồ sơ bác sĩ.");
 
-            doctor.FullName = request.FullName;
-            doctor.Specialty = request.Specialty;
-            doctor.CurrentHospitalName = request.CurrentHospitalName;
-            doctor.LicenseNumber = request.LicenseNumber;
-            doctor.LicenseImage = request.LicenseImage;
-            doctor.YearsOfExperience = request.YearsOfExperience;
-            doctor.Bio = request.Bio;
+            bool isUpdated = false;
 
-            await _repo.UpdateDoctorAsync(doctor);
+            if (!string.IsNullOrWhiteSpace(request.FullName)) { doctor.FullName = request.FullName.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.Specialty)) { doctor.Specialty = request.Specialty.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.CurrentHospitalName)) { doctor.CurrentHospitalName = request.CurrentHospitalName.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.LicenseNumber)) { doctor.LicenseNumber = request.LicenseNumber.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.LicenseImage)) { doctor.LicenseImage = request.LicenseImage.Trim(); isUpdated = true; }
+            if (request.YearsOfExperience.HasValue) { doctor.YearsOfExperience = request.YearsOfExperience.Value; isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.Bio)) { doctor.Bio = request.Bio.Trim(); isUpdated = true; }
+            
+            if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
+            {
+                var userRepo = _unitOfWork.Repository<User>();
+                var user = await userRepo.GetByIdAsync(doctor.UserId);
+                if (user != null)
+                {
+                    user.AvatarUrl = request.AvatarUrl.Trim();
+                    userRepo.Update(user);
+                    isUpdated = true;
+                }
+            }
+
+            if (isUpdated)
+            {
+                if (doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+                {
+                    doctor.Status = DoctorStatuses.Pending;
+                }
+                await _repo.UpdateDoctorAsync(doctor);
+                await _unitOfWork.CompleteAsync();
+            }
+
             return MapToDto(doctor);
         }
 

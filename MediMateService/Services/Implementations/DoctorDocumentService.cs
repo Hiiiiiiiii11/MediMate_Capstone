@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +42,13 @@ namespace MediMateService.Services.Implementations
             };
 
             await _unitOfWork.Repository<DoctorDocument>().AddAsync(document);
+
+            if (doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+            {
+                doctor.Status = DoctorStatuses.Pending;
+                _unitOfWork.Repository<Doctors>().Update(doctor);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Nộp tài liệu thành công. Vui lòng chờ phê duyệt.");
@@ -147,6 +154,15 @@ namespace MediMateService.Services.Implementations
             document.Note = "Tài liệu vừa được cập nhật, chờ duyệt lại.";
 
             _unitOfWork.Repository<DoctorDocument>().Update(document);
+
+            // Chốt hạ Direction 2: Hễ sửa bằng cấp là quay về Pending
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(document.DoctorId);
+            if (doctor != null && doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+            {
+                doctor.Status = DoctorStatuses.Pending;
+                _unitOfWork.Repository<Doctors>().Update(doctor);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Cập nhật tài liệu thành công. Vui lòng chờ phê duyệt lại.");
@@ -199,6 +215,25 @@ namespace MediMateService.Services.Implementations
             document.ReviewAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             _unitOfWork.Repository<DoctorDocument>().Update(document);
+
+            // Tự động chuyển trạng thái bác sĩ sang Verified sau khi Approve HẾT tài liệu
+            if (normalizedStatus == "Approved")
+            {
+                var allDocs = await _unitOfWork.Repository<DoctorDocument>()
+                    .FindAsync(d => d.DoctorId == document.DoctorId);
+
+                // Nếu tất cả tài liệu hiện có đều đã được Approved (bao gồm cả tài liệu vừa update)
+                if (allDocs.All(d => d.Status == "Approved"))
+                {
+                    var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(document.DoctorId);
+                    if (doctor != null && doctor.Status == DoctorStatuses.Pending)
+                    {
+                        doctor.Status = DoctorStatuses.Verified;
+                        _unitOfWork.Repository<Doctors>().Update(doctor);
+                    }
+                }
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Phê duyệt tài liệu thành công.");

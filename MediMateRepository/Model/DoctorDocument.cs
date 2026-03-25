@@ -17,6 +17,7 @@ namespace MediMateRepository.Model
         public string? ReviewAt { get; set; }
         public string? Note { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         public virtual Doctors Doctor { get; set; }
     }
 }

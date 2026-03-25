@@ -4,12 +4,7 @@ using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace MediMateService.Services.Implementations
 {
@@ -26,10 +21,14 @@ namespace MediMateService.Services.Implementations
         {
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(doctorId);
             if (doctor == null)
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Không tìm thấy thông tin bác sĩ.", 404);
+            }
 
             if (doctor.UserId != currentUserId)
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Bạn không có quyền thêm tài liệu cho bác sĩ này.", 403);
+            }
 
             var document = new DoctorDocument
             {
@@ -61,21 +60,34 @@ namespace MediMateService.Services.Implementations
         {
             filter ??= new DoctorDocumentFilter();
 
-            if (filter.PageNumber <= 0) filter.PageNumber = 1;
-            if (filter.PageSize <= 0) filter.PageSize = 10;
+            if (filter.PageNumber <= 0)
+            {
+                filter.PageNumber = 1;
+            }
+
+            if (filter.PageSize <= 0)
+            {
+                filter.PageSize = 10;
+            }
 
             IQueryable<DoctorDocument> query = _unitOfWork.Repository<DoctorDocument>()
-    .GetQueryable()
-    .Include(d => d.Doctor);
+                .GetQueryable()
+                .Include(d => d.Doctor);
 
             if (filter.DoctorId.HasValue)
+            {
                 query = query.Where(d => d.DoctorId == filter.DoctorId.Value);
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.Status))
+            {
                 query = query.Where(d => d.Status == filter.Status);
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.Type))
+            {
                 query = query.Where(d => d.Type.Contains(filter.Type));
+            }
 
             var totalCount = query.Count();
 
@@ -106,10 +118,9 @@ namespace MediMateService.Services.Implementations
         {
             var document = (await _unitOfWork.Repository<DoctorDocument>()
                 .FindAsync(d => d.DocumentId == documentId, "Doctor")).FirstOrDefault();
-            if (document == null)
-                return ApiResponse<DoctorDocumentDto>.Fail("Không tìm thấy tài liệu.", 404);
-
-            return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document));
+            return document == null
+                ? ApiResponse<DoctorDocumentDto>.Fail("Không tìm thấy tài liệu.", 404)
+                : ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document));
         }
 
         public async Task<ApiResponse<DoctorDocumentDto>> UpdateAsync(Guid documentId, Guid currentUserId, UpdateDoctorDocumentRequest request)
@@ -118,10 +129,14 @@ namespace MediMateService.Services.Implementations
                 .FindAsync(d => d.DocumentId == documentId, "Doctor")).FirstOrDefault();
 
             if (document == null)
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Không tìm thấy tài liệu.", 404);
+            }
 
             if (document.Doctor.UserId != currentUserId)
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Bạn không có quyền sửa tài liệu này.", 403);
+            }
 
             // Bác sĩ cập nhật lại tài liệu -> Trạng thái phải quay về Pending để duyệt lại
             document.FileUrl = request.FileUrl;
@@ -143,10 +158,14 @@ namespace MediMateService.Services.Implementations
                 .FindAsync(d => d.DocumentId == documentId, "Doctor")).FirstOrDefault();
 
             if (document == null)
+            {
                 return ApiResponse<bool>.Fail("Không tìm thấy tài liệu.", 404);
+            }
 
             if (document.Doctor.UserId != currentUserId)
+            {
                 return ApiResponse<bool>.Fail("Bạn không có quyền xóa tài liệu này.", 403);
+            }
 
             _unitOfWork.Repository<DoctorDocument>().Remove(document);
             await _unitOfWork.CompleteAsync();
@@ -159,11 +178,15 @@ namespace MediMateService.Services.Implementations
         {
             var document = await _unitOfWork.Repository<DoctorDocument>().GetByIdAsync(documentId);
             if (document == null)
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Không tìm thấy tài liệu.", 404);
+            }
 
             var normalizedStatus = NormalizeReviewStatus(request.Status);
             if (string.IsNullOrEmpty(normalizedStatus))
+            {
                 return ApiResponse<DoctorDocumentDto>.Fail("Trạng thái duyệt không hợp lệ.", 400);
+            }
 
             if (normalizedStatus == "Rejected" && string.IsNullOrWhiteSpace(request.Note))
             {
@@ -197,8 +220,6 @@ namespace MediMateService.Services.Implementations
                 FileUrl = d.FileUrl,
                 DocumentName = d.Type,
                 DocumentType = normalizedType,
-                IssuedBy = null,
-                IssuedAt = null,
                 Type = d.Type,
                 Status = normalizedStatus,
                 RejectReason = normalizedStatus == "REJECTED" ? d.Note : null,
@@ -207,9 +228,7 @@ namespace MediMateService.Services.Implementations
                 ReviewedAt = reviewAt,
                 FileMimeType = GetMimeTypeByExtension(extension),
                 FileExtension = extension,
-                FileSizeBytes = null,
-                ExpiresAt = null,
-                UpdatedAt = null,
+                UpdatedAt = d.UpdatedAt,
                 ReviewBy = d.ReviewBy,
                 ReviewAt = d.ReviewAt,
                 Note = d.Note,
@@ -244,41 +263,55 @@ namespace MediMateService.Services.Implementations
         private static string NormalizeDocumentType(string? rawType)
         {
             var value = (rawType ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(value)) return DoctorDocumentTypes.Other;
+            if (string.IsNullOrEmpty(value))
+            {
+                return DoctorDocumentTypes.Other;
+            }
 
             var upper = value.ToUpperInvariant();
             if (DoctorDocumentTypes.All.Contains(upper))
+            {
                 return upper;
+            }
 
             if (upper.Contains("PRACTICE") || upper.Contains("LICENSE") || upper.Contains("HANH_NGHE"))
+            {
                 return DoctorDocumentTypes.PracticeLicense;
-            if (upper.Contains("SPECIALIST") || upper.Contains("CHUYEN_KHOA"))
-                return DoctorDocumentTypes.SpecialistCertificate;
-            if (upper.Contains("CME"))
-                return DoctorDocumentTypes.Cme;
+            }
 
-            return DoctorDocumentTypes.Other;
+            if (upper.Contains("SPECIALIST") || upper.Contains("CHUYEN_KHOA"))
+            {
+                return DoctorDocumentTypes.SpecialistCertificate;
+            }
+
+            return upper.Contains("CME") ? DoctorDocumentTypes.Cme : DoctorDocumentTypes.Other;
         }
 
         private static DateTime? ParseDateTime(string? value)
         {
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-                return parsed;
-            return null;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
         }
 
         private static string? GetFileExtension(string? fileUrl)
         {
-            if (string.IsNullOrWhiteSpace(fileUrl)) return null;
+            if (string.IsNullOrWhiteSpace(fileUrl))
+            {
+                return null;
+            }
 
             var rawPath = fileUrl;
             if (Uri.TryCreate(fileUrl, UriKind.Absolute, out var uri))
+            {
                 rawPath = uri.AbsolutePath;
+            }
 
             var ext = Path.GetExtension(rawPath);
-            if (string.IsNullOrWhiteSpace(ext)) return null;
-            return ext.TrimStart('.').ToLowerInvariant();
+            return string.IsNullOrWhiteSpace(ext) ? null : ext.TrimStart('.').ToLowerInvariant();
         }
 
         private static string? GetMimeTypeByExtension(string? extension)

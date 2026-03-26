@@ -1,4 +1,4 @@
-﻿namespace MediMateService.DTOs
+namespace MediMateService.DTOs
 {
     public class DoctorDto
     {
@@ -42,13 +42,14 @@
 
     public class UpdateDoctorDto
     {
-        public string FullName { get; set; } = string.Empty;
-        public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
-        public string LicenseNumber { get; set; } = string.Empty;
+        public string? FullName { get; set; }
+        public string? Specialty { get; set; }
+        public string? CurrentHospitalName { get; set; }
+        public string? LicenseNumber { get; set; }
         public string? LicenseImage { get; set; }
-        public int YearsOfExperience { get; set; }
-        public string Bio { get; set; } = string.Empty;
+        public int? YearsOfExperience { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 
     public class RejectDoctorDto
@@ -97,9 +98,7 @@
         public string FileUrl { get; set; } = string.Empty;
         public string? DocumentName { get; set; }
         public string? DocumentType { get; set; }
-        public string? IssuedBy { get; set; }
-        public DateTime? IssuedAt { get; set; }
-        public string Type { get; set; } = string.Empty; // VD: "Bằng cấp", "Chứng chỉ hành nghề"
+        public string Type { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty; // "Pending", "Approved", "Rejected"
         public string? RejectReason { get; set; }
         public DateTime? SubmittedAt { get; set; }
@@ -107,8 +106,6 @@
         public DateTime? ReviewedAt { get; set; }
         public string? FileMimeType { get; set; }
         public string? FileExtension { get; set; }
-        public long? FileSizeBytes { get; set; }
-        public DateTime? ExpiresAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public string? ReviewBy { get; set; }
         public string? ReviewAt { get; set; }

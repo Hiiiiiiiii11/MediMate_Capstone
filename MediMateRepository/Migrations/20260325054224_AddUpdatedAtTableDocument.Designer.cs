@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260325054224_AddUpdatedAtTableDocument")]
+    partial class AddUpdatedAtTableDocument
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -518,9 +521,6 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FamilyAvatarUrl")
-                        .HasColumnType("text");
-
                     b.Property<string>("FamilyName")
                         .HasColumnType("text");
 
@@ -723,7 +723,7 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime>("ScheduledAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<DateTime>("SentAt")
+                    b.Property<DateTime>("SentdAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Status")
@@ -916,7 +916,7 @@ namespace MediMateRepository.Migrations
                     b.Property<bool>("EnableSmsNotification")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid>("FamilyId")
+                    b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("ReminderAdvanceMinutes")
@@ -927,7 +927,7 @@ namespace MediMateRepository.Migrations
 
                     b.HasKey("SettingId");
 
-                    b.HasIndex("FamilyId")
+                    b.HasIndex("MemberId")
                         .IsUnique();
 
                     b.ToTable("NotificationSettings");
@@ -1814,13 +1814,13 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.NotificationSetting", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Families", "Family")
+                    b.HasOne("MediMateRepository.Model.Members", "Member")
                         .WithOne()
-                        .HasForeignKey("MediMateRepository.Model.NotificationSetting", "FamilyId")
+                        .HasForeignKey("MediMateRepository.Model.NotificationSetting", "MemberId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Family");
+                    b.Navigation("Member");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Notifications", b =>

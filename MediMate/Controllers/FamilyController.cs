@@ -96,7 +96,7 @@ public class FamilyController : ControllerBase
     // PUT: api/v1/families/{id}
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ApiResponse<FamilyResponse>), 200)]
-    public async Task<IActionResult> UpdateFamily(Guid id, [FromBody] UpdateFamilyRequest request)
+    public async Task<IActionResult> UpdateFamily(Guid id, [FromForm] UpdateFamilyRequest request)
     {
         try
         {

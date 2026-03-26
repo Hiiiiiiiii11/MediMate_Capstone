@@ -7,10 +7,13 @@ using System.Threading.Tasks;
 
 namespace MediMateRepository.Model
 {
-    public  class NotificationSetting
+    public class NotificationSetting
     {
         public Guid SettingId { get; set; }
-        public Guid MemberId { get; set; }
+
+        // CHUYỂN TỪ MemberId SANG FamilyId
+        public Guid FamilyId { get; set; }
+
         public bool EnablePushNotification { get; set; }
         public bool EnableEmailNotification { get; set; }
         public bool EnableSmsNotification { get; set; }
@@ -18,7 +21,8 @@ namespace MediMateRepository.Model
         public bool EnableFamilyAlert { get; set; }
         public string? CustomSetting { get; set; }
         public DateTime UpdateAt { get; set; }
-        public virtual Members Member { get; set; }
 
+        // Navigation Property trỏ về Families
+        public virtual Families Family { get; set; }
     }
 }

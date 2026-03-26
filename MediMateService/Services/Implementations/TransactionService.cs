@@ -19,6 +19,9 @@ namespace MediMateService.Services.Implementations
             _unitOfWork = unitOfWork;
         }
 
+        // ==========================================
+        // LẤY TẤT CẢ GIAO DỊCH (CHO ADMIN)
+        // ==========================================
         public async Task<ApiResponse<PagedResult<TransactionItemDto>>> GetAllTransactionsAsync(TransactionFilterDto filter)
         {
             IQueryable<Transactions> query = _unitOfWork.Repository<Transactions>().GetQueryable()
@@ -27,51 +30,9 @@ namespace MediMateService.Services.Implementations
                 .Include(t => t.Payout)
                     .ThenInclude(dp => dp != null ? dp.ConsultationSession : null);
 
-            if (!string.IsNullOrEmpty(filter.SearchTerm))
-            {
-                var term = filter.SearchTerm.ToLower();
-                query = query.Where(t =>
-                    t.TransactionCode.ToLower().Contains(term) ||
-                    (t.GatewayTransactionId != null && t.GatewayTransactionId.ToLower().Contains(term))
-                );
-            }
-            
-            if (!string.IsNullOrEmpty(filter.Type))
-            {
-                var type = filter.Type.ToLower();
-                query = query.Where(t => t.TransactionType.ToLower() == type);
-            }
-
-            if (!string.IsNullOrEmpty(filter.Status))
-            {
-                var status = filter.Status.ToLower();
-                query = query.Where(t => t.TransactionStatus.ToLower() == status);
-            }
+            query = ApplyFiltersAndSorting(query, filter);
 
             var totalCount = await query.CountAsync();
-
-            if (!string.IsNullOrEmpty(filter.SortBy))
-            {
-                var sortBy = filter.SortBy.ToLower();
-                switch (sortBy)
-                {
-                    case "transactiondate":
-                        query = filter.IsDescending 
-                            ? query.OrderByDescending(t => t.Payment.CreatedAt) 
-                            : query.OrderBy(t => t.Payment.CreatedAt);
-                        break;
-
-                    default:
-                        query = filter.IsDescending 
-                            ? query.OrderByDescending(t => t.Payment.CreatedAt) 
-                            : query.OrderBy(t => t.Payment.CreatedAt);
-                        break;
-                }
-            }
-            else
-            {
-                query = query.OrderByDescending(t => t.PaidAt ?? DateTime.MinValue);
-            }
 
             var transactions = await query
                 .Skip((filter.PageNumber - 1) * filter.PageSize)
@@ -99,6 +60,60 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<PagedResult<TransactionItemDto>>.Ok(result, "Lấy danh sách giao dịch thành công.");
         }
 
+        // ==========================================
+        // [NEW] LẤY GIAO DỊCH THEO USER ID (CHO APP USER/DOCTOR)
+        // ==========================================
+        public async Task<ApiResponse<PagedResult<TransactionItemDto>>> GetTransactionsByUserIdAsync(Guid userId, TransactionFilterDto filter)
+        {
+            IQueryable<Transactions> query = _unitOfWork.Repository<Transactions>().GetQueryable()
+                .Include(t => t.Payment)
+                    .ThenInclude(p => p != null ? p.User : null)
+                .Include(t => t.Payout)
+                    .ThenInclude(dp => dp != null ? dp.ConsultationSession : null)
+                        .ThenInclude(cs => cs != null ? cs.Doctor : null);
+
+            // Điều kiện lọc theo UserId: 
+            // - Nếu là Payment: so sánh với Payment.UserId
+            // - Nếu là Payout: so sánh với Payout.ConsultationSession.Doctor.UserId
+            query = query.Where(t =>
+                (t.Payment != null && t.Payment.UserId == userId) ||
+                (t.Payout != null && t.Payout.ConsultationSession != null && t.Payout.ConsultationSession.Doctor != null && t.Payout.ConsultationSession.Doctor.UserId == userId)
+            );
+
+            // Dùng chung hàm filter và sort
+            query = ApplyFiltersAndSorting(query, filter);
+
+            var totalCount = await query.CountAsync();
+
+            var transactions = await query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToListAsync();
+
+            var items = transactions.Select(t => new TransactionItemDto
+            {
+                TransactionId = t.TransactionId,
+                TransactionCode = t.TransactionCode,
+                TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.Now,
+                TransactionType = t.TransactionType,
+                TotalAmount = t.Payment?.Amount ?? t.Payout?.Amount ?? 0,
+                Status = t.TransactionStatus
+            }).ToList();
+
+            var result = new PagedResult<TransactionItemDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize
+            };
+
+            return ApiResponse<PagedResult<TransactionItemDto>>.Ok(result, "Lấy danh sách giao dịch của bạn thành công.");
+        }
+
+        // ==========================================
+        // LẤY CHI TIẾT 1 GIAO DỊCH
+        // ==========================================
         public async Task<ApiResponse<TransactionDetailDto>> GetTransactionDetailAsync(Guid transactionId)
         {
             var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
@@ -108,14 +123,13 @@ namespace MediMateService.Services.Implementations
                     .ThenInclude(p => p!.Subscription)
                 .Include(t => t.Payout)
                     .ThenInclude(dp => dp!.ConsultationSession)
+                        .ThenInclude(cs => cs!.Doctor)
                 .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
 
             if (transaction == null)
             {
                 return ApiResponse<TransactionDetailDto>.Fail("Không tìm thấy giao dịch.", 404);
             }
-
-            var appointmentDate = transaction.Payment?.Subscription?.StartDate.ToDateTime(TimeOnly.MinValue);
 
             var detail = new TransactionDetailDto
             {
@@ -125,10 +139,93 @@ namespace MediMateService.Services.Implementations
                     : "MediMate",
                 ReceiverName = transaction.TransactionType == TransactionTypes.MoneyReceived
                     ? "MediMate"
-                    : $"Bác sĩ {transaction.Payout?.ConsultationSession?.Doctor?.FullName}",
+                    : $"Bác sĩ {transaction.Payout?.ConsultationSession?.Doctor?.FullName ?? "Unknown"}",
                 TransactionType = transaction.TransactionType,
                 Content = transaction.Payment?.PaymentContent ?? "",
                 Amount = transaction.Payment?.Amount ?? transaction.Payout?.Amount ?? 0,
+                TransactionCode = transaction.TransactionCode,
+                PaymentCode = transaction.GatewayTransactionId ?? "",
+                AppointmentDate = transaction.PaidAt,
+                PaymentMethod = transaction.GatewayName ?? "Chuyển khoản",
+                PaymentStatus = transaction.TransactionStatus
+            };
+
+            return ApiResponse<TransactionDetailDto>.Ok(detail, "Lấy chi tiết giao dịch thành công.");
+        }
+
+        // ==========================================
+        // HELPER: HÀM DÙNG CHUNG ĐỂ LỌC VÀ SẮP XẾP
+        // ==========================================
+        private IQueryable<Transactions> ApplyFiltersAndSorting(IQueryable<Transactions> query, TransactionFilterDto filter)
+        {
+            if (!string.IsNullOrEmpty(filter.SearchTerm))
+            {
+                var term = filter.SearchTerm.ToLower();
+                query = query.Where(t =>
+                    t.TransactionCode.ToLower().Contains(term) ||
+                    (t.GatewayTransactionId != null && t.GatewayTransactionId.ToLower().Contains(term))
+                );
+            }
+
+            if (!string.IsNullOrEmpty(filter.Type))
+            {
+                var type = filter.Type.ToLower();
+                query = query.Where(t => t.TransactionType.ToLower() == type);
+            }
+
+            if (!string.IsNullOrEmpty(filter.Status))
+            {
+                var status = filter.Status.ToLower();
+                query = query.Where(t => t.TransactionStatus.ToLower() == status);
+            }
+
+            if (!string.IsNullOrEmpty(filter.SortBy))
+            {
+                var sortBy = filter.SortBy.ToLower();
+                switch (sortBy)
+                {
+                    case "transactiondate":
+                        query = filter.IsDescending
+                            ? query.OrderByDescending(t => t.PaidAt ?? t.Payment.CreatedAt)
+                            : query.OrderBy(t => t.PaidAt ?? t.Payment.CreatedAt);
+                        break;
+                    default:
+                        query = filter.IsDescending
+                            ? query.OrderByDescending(t => t.PaidAt ?? t.Payment.CreatedAt)
+                            : query.OrderBy(t => t.PaidAt ?? t.Payment.CreatedAt);
+                        break;
+                }
+            }
+            else
+            {
+                // Mặc định sắp xếp mới nhất lên đầu
+                query = query.OrderByDescending(t => t.PaidAt ?? DateTime.MinValue);
+            }
+
+            return query;
+        }
+    public async Task<ApiResponse<TransactionDetailDto>> GetTransactionByPaymentIdAsync(Guid paymentId)
+        {
+            var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
+                .Include(t => t.Payment)
+                    .ThenInclude(p => p!.User)
+                .Include(t => t.Payment)
+                    .ThenInclude(p => p!.Subscription)
+                .FirstOrDefaultAsync(t => t.PaymentId == paymentId);
+
+            if (transaction == null)
+            {
+                return ApiResponse<TransactionDetailDto>.Fail("Không tìm thấy giao dịch cho thanh toán này.", 404);
+            }
+
+            var detail = new TransactionDetailDto
+            {
+                TransactionId = transaction.TransactionId,
+                SenderName = transaction.Payment?.User?.FullName ?? "Unknown",
+                ReceiverName = "MediMate",
+                TransactionType = transaction.TransactionType,
+                Content = transaction.Payment?.PaymentContent ?? "",
+                Amount = transaction.Payment?.Amount ?? 0,
                 TransactionCode = transaction.TransactionCode,
                 PaymentCode = transaction.GatewayTransactionId ?? "",
                 AppointmentDate = transaction.PaidAt,

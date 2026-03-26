@@ -15,7 +15,7 @@ namespace MediMateRepository.Model
         public DateTime EndTime { get; set; }
         public string Status { get; set; } = "Pending"; // Pending, Taken, Skipped
         public DateTime ScheduledAt { get; set; }
-        public DateTime SentdAt { get; set; }
+        public DateTime SentAt { get; set; }
         public DateTime AcknowledgedAt { get; set; }
         public virtual MedicationSchedules Schedule { get; set; }
     }

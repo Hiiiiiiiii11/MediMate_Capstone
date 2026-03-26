@@ -23,14 +23,14 @@ namespace MediMateApi.Controllers
         /// <summary>
         /// Xem cấu hình thông báo của một thành viên
         /// </summary>
-        [HttpGet("members/{memberId}")]
+        [HttpGet("family/{familyId}")]
         [ProducesResponseType(typeof(ApiResponse<NotificationSettingResponse>), 200)]
-        public async Task<IActionResult> GetSetting(Guid memberId)
+        public async Task<IActionResult> GetSetting(Guid familyId)
         {
             try
             {
                 var currentUserId = _currentUserService.UserId;
-                var result = await _settingService.GetSettingByMemberIdAsync(memberId, currentUserId);
+                var result = await _settingService.GetSettingByFamilyIdAsync(familyId, currentUserId);
 
                 if (!result.Success)
                 {
@@ -48,9 +48,9 @@ namespace MediMateApi.Controllers
             /// <summary>
             /// Cập nhật cấu hình thông báo (Chỉ cần gửi những trường muốn đổi)
             /// </summary>
-            [HttpPut("members/{memberId}")]
+            [HttpPut("family/{familyId}")]
             [ProducesResponseType(typeof(ApiResponse<NotificationSettingResponse>), 200)]
-        public async Task<IActionResult> UpdateSetting(Guid memberId, [FromBody] UpdateNotificationSettingRequest request)
+        public async Task<IActionResult> UpdateSetting(Guid familyId, [FromBody] UpdateNotificationSettingRequest request)
         {
             try
             {
@@ -60,7 +60,7 @@ namespace MediMateApi.Controllers
                 }
 
                 var currentUserId = _currentUserService.UserId;
-                var result = await _settingService.UpdateSettingAsync(memberId, currentUserId, request);
+                var result = await _settingService.UpdateSettingAsync(familyId, currentUserId, request);
 
                 if (!result.Success)
                 {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,7 @@ namespace MediMateService.DTOs
     {
         public string? FamilyName { get; set; }
         public bool? IsOpenJoin { get; set; }
+        public IFormFile? FamilyAvatar { get; set; }
     }
 
     // Response chung cho cả 2 chế độ
@@ -22,8 +24,9 @@ namespace MediMateService.DTOs
         public Guid FamilyId { get; set; }
         public string FamilyName { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty; // "Personal" hoặc "Shared"
-        public string JoinCode { get; set; } 
+        public string JoinCode { get; set; }
         public bool IsOpenJoin { get; set; }
+        public string FamilyAvatarUrl { get; set; } = string.Empty;
         public int MemberCount { get; set; }
         public DateTime CreatedAt { get; set; }
     }

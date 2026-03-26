@@ -269,6 +269,27 @@ namespace MediMateService.Services.Implementations
         // =======================================================
         // XÓA LỊCH (DELETE)
         // =======================================================
+        //public async Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId)
+        //{
+        //    var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(scheduleId);
+        //    if (schedule == null) return ApiResponse<bool>.Fail("Không tìm thấy khung giờ.", 404);
+
+        //    if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
+        //        return ApiResponse<bool>.Fail("Access Denied", 403);
+
+        //    schedule.IsActive = false;
+
+        //    var pendingReminders = await _unitOfWork.Repository<MedicationReminders>()
+        //        .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending");
+
+        //    _unitOfWork.Repository<MedicationReminders>().RemoveRange(pendingReminders);
+        //    _unitOfWork.Repository<MedicationSchedules>().Update(schedule);
+
+        //    await _unitOfWork.CompleteAsync();
+
+        //    return ApiResponse<bool>.Ok(true, "Đã xóa khung giờ.");
+        //}
+
         public async Task<ApiResponse<bool>> DeleteScheduleAsync(Guid scheduleId, Guid currentUserId)
         {
             var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(scheduleId);
@@ -277,17 +298,36 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(schedule.MemberId, currentUserId))
                 return ApiResponse<bool>.Fail("Access Denied", 403);
 
-            schedule.IsActive = false;
+            // ==========================================
+            // BƯỚC 1: XÓA SẠCH DỮ LIỆU CON (Đề phòng DB không bật Cascade Delete)
+            // ==========================================
 
-            var pendingReminders = await _unitOfWork.Repository<MedicationReminders>()
-                .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending");
+            // 1.1 Xóa TẤT CẢ Reminders của Schedule này (Thay vì chỉ xóa Pending như cũ)
+            var allReminders = await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => r.ScheduleId == scheduleId);
+            if (allReminders.Any())
+            {
+                _unitOfWork.Repository<MedicationReminders>().RemoveRange(allReminders);
+            }
 
-            _unitOfWork.Repository<MedicationReminders>().RemoveRange(pendingReminders);
-            _unitOfWork.Repository<MedicationSchedules>().Update(schedule);
+            // 1.2 Xóa TẤT CẢ các Chi tiết thuốc (ScheduleDetails) nằm trong khung giờ này
+            var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                .FindAsync(d => d.ScheduleId == scheduleId);
+            if (scheduleDetails.Any())
+            {
+                _unitOfWork.Repository<MedicationScheduleDetails>().RemoveRange(scheduleDetails);
+            }
 
+            // ==========================================
+            // BƯỚC 2: XÓA CỨNG BẢNG CHA (HARD DELETE)
+            // ==========================================
+
+            _unitOfWork.Repository<MedicationSchedules>().Remove(schedule); // Dùng Remove thay vì Update
+
+            // Lưu toàn bộ thay đổi xuống DB
             await _unitOfWork.CompleteAsync();
 
-            return ApiResponse<bool>.Ok(true, "Đã xóa khung giờ.");
+            return ApiResponse<bool>.Ok(true, "Đã xóa vĩnh viễn khung giờ và các dữ liệu liên quan.");
         }
 
         public async Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId)
@@ -296,7 +336,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
             var schedules = await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
+                .FindAsync(s => s.MemberId == memberId && s.IsActive == true, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
 
             var response = schedules
                 .OrderByDescending(s => s.IsActive)

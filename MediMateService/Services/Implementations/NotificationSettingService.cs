@@ -19,33 +19,29 @@ namespace MediMateService.Services.Implementations
             _activityLogService = activityLogService;
         }
 
-        public async Task<ApiResponse<NotificationSettingResponse>> GetSettingByMemberIdAsync(Guid memberId, Guid currentUserId)
+        public async Task<ApiResponse<NotificationSettingResponse>> GetSettingByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
-            // 1. Kiểm tra quyền truy cập
-            if (!await _currentUserService.CheckAccess(memberId, currentUserId))
-            {
-                return ApiResponse<NotificationSettingResponse>.Fail("Không có quyền truy cập cài đặt của thành viên này.", 403);
-            }
+            // Kiểm tra user có trong gia đình không
+            var isMember = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
 
-            // 2. Lấy Setting
+            if (!isMember) return ApiResponse<NotificationSettingResponse>.Fail("Không có quyền truy cập.", 403);
+
             var setting = (await _unitOfWork.Repository<NotificationSetting>()
-                .FindAsync(ns => ns.MemberId == memberId)).FirstOrDefault();
+                .FindAsync(ns => ns.FamilyId == familyId)).FirstOrDefault();
 
-            // 3. Lazy Initialization: Nếu chưa có thì tự động tạo mặc định
             if (setting == null)
             {
+                // Fallback nếu vì lý do nào đó gia đình cũ chưa có setting
                 setting = new NotificationSetting
                 {
                     SettingId = Guid.NewGuid(),
-                    MemberId = memberId,
+                    FamilyId = familyId,
                     EnablePushNotification = true,
-                    EnableEmailNotification = false,
-                    EnableSmsNotification = false,
-                    ReminderAdvanceMinutes = 15,
                     EnableFamilyAlert = true,
+                    ReminderAdvanceMinutes = 15,
                     UpdateAt = DateTime.Now
                 };
-
                 await _unitOfWork.Repository<NotificationSetting>().AddAsync(setting);
                 await _unitOfWork.CompleteAsync();
             }
@@ -53,22 +49,20 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<NotificationSettingResponse>.Ok(MapToResponse(setting));
         }
 
-        public async Task<ApiResponse<NotificationSettingResponse>> UpdateSettingAsync(Guid memberId, Guid currentUserId, UpdateNotificationSettingRequest request)
+        public async Task<ApiResponse<NotificationSettingResponse>> UpdateSettingAsync(Guid familyId, Guid currentUserId, UpdateNotificationSettingRequest request)
         {
-            // 1. Kiểm tra quyền truy cập
-            if (!await _currentUserService.CheckAccess(memberId, currentUserId))
-            {
-                return ApiResponse<NotificationSettingResponse>.Fail("Không có quyền thay đổi cài đặt của thành viên này.", 403);
-            }
+            var isMember = (await _unitOfWork.Repository<Members>()
+                 .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
-            // 2. Lấy Setting (Nếu chưa có thì gọi hàm Get ở trên để nó tự tạo)
-            var getResult = await GetSettingByMemberIdAsync(memberId, currentUserId);
+            if (!isMember) return ApiResponse<NotificationSettingResponse>.Fail("Không có quyền chỉnh sửa.", 403);
+
+            var getResult = await GetSettingByFamilyIdAsync(familyId, currentUserId);
             if (!getResult.Success) return getResult;
 
             var setting = await _unitOfWork.Repository<NotificationSetting>().GetByIdAsync(getResult.Data.SettingId);
-            if (setting == null) return ApiResponse<NotificationSettingResponse>.Fail("Lỗi dữ liệu hệ thống.", 500);
+            if (setting == null) return ApiResponse<NotificationSettingResponse>.Fail("Lỗi hệ thống", 500);
 
-            // 3. Clone dữ liệu cũ để ghi Log
+            // Clone dữ liệu cũ để ghi Log
             var oldData = new
             {
                 setting.EnablePushNotification,
@@ -80,7 +74,7 @@ namespace MediMateService.Services.Implementations
             };
             bool hasChanges = false;
 
-            // 4. Cập nhật dữ liệu mới
+            // Cập nhật dữ liệu mới
             if (request.EnablePushNotification.HasValue && setting.EnablePushNotification != request.EnablePushNotification.Value)
             {
                 setting.EnablePushNotification = request.EnablePushNotification.Value;
@@ -112,43 +106,39 @@ namespace MediMateService.Services.Implementations
                 hasChanges = true;
             }
 
-            // 5. Lưu xuống DB nếu có thay đổi
+            // Lưu xuống DB nếu có thay đổi
             if (hasChanges)
             {
                 setting.UpdateAt = DateTime.Now;
                 _unitOfWork.Repository<NotificationSetting>().Update(setting);
                 await _unitOfWork.CompleteAsync();
 
-                // 6. Ghi Log
-                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-                if (targetMember != null && targetMember.FamilyId.HasValue)
+                // Ghi Log cho Family
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).FirstOrDefault();
+
+                if (doer != null)
                 {
-                    var doer = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == currentUserId)).FirstOrDefault();
-
-                    if (doer != null)
+                    var newData = new
                     {
-                        var newData = new
-                        {
-                            setting.EnablePushNotification,
-                            setting.EnableEmailNotification,
-                            setting.EnableSmsNotification,
-                            setting.ReminderAdvanceMinutes,
-                            setting.EnableFamilyAlert,
-                            setting.CustomSetting
-                        };
+                        setting.EnablePushNotification,
+                        setting.EnableEmailNotification,
+                        setting.EnableSmsNotification,
+                        setting.ReminderAdvanceMinutes,
+                        setting.EnableFamilyAlert,
+                        setting.CustomSetting
+                    };
 
-                        await _activityLogService.LogActivityAsync(
-                            familyId: targetMember.FamilyId.Value,
-                            memberId: doer.MemberId,
-                            actionType: ActivityActionTypes.UPDATE,
-                            entityName: ActivityEntityNames.NOTIFICATION_SETTING,
-                            entityId: setting.SettingId,
-                            description: $"Đã thay đổi cấu hình thông báo của '{targetMember.FullName}'.",
-                            oldData: oldData,
-                            newData: newData
-                        );
-                    }
+                    await _activityLogService.LogActivityAsync(
+                        familyId: familyId,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.UPDATE,
+                        entityName: ActivityEntityNames.NOTIFICATION_SETTING,
+                        entityId: setting.SettingId,
+                        description: "Đã thay đổi cấu hình thông báo của gia đình.",
+                        oldData: oldData,
+                        newData: newData
+                    );
                 }
             }
 
@@ -160,7 +150,7 @@ namespace MediMateService.Services.Implementations
             return new NotificationSettingResponse
             {
                 SettingId = s.SettingId,
-                MemberId = s.MemberId,
+                FamilyId = s.FamilyId,
                 EnablePushNotification = s.EnablePushNotification,
                 EnableEmailNotification = s.EnableEmailNotification,
                 EnableSmsNotification = s.EnableSmsNotification,

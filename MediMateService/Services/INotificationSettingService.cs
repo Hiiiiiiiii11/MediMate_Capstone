@@ -10,7 +10,7 @@ namespace MediMateService.Services
 {
     public interface INotificationSettingService
     {
-        Task<ApiResponse<NotificationSettingResponse>> GetSettingByMemberIdAsync(Guid memberId, Guid currentUserId);
-        Task<ApiResponse<NotificationSettingResponse>> UpdateSettingAsync(Guid memberId, Guid currentUserId, UpdateNotificationSettingRequest request);
+        Task<ApiResponse<NotificationSettingResponse>> GetSettingByFamilyIdAsync(Guid familyId, Guid currentUserId);
+        Task<ApiResponse<NotificationSettingResponse>> UpdateSettingAsync(Guid familyId, Guid currentUserId, UpdateNotificationSettingRequest request);
     }
 }

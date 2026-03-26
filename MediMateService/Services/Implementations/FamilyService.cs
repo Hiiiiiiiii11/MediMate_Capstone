@@ -11,11 +11,13 @@ namespace MediMateService.Services.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IActivityLogService _activityLogService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService)
+        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService, IUploadPhotoService uploadPhotoService)
         {
             _unitOfWork = unitOfWork;
             _activityLogService = activityLogService;
+            _uploadPhotoService = uploadPhotoService;
         }
 
         // --- LOGIC 1: CHẾ ĐỘ CÁ NHÂN ---
@@ -230,6 +232,7 @@ namespace MediMateService.Services.Implementations
                 Type = family.Type.ToString(), // Trả về "Personal" hoặc "Shared"
                 JoinCode = family.JoinCode,
                 IsOpenJoin = family.IsOpenJoin,
+                FamilyAvatarUrl = family.FamilyAvatarUrl ?? null,
                 MemberCount = count,
                 CreatedAt = family.CreatedAt
             };
@@ -288,6 +291,12 @@ namespace MediMateService.Services.Implementations
             if (request.IsOpenJoin.HasValue)
             {
                 family.IsOpenJoin = request.IsOpenJoin.Value;
+                hasChanges = true;
+            }
+            if (request.FamilyAvatar != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.FamilyAvatar);
+                family.FamilyAvatarUrl = uploadResult.OriginalUrl;
                 hasChanges = true;
             }
 

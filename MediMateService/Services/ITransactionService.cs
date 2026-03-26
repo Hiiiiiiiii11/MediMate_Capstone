@@ -9,5 +9,7 @@ namespace MediMateService.Services
     {
         Task<ApiResponse<PagedResult<TransactionItemDto>>> GetAllTransactionsAsync(TransactionFilterDto filter);
         Task<ApiResponse<TransactionDetailDto>> GetTransactionDetailAsync(Guid transactionId);
+        Task<ApiResponse<TransactionDetailDto>> GetTransactionByPaymentIdAsync(Guid paymentId);
+        Task<ApiResponse<PagedResult<TransactionItemDto>>> GetTransactionsByUserIdAsync(Guid userId, TransactionFilterDto filter);
     }
 }

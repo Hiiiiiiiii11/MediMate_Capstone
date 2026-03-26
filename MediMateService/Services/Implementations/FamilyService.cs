@@ -204,22 +204,14 @@ namespace MediMateService.Services.Implementations
                         var count = (await _unitOfWork.Repository<Members>()
                             .FindAsync(m => m.FamilyId == family.FamilyId)).Count();
 
-                        result.Add(new FamilyResponse
-                        {
-                            FamilyId = family.FamilyId,
-                            FamilyName = family.FamilyName,
-                            Type = family.Type.ToString(),
-                            JoinCode = family.JoinCode,
-                            IsOpenJoin = family.IsOpenJoin,
-                            MemberCount = count,
-                            CreatedAt = family.CreatedAt
-                        });
+                        // [SỬA LỖI Ở ĐÂY] 
+                        // Dùng luôn hàm MapToResponse để tái sử dụng code, đảm bảo luôn trả về đầy đủ Avatar và các trường khác
+                        result.Add(MapToResponse(family, count));
                     }
                 }
             }
 
             return ApiResponse<IEnumerable<FamilyResponse>>.Ok(result.DistinctBy(f => f.FamilyId));
-            // DistinctBy để tránh trường hợp 1 user có 2 member record trong cùng 1 family (lỗi data)
         }
 
         // Helper functions

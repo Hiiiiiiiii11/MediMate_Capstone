@@ -15,8 +15,8 @@ namespace MediMateService.Services
         Task LogActivityAsync(Guid familyId, Guid memberId, string actionType, string entityName, Guid entityId, string description, object? oldData = null, object? newData = null);
 
         // Hàm này dùng cho Controller gọi ra API để hiển thị Lịch sử hoạt động của Gia đình
-        Task<ApiResponse<IEnumerable<ActivityLogResponse>>> GetFamilyActivitiesAsync(Guid familyId, Guid currentUserId, int page = 1, int pageSize = 20);
-      
+        Task<ApiResponse<PagedResult<ActivityLogResponse>>> GetFamilyActivitiesAsync(Guid familyId, Guid currentUserId, int page = 1, int pageSize = 20);
+
     }
 }
 

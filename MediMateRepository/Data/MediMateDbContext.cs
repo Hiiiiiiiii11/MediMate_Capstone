@@ -222,11 +222,11 @@ namespace MediMateRepository.Data
                 .HasForeignKey(ml => ml.ReminderId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa nh?c nh? -> Xóa log
 
-            // Quan h? 1-1: Members <-> NotificationSetting
+            // Quan h? 1-1: Family <-> NotificationSetting
             modelBuilder.Entity<NotificationSetting>()
-                .HasOne(ns => ns.Member)
+                .HasOne(ns => ns.Family)
                 .WithOne() // N?u b?ng Members b?n không khai báo `public virtual NotificationSetting Setting` th? đ? tr?ng WithOne()
-                .HasForeignKey<NotificationSetting>(ns => ns.MemberId)
+                .HasForeignKey<NotificationSetting>(ns => ns.FamilyId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> T? đ?ng xóa Cài đ?t thông báo
 
             // Quan h? 1-N: Families -> ActivityLogs

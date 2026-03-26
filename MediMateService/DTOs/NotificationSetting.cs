@@ -10,7 +10,7 @@ namespace MediMateService.DTOs
     public class NotificationSettingResponse
     {
         public Guid SettingId { get; set; }
-        public Guid MemberId { get; set; }
+        public Guid FamilyId { get; set; }
         public bool EnablePushNotification { get; set; }
         public bool EnableEmailNotification { get; set; }
         public bool EnableSmsNotification { get; set; }

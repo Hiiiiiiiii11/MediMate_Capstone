@@ -104,12 +104,22 @@ namespace MediMate.Controllers
 
                 foreach (var file in request.LicenseImage)
                 {
-                    var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
-                    uploadedLicenseUrls.Add(uploadResult.OriginalUrl);
+                    string fileUrl;
+                    if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
+                        fileUrl = uploadResult.OriginalUrl;
+                    }
+                    else
+                    {
+                        fileUrl = await _uploadPhotoService.UploadDocumentAsync(file);
+                    }
+
+                    uploadedLicenseUrls.Add(fileUrl);
 
                     var createDocumentResponse = await _doctorDocumentService.CreateAsync(doc.DoctorId, userId, new CreateDoctorDocumentRequest
                     {
-                        FileUrl = uploadResult.OriginalUrl,
+                        FileUrl = fileUrl,
                         Type = DoctorDocumentTypes.PracticeLicense
                     });
 
@@ -141,6 +151,75 @@ namespace MediMate.Controllers
                 Bio = request.Bio
             });
             return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Đã nộp hồ sơ, chờ xét duyệt."));
+        }
+
+        [HttpPut("me")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateDoctorRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var doc = await _doctorService.GetMyProfileAsync(userId);
+
+            if (doc.Status == DoctorStatuses.Inactive)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Tài khoản chưa được kích hoạt/submit lần đầu. Vui lòng dùng endpoint /me/submit.", 400));
+            }
+
+            if (request.LicenseImage != null && request.LicenseImage.Count > 3)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Chỉ được tải lên tối đa 3 LicenseImage.", 400));
+            }
+
+            string? licenseImageUrl = doc.LicenseImage;
+            if (request.LicenseImage != null && request.LicenseImage.Count > 0)
+            {
+                var uploadedLicenseUrls = new List<string>();
+
+                foreach (var file in request.LicenseImage)
+                {
+                    string fileUrl;
+                    if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
+                        fileUrl = uploadResult.OriginalUrl;
+                    }
+                    else
+                    {
+                        fileUrl = await _uploadPhotoService.UploadDocumentAsync(file);
+                    }
+
+                    uploadedLicenseUrls.Add(fileUrl);
+                    await _doctorDocumentService.CreateAsync(doc.DoctorId, userId, new CreateDoctorDocumentRequest
+                    {
+                        FileUrl = fileUrl,
+                        Type = DoctorDocumentTypes.PracticeLicense
+                    });
+                }
+
+                licenseImageUrl = uploadedLicenseUrls.FirstOrDefault();
+            }
+
+            string? avatarUrl = null;
+            if (request.AvatarImage != null)
+            {
+                var avatarUploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarImage);
+                avatarUrl = avatarUploadResult.OriginalUrl;
+            }
+
+            var data = await _doctorService.UpdateMyProfileAsync(userId, new UpdateDoctorDto
+            {
+                FullName = request.FullName,
+                Specialty = request.Specialty,
+                CurrentHospitalName = request.CurrentHospitalName,
+                LicenseNumber = request.LicenseNumber,
+                LicenseImage = licenseImageUrl, // Giữ lại URL cũ hoặc lấy URL của file đầu tiên mới upload
+                YearsOfExperience = request.YearsOfExperience,
+                Bio = request.Bio,
+                AvatarUrl = avatarUrl
+            });
+
+            return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Cập nhật hồ sơ thành công. Trạng thái đã chuyển về Chờ duyệt (Pending) để xác minh lại."));
         }
 
         [HttpPatch("me/online")]

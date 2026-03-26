@@ -18,72 +18,81 @@ namespace MediMateService.Services.Implementations
 
         public async Task CheckAndNotifyOverdueReminder(Guid reminderId)
         {
-            // 1. Kéo thông tin Reminder kèm theo Member, Setting, và Family
+            // 1. Kéo thông tin Reminder kèm theo Member (Bỏ NotificationSetting cũ)
             var reminder = (await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.ReminderId == reminderId,
-                includeProperties: "Schedule,Schedule.Member,Schedule.Member.NotificationSetting")).FirstOrDefault();
+                includeProperties: "Schedule,Schedule.Member")).FirstOrDefault();
 
-            if (reminder == null) return;
+            // Nếu lịch bị xóa, bị vô hiệu hóa hoặc không phải Pending thì bỏ qua
+            if (reminder == null || reminder.Status != "Pending" || !reminder.Schedule.IsActive) return;
 
-            if (reminder.Status == "Pending" && reminder.Schedule.IsActive)
+            var targetMember = reminder.Schedule.Member;
+            if (targetMember == null || !targetMember.FamilyId.HasValue) return;
+
+            // =========================================================
+            // 2. KÉO CÀI ĐẶT THÔNG BÁO TỪ GIA ĐÌNH (Dùng FamilyId)
+            // =========================================================
+            var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+
+            // Nếu chưa có cài đặt, mặc định coi như được phép gửi (bật hết)
+            bool canSendToMember = familySetting == null || familySetting.EnablePushNotification;
+            bool canSendToFamily = familySetting == null || familySetting.EnableFamilyAlert;
+
+            // Nếu gia đình tắt sạch thông báo thì hủy Job luôn
+            if (!canSendToMember && !canSendToFamily) return;
+
+            // =========================================================
+            // 3. LẤY CHI TIẾT THUỐC CẦN UỐNG HÔM NAY
+            // =========================================================
+            var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                .FindAsync(d => d.ScheduleId == reminder.ScheduleId
+                                 && d.StartDate.Date <= reminder.ReminderDate.Date
+                                 && d.EndDate.Date >= reminder.ReminderDate.Date,
+                       includeProperties: "PrescriptionMedicine");
+
+            string medicineNames = scheduleDetails.Any()
+                ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc"))
+                : "Thuốc theo lịch";
+
+            string title = "⚠️ Nhắc nhở uống thuốc!";
+            string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
+            string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
+
+            var data = new Dictionary<string, string> { { "reminderId", reminderId.ToString() } };
+
+            // ==========================================
+            // 4. GỬI CHO BẢN THÂN MEMBER ĐÓ (Nếu họ có FcmToken riêng và bật thông báo)
+            // ==========================================
+            if (canSendToMember && !string.IsNullOrEmpty(targetMember.FcmToken))
             {
-                var targetMember = reminder.Schedule.Member;
-                if (targetMember == null) return;
+                await _firebaseService.SendNotificationAsync(targetMember.FcmToken, title, bodyMember, data);
+            }
 
-                var settings = targetMember.NotificationSetting;
-
-                // Nếu chưa có cài đặt (chưa ai vào màn hình Setting bao giờ), mặc định coi như được phép gửi (bật hết)
-                bool canSendToMember = settings == null || settings.EnablePushNotification;
-                bool canSendToFamily = settings == null || settings.EnableFamilyAlert;
-
-                var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
-                    .FindAsync(d => d.ScheduleId == reminder.ScheduleId 
-                                     && d.StartDate.Date <= reminder.ReminderDate.Date 
-                                     && d.EndDate.Date >= reminder.ReminderDate.Date, 
-                           includeProperties: "PrescriptionMedicine");
-                string medicineNames = scheduleDetails.Any() 
-                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
-                    : "Thuốc theo lịch";
-
-                string title = "⚠️ Nhắc nhở uống thuốc!";
-                string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
-                string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
-
-                var data = new Dictionary<string, string> { { "reminderId", reminderId.ToString() } };
-
-                // ==========================================
-                // 2. GỬI CHO BẢN THÂN MEMBER ĐÓ (Nếu họ có FcmToken riêng và cho phép Push)
-                // ==========================================
-                if (canSendToMember && !string.IsNullOrEmpty(targetMember.FcmToken))
+            // ==========================================
+            // 5. GỬI CHO CHỦ HỘ GIA ĐÌNH (Nếu bật cảnh báo gia đình)
+            // ==========================================
+            if (canSendToFamily)
+            {
+                var family = await _unitOfWork.Repository<Families>().GetByIdAsync(targetMember.FamilyId.Value);
+                if (family != null)
                 {
-                    await _firebaseService.SendNotificationAsync(targetMember.FcmToken, title, bodyMember, data);
-                }
+                    // Tìm FcmToken của User chủ hộ
+                    var creatorUser = await _unitOfWork.Repository<User>().GetByIdAsync(family.CreateBy);
 
-                // ==========================================
-                // 3. GỬI CHO CHỦ HỘ GIA ĐÌNH (Nếu bật cảnh báo gia đình)
-                // ==========================================
-                if (canSendToFamily && targetMember.FamilyId.HasValue)
-                {
-                    // Lấy gia đình để tìm người tạo (Creator)
-                    var family = await _unitOfWork.Repository<Families>().GetByIdAsync(targetMember.FamilyId.Value);
-                    if (family != null)
+                    // Gửi nếu chủ hộ tồn tại VÀ Chủ hộ khác với người vừa nhận thông báo (Tránh gửi 2 lần cho 1 máy)
+                    if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken) && creatorUser.FcmToken != targetMember.FcmToken)
                     {
-                        // Tìm FcmToken của User chủ hộ
-                        var creatorUser = await _unitOfWork.Repository<User>().GetByIdAsync(family.CreateBy);
-
-                        // Đảm bảo không gửi trùng lặp nếu Member cần uống thuốc CHÍNH LÀ Chủ hộ
-                        if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken) && creatorUser.FcmToken != targetMember.FcmToken)
-                        {
-                            await _firebaseService.SendNotificationAsync(creatorUser.FcmToken, title, bodyFamily, data);
-                        }
+                        await _firebaseService.SendNotificationAsync(creatorUser.FcmToken, title, bodyFamily, data);
                     }
                 }
-
-                // 4. Cập nhật trạng thái
-                reminder.SentdAt = DateTime.Now;
-                _unitOfWork.Repository<MedicationReminders>().Update(reminder);
-                await _unitOfWork.CompleteAsync();
             }
+
+            // 6. Cập nhật trạng thái
+            // (Sửa lại thành SentAt nếu Database của bạn đã fix lỗi chính tả, hoặc giữ SentdAt nếu DB vẫn đang là SentdAt)
+            reminder.SentAt = DateTime.Now;
+            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task NotifyUpcomingAppointmentAsync(Guid appointmentId)

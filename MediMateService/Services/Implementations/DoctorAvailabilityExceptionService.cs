@@ -112,8 +112,8 @@ namespace MediMateService.Services.Implementations
             if (exception == null)
                 return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không tìm thấy ngoại lệ lịch.", 404);
 
-            if (exception.Doctor.UserId != currentUserId)
-                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền sửa ngoại lệ này.", 403);
+            //if (exception.Doctor.UserId != currentUserId)
+            //    return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền sửa ngoại lệ này.", 403);
 
             if (request.StartTime.HasValue && request.EndTime.HasValue && request.StartTime >= request.EndTime)
             {

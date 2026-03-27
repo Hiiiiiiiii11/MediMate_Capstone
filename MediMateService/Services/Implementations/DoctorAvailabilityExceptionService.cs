@@ -50,6 +50,41 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Thêm ngoại lệ lịch làm việc thành công.");
         }
 
+        public async Task<ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>> GetAllAsync(DoctorAvailabilityExceptionFilter filter)
+        {
+            filter ??= new DoctorAvailabilityExceptionFilter();
+            if (filter.PageNumber < 1) filter.PageNumber = 1;
+            if (filter.PageSize < 1) filter.PageSize = 10;
+
+            var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .FindAsync(e =>
+                    (!filter.DoctorId.HasValue || e.DoctorId == filter.DoctorId.Value) &&
+                    (!filter.IsAvailableOverride.HasValue || e.IsAvailableOverride == filter.IsAvailableOverride.Value) &&
+                    (!filter.DateFrom.HasValue || e.Date.Date >= filter.DateFrom.Value.Date) &&
+                    (!filter.DateTo.HasValue || e.Date.Date <= filter.DateTo.Value.Date));
+
+            var ordered = filter.IsDescending
+                ? exceptions.OrderByDescending(e => e.Date)
+                : exceptions.OrderBy(e => e.Date);
+
+            var totalCount = ordered.Count();
+            var items = ordered
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(MapToDto)
+                .ToList();
+
+            var result = new PagedResult<DoctorAvailabilityExceptionDto>
+            {
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                Items = items
+            };
+
+            return ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>.Ok(result);
+        }
+
         public async Task<ApiResponse<IEnumerable<DoctorAvailabilityExceptionDto>>> GetByDoctorIdAsync(Guid doctorId)
         {
             var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()

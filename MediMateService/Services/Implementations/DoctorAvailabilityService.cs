@@ -24,8 +24,8 @@ namespace MediMateService.Services.Implementations
             if (doctor == null)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Không tìm thấy thông tin bác sĩ.", 404);
 
-            if (doctor.UserId != currentUserId)
-                return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền thiết lập lịch cho bác sĩ này.", 403);
+            //if (doctor.UserId != currentUserId)  //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
+            //    return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền thiết lập lịch cho bác sĩ này.", 403);
 
             if (request.StartTime >= request.EndTime)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
@@ -79,8 +79,8 @@ namespace MediMateService.Services.Implementations
             if (availability == null)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Không tìm thấy lịch làm việc.", 404);
 
-            if (availability.Doctor.UserId != currentUserId)
-                return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền sửa lịch này.", 403);
+            //if (availability.Doctor.UserId != currentUserId) //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
+            //    return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền sửa lịch này.", 403);
 
             if (request.StartTime >= request.EndTime)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
@@ -104,8 +104,8 @@ namespace MediMateService.Services.Implementations
             if (availability == null)
                 return ApiResponse<bool>.Fail("Không tìm thấy lịch làm việc.", 404);
 
-            if (availability.Doctor.UserId != currentUserId)
-                return ApiResponse<bool>.Fail("Bạn không có quyền xóa lịch này.", 403);
+            //if (availability.Doctor.UserId != currentUserId) //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
+            //    return ApiResponse<bool>.Fail("Bạn không có quyền xóa lịch này.", 403);
 
             _unitOfWork.Repository<DoctorAvailability>().Remove(availability);
             await _unitOfWork.CompleteAsync();

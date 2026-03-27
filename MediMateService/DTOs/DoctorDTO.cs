@@ -57,11 +57,6 @@ namespace MediMateService.DTOs
         public string? Reason { get; set; }
     }
 
-    public class ApproveDoctorDto
-    {
-        public string Action { get; set; } = "approve";
-        public string? Reason { get; set; }
-    }
 
 
     public class DoctorBankAccountDto

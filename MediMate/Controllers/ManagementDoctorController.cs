@@ -52,15 +52,6 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Xác minh bằng cấp thành công."));
         }
 
-        [HttpPost("{doctorId}/approve")]
-        //[Authorize(Roles = Roles.DoctorManager)]
-        [Authorize]
-        [ProducesResponseType(typeof(ApiResponse<ManagementDoctorResponse>), 200)]
-        public async Task<IActionResult> Approve(Guid doctorId)
-        {
-            var data = await _doctorService.ApproveDoctorAsync(doctorId);
-            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Bác sĩ đã được phê duyệt."));
-        }
 
         [HttpPost("{doctorId}/reject")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]

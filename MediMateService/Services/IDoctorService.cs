@@ -24,9 +24,8 @@ namespace MediMateService.Services
 
         // Status transitions
         Task<DoctorDto> SubmitPendingAsync(Guid doctorId, SubmitDoctorDto dto);  // Inactive → Pending
-        Task<DoctorDto> VerifyDoctorAsync(Guid doctorId);                         // Pending → Verified
-        Task<DoctorDto> ApproveDoctorAsync(Guid doctorId);                        // Verified → Approved
-        Task<DoctorDto> ActivateDoctorAsync(Guid doctorId, int verifyCode);                       // Approved → Active  (+sync User.IsActive=true)
+        Task<DoctorDto> VerifyDoctorAsync(Guid doctorId);                         // Pending → Verified (Send OTP)
+        Task<DoctorDto> ActivateDoctorAsync(Guid doctorId, int verifyCode);                       // Verified → Active  (+sync User.IsActive=true)
         Task<DoctorDto> RejectDoctorAsync(Guid doctorId, string? reason);         // any → Rejected     (+sync User.IsActive=false)
 
         // Heartbeat (online status)

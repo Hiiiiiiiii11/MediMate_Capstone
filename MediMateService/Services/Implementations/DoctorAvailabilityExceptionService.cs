@@ -1,6 +1,7 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using System;
 using System.Collections.Generic;
@@ -56,16 +57,30 @@ namespace MediMateService.Services.Implementations
             if (filter.PageNumber < 1) filter.PageNumber = 1;
             if (filter.PageSize < 1) filter.PageSize = 10;
 
-            var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
-                .FindAsync(e =>
-                    (!filter.DoctorId.HasValue || e.DoctorId == filter.DoctorId.Value) &&
-                    (!filter.IsAvailableOverride.HasValue || e.IsAvailableOverride == filter.IsAvailableOverride.Value) &&
-                    (!filter.DateFrom.HasValue || e.Date.Date >= filter.DateFrom.Value.Date) &&
-                    (!filter.DateTo.HasValue || e.Date.Date <= filter.DateTo.Value.Date));
+            IQueryable<DoctorAvailabilityExceptions> query = _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .GetQueryable()
+                .Include(d => d.Doctor);
+
+            if (filter.DoctorId.HasValue)
+            {
+                query = query.Where(e => e.DoctorId == filter.DoctorId.Value);
+            }
+            if (filter.IsAvailableOverride.HasValue)
+            {
+                query = query.Where(e => e.IsAvailableOverride == filter.IsAvailableOverride.Value);
+            }
+            if (filter.DateFrom.HasValue)
+            {
+                query = query.Where(e => e.Date.Date >= filter.DateFrom.Value.Date);
+            }
+            if (filter.DateTo.HasValue)
+            {
+                query = query.Where(e => e.Date.Date <= filter.DateTo.Value.Date);
+            }
 
             var ordered = filter.IsDescending
-                ? exceptions.OrderByDescending(e => e.Date)
-                : exceptions.OrderBy(e => e.Date);
+                ? query.OrderByDescending(e => e.Date)
+                : query.OrderBy(e => e.Date);
 
             var totalCount = ordered.Count();
             var items = ordered
@@ -155,6 +170,7 @@ namespace MediMateService.Services.Implementations
             {
                 ExceptionId = e.ExceptionId,
                 DoctorId = e.DoctorId,
+                DoctorName = e.Doctor?.FullName ?? "Unknown",
                 Date = e.Date,
                 // Kiểm tra HasValue, nếu có thì format, không thì gán null
                 StartTime = e.StartTime.HasValue ? e.StartTime.Value.ToString(@"hh\:mm") : null,

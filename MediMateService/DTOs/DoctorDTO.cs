@@ -160,6 +160,7 @@ namespace MediMateService.DTOs
     {
         public Guid ExceptionId { get; set; }
         public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; }
         public DateTime Date { get; set; }
 
         // Sửa TimeSpan? thành string?

@@ -1,4 +1,4 @@
-namespace MediMateService.DTOs;
+﻿namespace MediMateService.DTOs;
 
 public class CreatePaymentRequest
 {
@@ -64,4 +64,25 @@ public class PaymentInfoData
     public string? PaidAt { get; set; }
     public string? TransactionId { get; set; }
     public string Description { get; set; } = string.Empty;
+}
+
+public class PaymentFilterDto
+{
+    public string? SearchTerm { get; set; } // Tìm theo tên gói (PaymentContent) hoặc Tên user
+    public string? Status { get; set; } // "Pending", "Success", "Failed", "Cancelled"
+    public string? SortBy { get; set; } // "CreatedAt", "Amount"
+    public bool IsDescending { get; set; } = true;
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+}
+
+public class PaymentItemDto
+{
+    public Guid PaymentId { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string PaymentContent { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
 }

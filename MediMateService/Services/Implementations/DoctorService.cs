@@ -170,15 +170,38 @@ namespace MediMateService.Services.Implementations
             var doctor = doctors.FirstOrDefault(d => d.UserId == userId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy hồ sơ bác sĩ.");
 
-            doctor.FullName = request.FullName;
-            doctor.Specialty = request.Specialty;
-            doctor.CurrentHospitalName = request.CurrentHospitalName;
-            doctor.LicenseNumber = request.LicenseNumber;
-            doctor.LicenseImage = request.LicenseImage;
-            doctor.YearsOfExperience = request.YearsOfExperience;
-            doctor.Bio = request.Bio;
+            bool isUpdated = false;
 
-            await _repo.UpdateDoctorAsync(doctor);
+            if (!string.IsNullOrWhiteSpace(request.FullName)) { doctor.FullName = request.FullName.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.Specialty)) { doctor.Specialty = request.Specialty.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.CurrentHospitalName)) { doctor.CurrentHospitalName = request.CurrentHospitalName.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.LicenseNumber)) { doctor.LicenseNumber = request.LicenseNumber.Trim(); isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.LicenseImage)) { doctor.LicenseImage = request.LicenseImage.Trim(); isUpdated = true; }
+            if (request.YearsOfExperience.HasValue) { doctor.YearsOfExperience = request.YearsOfExperience.Value; isUpdated = true; }
+            if (!string.IsNullOrWhiteSpace(request.Bio)) { doctor.Bio = request.Bio.Trim(); isUpdated = true; }
+            
+            if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
+            {
+                var userRepo = _unitOfWork.Repository<User>();
+                var user = await userRepo.GetByIdAsync(doctor.UserId);
+                if (user != null)
+                {
+                    user.AvatarUrl = request.AvatarUrl.Trim();
+                    userRepo.Update(user);
+                    isUpdated = true;
+                }
+            }
+
+            if (isUpdated)
+            {
+                if (doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+                {
+                    doctor.Status = DoctorStatuses.Pending;
+                }
+                await _repo.UpdateDoctorAsync(doctor);
+                await _unitOfWork.CompleteAsync();
+            }
+
             return MapToDto(doctor);
         }
 
@@ -217,18 +240,6 @@ namespace MediMateService.Services.Implementations
                 throw new BadRequestException($"Chỉ có thể verify khi trạng thái là Pending. Hiện tại: {doctor.Status}");
 
             doctor.Status = DoctorStatuses.Verified;
-            await _repo.UpdateDoctorAsync(doctor);
-            return MapToDto(doctor);
-        }
-
-        public async Task<DoctorDto> ApproveDoctorAsync(Guid doctorId)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            if (doctor.Status != DoctorStatuses.Verified)
-                throw new BadRequestException($"Chỉ có thể approve khi trạng thái là Verified. Hiện tại: {doctor.Status}");
-
-            doctor.Status = DoctorStatuses.Approved;
             await _repo.UpdateDoctorAsync(doctor);
 
             var userRepo = _unitOfWork.Repository<User>();
@@ -283,8 +294,8 @@ namespace MediMateService.Services.Implementations
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            if (doctor.Status != DoctorStatuses.Approved)
-                throw new BadRequestException($"Chỉ có thể activate khi trạng thái là Approved. Hiện tại: {doctor.Status}");
+            if (doctor.Status != DoctorStatuses.Verified)
+                throw new BadRequestException($"Chỉ có thể activate khi trạng thái là Verified. Hiện tại: {doctor.Status}");
 
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);

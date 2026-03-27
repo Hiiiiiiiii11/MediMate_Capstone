@@ -11,11 +11,13 @@ namespace MediMateService.Services.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IActivityLogService _activityLogService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService)
+        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService, IUploadPhotoService uploadPhotoService)
         {
             _unitOfWork = unitOfWork;
             _activityLogService = activityLogService;
+            _uploadPhotoService = uploadPhotoService;
         }
 
         // --- LOGIC 1: CHẾ ĐỘ CÁ NHÂN ---
@@ -202,22 +204,14 @@ namespace MediMateService.Services.Implementations
                         var count = (await _unitOfWork.Repository<Members>()
                             .FindAsync(m => m.FamilyId == family.FamilyId)).Count();
 
-                        result.Add(new FamilyResponse
-                        {
-                            FamilyId = family.FamilyId,
-                            FamilyName = family.FamilyName,
-                            Type = family.Type.ToString(),
-                            JoinCode = family.JoinCode,
-                            IsOpenJoin = family.IsOpenJoin,
-                            MemberCount = count,
-                            CreatedAt = family.CreatedAt
-                        });
+                        // [SỬA LỖI Ở ĐÂY] 
+                        // Dùng luôn hàm MapToResponse để tái sử dụng code, đảm bảo luôn trả về đầy đủ Avatar và các trường khác
+                        result.Add(MapToResponse(family, count));
                     }
                 }
             }
 
             return ApiResponse<IEnumerable<FamilyResponse>>.Ok(result.DistinctBy(f => f.FamilyId));
-            // DistinctBy để tránh trường hợp 1 user có 2 member record trong cùng 1 family (lỗi data)
         }
 
         // Helper functions
@@ -230,6 +224,7 @@ namespace MediMateService.Services.Implementations
                 Type = family.Type.ToString(), // Trả về "Personal" hoặc "Shared"
                 JoinCode = family.JoinCode,
                 IsOpenJoin = family.IsOpenJoin,
+                FamilyAvatarUrl = family.FamilyAvatarUrl ?? null,
                 MemberCount = count,
                 CreatedAt = family.CreatedAt
             };
@@ -288,6 +283,12 @@ namespace MediMateService.Services.Implementations
             if (request.IsOpenJoin.HasValue)
             {
                 family.IsOpenJoin = request.IsOpenJoin.Value;
+                hasChanges = true;
+            }
+            if (request.FamilyAvatar != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.FamilyAvatar);
+                family.FamilyAvatarUrl = uploadResult.OriginalUrl;
                 hasChanges = true;
             }
 

@@ -50,5 +50,40 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpGet("{paymentId}/transaction")]
+        [ProducesResponseType(typeof(ApiResponse<TransactionDetailDto>), 200)]
+        [Authorize]
+        public async Task<IActionResult> GetTransactionByPaymentId(Guid paymentId)
+        {
+            try
+            {
+                var result = await _transactionService.GetTransactionByPaymentIdAsync(paymentId);
+
+                if (result.Success) return Ok(result);
+                return NotFound(result);
+                // Trả về 404 nếu không tìm thấy
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+        [HttpGet("user/{userId}")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<TransactionItemDto>>), 200)]
+        public async Task<IActionResult> GetTransactionByUserId(Guid userId, [FromQuery] TransactionFilterDto filter)
+        {
+            try
+            {
+                // Đã bổ sung biến filter vào hàm gọi Service
+                var result = await _transactionService.GetTransactionsByUserIdAsync(userId, filter);
+
+                if (result.Success) return Ok(result);
+                return NotFound(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
     }
 }

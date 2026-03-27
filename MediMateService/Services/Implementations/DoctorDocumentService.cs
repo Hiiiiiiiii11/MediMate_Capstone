@@ -1,20 +1,23 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 using System.Globalization;
+using MediMateService.Shared;
 
 namespace MediMateService.Services.Implementations
 {
     public class DoctorDocumentService : IDoctorDocumentService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IEmailService _emailService;
 
-        public DoctorDocumentService(IUnitOfWork unitOfWork)
+        public DoctorDocumentService(IUnitOfWork unitOfWork, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
+            _emailService = emailService;
         }
 
         public async Task<ApiResponse<DoctorDocumentDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorDocumentRequest request)
@@ -42,6 +45,13 @@ namespace MediMateService.Services.Implementations
             };
 
             await _unitOfWork.Repository<DoctorDocument>().AddAsync(document);
+
+            if (doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+            {
+                doctor.Status = DoctorStatuses.Pending;
+                _unitOfWork.Repository<Doctors>().Update(doctor);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Nộp tài liệu thành công. Vui lòng chờ phê duyệt.");
@@ -147,6 +157,15 @@ namespace MediMateService.Services.Implementations
             document.Note = "Tài liệu vừa được cập nhật, chờ duyệt lại.";
 
             _unitOfWork.Repository<DoctorDocument>().Update(document);
+
+            // Chốt hạ Direction 2: Hễ sửa bằng cấp là quay về Pending
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(document.DoctorId);
+            if (doctor != null && doctor.Status != DoctorStatuses.Inactive && doctor.Status != DoctorStatuses.Pending)
+            {
+                doctor.Status = DoctorStatuses.Pending;
+                _unitOfWork.Repository<Doctors>().Update(doctor);
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Cập nhật tài liệu thành công. Vui lòng chờ phê duyệt lại.");
@@ -199,6 +218,69 @@ namespace MediMateService.Services.Implementations
             document.ReviewAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             _unitOfWork.Repository<DoctorDocument>().Update(document);
+
+            // Tự động chuyển trạng thái bác sĩ sang Verified sau khi Approve HẾT tài liệu
+            if (normalizedStatus == "Approved")
+            {
+                var allDocs = await _unitOfWork.Repository<DoctorDocument>()
+                    .FindAsync(d => d.DoctorId == document.DoctorId);
+
+                // Nếu tất cả tài liệu hiện có đều đã được Approved (bao gồm cả tài liệu vừa update)
+                if (allDocs.All(d => d.Status == "Approved"))
+                {
+                    var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(document.DoctorId);
+                    if (doctor != null && doctor.Status == DoctorStatuses.Pending)
+                    {
+                        doctor.Status = DoctorStatuses.Verified;
+                        _unitOfWork.Repository<Doctors>().Update(doctor);
+
+                        var userRepo = _unitOfWork.Repository<User>();
+                        var user = await userRepo.GetByIdAsync(doctor.UserId);
+                        if (user != null)
+                        {
+                            var otp = new Random().Next(100000, 999999);
+                            user.VerifyCode = otp;
+                            user.ExpiriedAt = DateTime.Now.AddMinutes(30);
+                            userRepo.Update(user);
+
+                            if (!string.IsNullOrEmpty(user.Email))
+                            {
+                                string subject = "Tài khoản Bác sĩ của bạn đã được duyệt";
+                                string body = $@"
+<!DOCTYPE html>
+<html lang=""en"">
+<head>
+  <meta charset=""UTF-8"" />
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
+  <meta http-equiv=""X-UA-Compatible"" content=""ie=edge"" />
+  <title>OTP Verification</title>
+  <link href=""https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap"" rel=""stylesheet"" />
+</head>
+<body style=""margin: 0; font-family: 'Poppins', sans-serif; background: #ffffff; font-size: 14px;"">
+  <div style=""max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url(https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661497957196_595865/email-template-background-banner); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; color: #434343;"">
+    <main style=""margin: 0; margin-top: 70px; padding: 92px 30px 115px; background: #ffffff; border-radius: 30px; text-align: center;"">
+      <div style=""width: 100%; max-width: 489px; margin: 0 auto;"">
+        <h1 style=""margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f;"">Your OTP</h1>
+        <p style=""margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500;"">Hey {user.FullName},</p>
+        <p style=""margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px;"">
+          Thank you for choosing MediMate+. Use the following OTP to complete the activation procedure for your doctor account. OTP is valid for <strong>30 minutes</strong>. Do not share this code with others.
+        </p>
+        <p style=""margin: 0; margin-top: 60px; font-size: 40px; font-weight: 600; letter-spacing: 12px; color: #ba3d4f;"">
+          {otp}
+        </p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>";
+
+                                await _emailService.SendEmailAsync(user.Email, subject, body);
+                            }
+                        }
+                    }
+                }
+            }
+
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<DoctorDocumentDto>.Ok(MapToDto(document), "Phê duyệt tài liệu thành công.");

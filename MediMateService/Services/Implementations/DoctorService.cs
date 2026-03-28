@@ -241,18 +241,6 @@ namespace MediMateService.Services.Implementations
 
             doctor.Status = DoctorStatuses.Verified;
             await _repo.UpdateDoctorAsync(doctor);
-            return MapToDto(doctor);
-        }
-
-        public async Task<DoctorDto> ApproveDoctorAsync(Guid doctorId)
-        {
-            var doctor = await _repo.GetDoctorByIdAsync(doctorId);
-            if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            if (doctor.Status != DoctorStatuses.Verified)
-                throw new BadRequestException($"Chỉ có thể approve khi trạng thái là Verified. Hiện tại: {doctor.Status}");
-
-            doctor.Status = DoctorStatuses.Approved;
-            await _repo.UpdateDoctorAsync(doctor);
 
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);
@@ -306,8 +294,8 @@ namespace MediMateService.Services.Implementations
         {
             var doctor = await _repo.GetDoctorByIdAsync(doctorId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
-            if (doctor.Status != DoctorStatuses.Approved)
-                throw new BadRequestException($"Chỉ có thể activate khi trạng thái là Approved. Hiện tại: {doctor.Status}");
+            if (doctor.Status != DoctorStatuses.Verified)
+                throw new BadRequestException($"Chỉ có thể activate khi trạng thái là Verified. Hiện tại: {doctor.Status}");
 
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(doctor.UserId);

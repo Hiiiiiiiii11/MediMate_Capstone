@@ -31,12 +31,6 @@ namespace MediMate.Models.Doctors
         public string? Bio { get; set; }
     }
 
-    public class ApproveDoctorRequest
-    {
-        public string Action { get; set; } = "approve";
-        public string? Reason { get; set; }
-    }
-
     public class CreateDoctorAvailabilityRequest
     {
         public string DayOfWeek { get; set; } = string.Empty;

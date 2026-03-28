@@ -57,11 +57,6 @@ namespace MediMateService.DTOs
         public string? Reason { get; set; }
     }
 
-    public class ApproveDoctorDto
-    {
-        public string Action { get; set; } = "approve";
-        public string? Reason { get; set; }
-    }
 
 
     public class DoctorBankAccountDto
@@ -165,6 +160,7 @@ namespace MediMateService.DTOs
     {
         public Guid ExceptionId { get; set; }
         public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; }
         public DateTime Date { get; set; }
 
         // Sửa TimeSpan? thành string?
@@ -191,6 +187,17 @@ namespace MediMateService.DTOs
         public TimeSpan? EndTime { get; set; }
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
+    }
+
+    public class DoctorAvailabilityExceptionFilter
+    {
+        public Guid? DoctorId { get; set; }
+        public bool? IsAvailableOverride { get; set; }
+        public DateTime? DateFrom { get; set; }
+        public DateTime? DateTo { get; set; }
+        public bool IsDescending { get; set; } = true;
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
     }
 
 

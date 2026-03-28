@@ -1,6 +1,7 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using System;
 using System.Collections.Generic;
@@ -50,6 +51,55 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Thêm ngoại lệ lịch làm việc thành công.");
         }
 
+        public async Task<ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>> GetAllAsync(DoctorAvailabilityExceptionFilter filter)
+        {
+            filter ??= new DoctorAvailabilityExceptionFilter();
+            if (filter.PageNumber < 1) filter.PageNumber = 1;
+            if (filter.PageSize < 1) filter.PageSize = 10;
+
+            IQueryable<DoctorAvailabilityExceptions> query = _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .GetQueryable()
+                .Include(d => d.Doctor);
+
+            if (filter.DoctorId.HasValue)
+            {
+                query = query.Where(e => e.DoctorId == filter.DoctorId.Value);
+            }
+            if (filter.IsAvailableOverride.HasValue)
+            {
+                query = query.Where(e => e.IsAvailableOverride == filter.IsAvailableOverride.Value);
+            }
+            if (filter.DateFrom.HasValue)
+            {
+                query = query.Where(e => e.Date.Date >= filter.DateFrom.Value.Date);
+            }
+            if (filter.DateTo.HasValue)
+            {
+                query = query.Where(e => e.Date.Date <= filter.DateTo.Value.Date);
+            }
+
+            var ordered = filter.IsDescending
+                ? query.OrderByDescending(e => e.Date)
+                : query.OrderBy(e => e.Date);
+
+            var totalCount = ordered.Count();
+            var items = ordered
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(MapToDto)
+                .ToList();
+
+            var result = new PagedResult<DoctorAvailabilityExceptionDto>
+            {
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                Items = items
+            };
+
+            return ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>.Ok(result);
+        }
+
         public async Task<ApiResponse<IEnumerable<DoctorAvailabilityExceptionDto>>> GetByDoctorIdAsync(Guid doctorId)
         {
             var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
@@ -77,8 +127,8 @@ namespace MediMateService.Services.Implementations
             if (exception == null)
                 return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không tìm thấy ngoại lệ lịch.", 404);
 
-            if (exception.Doctor.UserId != currentUserId)
-                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền sửa ngoại lệ này.", 403);
+            //if (exception.Doctor.UserId != currentUserId)
+            //    return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền sửa ngoại lệ này.", 403);
 
             if (request.StartTime.HasValue && request.EndTime.HasValue && request.StartTime >= request.EndTime)
             {
@@ -120,6 +170,7 @@ namespace MediMateService.Services.Implementations
             {
                 ExceptionId = e.ExceptionId,
                 DoctorId = e.DoctorId,
+                DoctorName = e.Doctor?.FullName ?? "Unknown",
                 Date = e.Date,
                 // Kiểm tra HasValue, nếu có thì format, không thì gán null
                 StartTime = e.StartTime.HasValue ? e.StartTime.Value.ToString(@"hh\:mm") : null,

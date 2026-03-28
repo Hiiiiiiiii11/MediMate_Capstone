@@ -153,6 +153,71 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<TransactionDetailDto>.Ok(detail, "Lấy chi tiết giao dịch thành công.");
         }
 
+        public async Task<ApiResponse<bool>> UpdateTransactionStatusAsync(Guid transactionId, string status)
+        {
+            try
+            {
+                // 1. Chuẩn hóa trạng thái (VD: "failed", "FAILED", "Failed" -> "Failed")
+                var formattedStatus = char.ToUpper(status.Trim()[0]) + status.Trim().Substring(1).ToLower();
+                var allowedStatuses = new[] { "Success", "Failed", "Cancelled", "Pending" };
+
+                if (!allowedStatuses.Contains(formattedStatus))
+                {
+                    return ApiResponse<bool>.Fail($"Trạng thái '{status}' không hợp lệ. Chỉ chấp nhận: Success, Failed, Cancelled, Pending.", 400);
+                }
+
+                // 2. Tìm giao dịch kèm theo Payment và Subscription
+                var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
+                    .Include(t => t.Payment)
+                        .ThenInclude(p => p!.Subscription)
+                    .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+
+                if (transaction == null)
+                {
+                    return ApiResponse<bool>.Fail("Không tìm thấy giao dịch.", 404);
+                }
+
+                // 3. Chặn không cho đổi trạng thái nếu đã thành công
+                if (transaction.TransactionStatus == "Success")
+                {
+                    return ApiResponse<bool>.Fail("Giao dịch này đã thành công trước đó, không thể thay đổi trạng thái.", 400);
+                }
+
+                // 4. Cập nhật Transaction
+                transaction.TransactionStatus = formattedStatus;
+
+                // Nếu là Failed hoặc Cancelled thì ghi nhận thời điểm hủy
+                if (formattedStatus == "Failed" || formattedStatus == "Cancelled")
+                {
+                    transaction.PaidAt = DateTime.Now;
+                }
+
+                // 5. Đồng bộ trạng thái sang bảng Payment và Subscription (nếu có)
+                if (transaction.Payment != null)
+                {
+                    transaction.Payment.Status = formattedStatus;
+
+                    // Chỉ hủy gói Subscription nếu gói này chưa bị xử lý
+                    if (transaction.Payment.Subscription != null &&
+                        transaction.Payment.Subscription.Status != "Active" &&
+                        transaction.Payment.Subscription.Status != "Inactive")
+                    {
+                        transaction.Payment.Subscription.Status = formattedStatus;
+                    }
+                }
+
+                // Lưu thay đổi
+                _unitOfWork.Repository<Transactions>().Update(transaction);
+                await _unitOfWork.CompleteAsync();
+
+                return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái giao dịch thành {formattedStatus}.");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail($"Lỗi hệ thống: {ex.Message}", 500);
+            }
+        }
+
         // ==========================================
         // HELPER: HÀM DÙNG CHUNG ĐỂ LỌC VÀ SẮP XẾP
         // ==========================================

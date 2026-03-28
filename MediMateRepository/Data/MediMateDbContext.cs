@@ -373,7 +373,7 @@ namespace MediMateRepository.Data
             // Payments 1-N Transactions (nullable FK)
             modelBuilder.Entity<Transactions>()
                 .HasOne(t => t.Payment)
-                .WithMany()
+                .WithMany(p => p.Transactions) // <--- CHỈ CẦN THÊM "p => p.Transactions" VÀO ĐÂY
                 .HasForeignKey(t => t.PaymentId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);

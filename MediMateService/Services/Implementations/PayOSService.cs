@@ -388,11 +388,11 @@ public class PayOSService : IPayOSService
 
     public async Task<ApiResponse<PagedResult<PaymentItemDto>>> GetAllPaymentsAsync(PaymentFilterDto filter)
     {
-        // Lấy tất cả Payment, kèm theo User để lấy Tên
+        // Đã bổ sung Include Transactions ở đây
         IQueryable<Payments> query = _unitOfWork.Repository<Payments>().GetQueryable()
-            .Include(p => p.User);
+            .Include(p => p.User)
+            .Include(p => p.Transactions);
 
-        // Dùng hàm chung để Lọc và Sắp xếp
         query = ApplyFiltersAndSorting(query, filter);
 
         var totalCount = await query.CountAsync();
@@ -407,6 +407,12 @@ public class PayOSService : IPayOSService
             PaymentId = p.PaymentId,
             UserId = p.UserId,
             UserName = p.User?.FullName ?? "Unknown",
+
+            // Đã bổ sung map OrderCode ở đây
+            OrderCode = p.Transactions != null && p.Transactions.Any()
+                ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0")
+                : 0,
+
             Amount = p.Amount,
             PaymentContent = p.PaymentContent ?? "",
             Status = p.Status,
@@ -429,12 +435,12 @@ public class PayOSService : IPayOSService
     // ==========================================
     public async Task<ApiResponse<PagedResult<PaymentItemDto>>> GetPaymentsByUserIdAsync(Guid userId, PaymentFilterDto filter)
     {
-        // Chỉ lấy Payment có UserId trùng khớp
+        // Nhớ Include thêm Transactions để có thể truy xuất OrderCode
         IQueryable<Payments> query = _unitOfWork.Repository<Payments>().GetQueryable()
             .Include(p => p.User)
+            .Include(p => p.Transactions) // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY
             .Where(p => p.UserId == userId);
 
-        // Dùng hàm chung để Lọc và Sắp xếp
         query = ApplyFiltersAndSorting(query, filter);
 
         var totalCount = await query.CountAsync();
@@ -449,6 +455,12 @@ public class PayOSService : IPayOSService
             PaymentId = p.PaymentId,
             UserId = p.UserId,
             UserName = p.User?.FullName ?? "Unknown",
+
+            // Lấy OrderCode từ Transaction đầu tiên liên kết với Payment này
+            OrderCode = p.Transactions != null && p.Transactions.Any()
+                ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0")
+                : 0,
+
             Amount = p.Amount,
             PaymentContent = p.PaymentContent ?? "",
             Status = p.Status,
@@ -463,7 +475,7 @@ public class PayOSService : IPayOSService
             PageSize = filter.PageSize
         };
 
-        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(result, "Lấy lịch sử thanh toán của bạn thành công.");
+        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(result, "Lấy danh sách thanh toán thành công.");
     }
 
     // ==========================================
@@ -514,6 +526,66 @@ public class PayOSService : IPayOSService
         }
 
         return query;
+    }
+
+    // ==========================================
+    // CẬP NHẬT TRẠNG THÁI TỪ FRONTEND (THÀNH CÔNG / THẤT BẠI / HỦY)
+    // ==========================================
+    public async Task<ApiResponse<bool>> UpdatePaymentStatusAsync(int orderCode, string status, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Manually updating status for OrderCode {OrderCode} to {Status}", orderCode, status);
+
+            var transaction = await _context.Transactions
+                .Include(t => t.Payment)
+                .ThenInclude(p => p.Subscription)
+                .FirstOrDefaultAsync(t => t.GatewayName == "PayOS" && t.GatewayTransactionId == orderCode.ToString(), cancellationToken);
+
+            if (transaction == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy giao dịch hợp lệ.", 404);
+            }
+
+            // Chặn: Không cho phép cập nhật lùi từ Success về Failed/Cancelled
+            if (transaction.TransactionStatus == "Success" || transaction.Payment.Status == "Success")
+            {
+                return ApiResponse<bool>.Ok(true, "Giao dịch này đã được xử lý thành công trước đó.");
+            }
+
+            // XỬ LÝ THEO TRẠNG THÁI CHUẨN ĐÃ ĐƯỢC CONTROLLER VALIDATE
+            if (status == "SUCCESS")
+            {
+                bool isProcessed = await ProcessPaymentWebhookAsync(orderCode, true, cancellationToken);
+                return isProcessed
+                    ? ApiResponse<bool>.Ok(true, "Đã cập nhật trạng thái Thành công.")
+                    : ApiResponse<bool>.Fail("Có lỗi khi xử lý dữ liệu kích hoạt gói.", 500);
+            }
+            else
+            {
+                // Quy chuẩn hóa format lưu vào DB: "CANCELED" / "CANCELLED" -> "Cancelled", "FAILED" -> "Failed"
+                var finalStatus = (status == "CANCELED" || status == "CANCELLED") ? "Cancelled" : "Failed";
+
+                transaction.TransactionStatus = finalStatus;
+                transaction.PaidAt = DateTime.Now;
+                transaction.Payment.Status = finalStatus;
+
+                if (transaction.Payment.Subscription != null)
+                {
+                    transaction.Payment.Subscription.Status = finalStatus;
+                }
+
+                _context.Transactions.Update(transaction);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái thành {finalStatus}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error manually updating payment status for order {OrderCode}", orderCode);
+            return ApiResponse<bool>.Fail($"Lỗi hệ thống: {ex.Message}", 500);
+        }
     }
 }
 

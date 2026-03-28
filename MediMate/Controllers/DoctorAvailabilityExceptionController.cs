@@ -24,6 +24,22 @@ namespace MediMate.Controllers
             _currentUserService = currentUserService;
         }
 
+        [HttpGet]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>), 200)]
+        public async Task<IActionResult> GetAll([FromQuery] DoctorAvailabilityExceptionFilter filter)
+        {
+            try
+            {
+                var response = await _exceptionService.GetAllAsync(filter);
+                return StatusCode(response.Code, response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
+
         [HttpPost("doctors/{doctorId}")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]

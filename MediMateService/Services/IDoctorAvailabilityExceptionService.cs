@@ -11,6 +11,7 @@ namespace MediMateService.Services
     public interface IDoctorAvailabilityExceptionService
     {
         Task<ApiResponse<DoctorAvailabilityExceptionDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityExceptionRequest request);
+        Task<ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>> GetAllAsync(DoctorAvailabilityExceptionFilter filter);
         Task<ApiResponse<IEnumerable<DoctorAvailabilityExceptionDto>>> GetByDoctorIdAsync(Guid doctorId);
         Task<ApiResponse<DoctorAvailabilityExceptionDto>> GetByIdAsync(Guid exceptionId);
         Task<ApiResponse<DoctorAvailabilityExceptionDto>> UpdateAsync(Guid exceptionId, Guid currentUserId, UpdateDoctorAvailabilityExceptionRequest request);

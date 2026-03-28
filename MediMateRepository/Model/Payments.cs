@@ -14,5 +14,6 @@ namespace MediMateRepository.Model
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public virtual FamilySubscriptions Subscription { get; set; } = null!;
         public virtual User User { get; set; } = null!;
+        public virtual ICollection<Transactions> Transactions { get; set; } = new List<Transactions>();
     }
 }

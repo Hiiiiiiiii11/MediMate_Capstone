@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
 {
@@ -38,5 +39,10 @@ namespace MediMateService.DTOs
         public DateTime? AppointmentDate { get; set; }
         public string PaymentMethod { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
+    }
+    public class UpdateTransactionStatusRequest
+    {
+        [Required(ErrorMessage = "Trạng thái không được để trống.")]
+        public string Status { get; set; } = string.Empty;
     }
 }

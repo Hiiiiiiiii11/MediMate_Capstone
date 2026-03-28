@@ -158,7 +158,6 @@ namespace MediMate.Controllers
         [HttpGet]
         [Authorize] // Có thể thêm (Roles = "Admin") sau này
         [ProducesResponseType(typeof(ApiResponse<PagedResult<PaymentItemDto>>), 200)]
-        [ProducesResponseType(typeof(ApiResponse<object>), 400)]
         public async Task<IActionResult> GetAllPayments([FromQuery] PaymentFilterDto filter)
         {
             try
@@ -174,5 +173,39 @@ namespace MediMate.Controllers
                 return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
             }
         }
+        [HttpPut("status/{orderCode}")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> UpdatePaymentStatus(int orderCode, [FromBody] UpdatePaymentStatusRequest request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Validations
+                // 1. Chuẩn hóa chuỗi (Xóa khoảng trắng thừa và viết hoa)
+                var upperStatus = request.Status?.Trim().ToUpper() ?? "";
+
+                // 2. Danh sách trạng thái chuẩn được phép nhận
+                var allowedStatuses = new[] { "SUCCESS", "FAILED", "CANCELLED" };
+
+                // 3. Bắt lỗi nếu gửi sai format
+                if (!allowedStatuses.Contains(upperStatus))
+                {
+                    return BadRequest(ApiResponse<bool>.Fail(
+                        $"Trạng thái '{request.Status}' không hợp lệ. Chỉ chấp nhận: SUCCESS, FAILED, CANCELED.", 400));
+                }
+                var result = await _payOSService.UpdatePaymentStatusAsync(orderCode, request.Status, cancellationToken);
+
+                if (result.Success)
+                    return Ok(result);
+
+                return StatusCode(result.Code, result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating payment status");
+                return StatusCode(500, ApiResponse<bool>.Fail(ex.Message, 500));
+            }
+        }
+
     }
 }

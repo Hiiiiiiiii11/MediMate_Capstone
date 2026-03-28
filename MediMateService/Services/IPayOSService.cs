@@ -12,4 +12,5 @@ public interface IPayOSService
 
     Task<ApiResponse<PagedResult<PaymentItemDto>>> GetAllPaymentsAsync(PaymentFilterDto filter);
     Task<ApiResponse<PagedResult<PaymentItemDto>>> GetPaymentsByUserIdAsync(Guid userId, PaymentFilterDto filter);
+    Task<ApiResponse<bool>> UpdatePaymentStatusAsync(int orderCode, string status, CancellationToken cancellationToken = default);
 }

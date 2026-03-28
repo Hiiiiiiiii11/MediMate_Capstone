@@ -100,9 +100,13 @@ namespace MediMateService.Services.Implementations
         {
             var availability = (await _unitOfWork.Repository<DoctorAvailability>()
                 .FindAsync(a => a.DoctorAvailabilityId == availabilityId, "Doctor")).FirstOrDefault();
-
             if (availability == null)
                 return ApiResponse<bool>.Fail("Không tìm thấy lịch làm việc.", 404);
+
+            var appointments = await _unitOfWork.Repository<Appointments>()
+                .FindAsync(ap => ap.DoctorId == availability.DoctorId && ap.AppointmentDate.Date >= DateTime.UtcNow.Date);
+            if (appointments.Any())
+                return ApiResponse<bool>.Fail("Không thể xóa khung giờ này vì đã có lịch hẹn trong tương lai.", 400);
 
             //if (availability.Doctor.UserId != currentUserId) //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
             //    return ApiResponse<bool>.Fail("Bạn không có quyền xóa lịch này.", 403);

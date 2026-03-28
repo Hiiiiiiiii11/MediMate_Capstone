@@ -80,8 +80,8 @@ namespace MediMateService.Services.Implementations
                 .FindAsync(a => a.DoctorId == request.DoctorId
                                 && a.AvailabilityId == request.AvailabilityId
                                 && a.AppointmentDate.Date == request.AppointmentDate.Date
-                                && a.Status != "Cancelled"
-                                && a.Status != "Rejected")).Any(); // Bỏ qua các lịch đã bị hủy/từ chối
+                                && a.Status != AppointmentConstants.CANCELLED
+                                && a.Status != AppointmentConstants.REJECTED)).Any(); // Bỏ qua các lịch đã bị hủy/từ chối
             if (isSlotBooked)
             {
                 throw new ConflictException("Khung giờ này trong ngày đã có bệnh nhân khác đặt. Vui lòng chọn giờ khác.");
@@ -120,7 +120,7 @@ namespace MediMateService.Services.Implementations
                 AvailabilityId = request.AvailabilityId,
                 AppointmentDate = request.AppointmentDate, // Lấy đúng ngày user chọn
                 AppointmentTime = request.AppointmentTime,
-                Status = "Pending",
+                Status = AppointmentConstants.PENDING,
                 CreatedAt = DateTime.Now
             };
 
@@ -175,12 +175,12 @@ namespace MediMateService.Services.Implementations
                 throw new ForbiddenException("Bạn không có quyền hủy lịch hẹn này.");
             }
 
-            if (appointment.Status == "Cancelled")
+            if (appointment.Status == AppointmentConstants.CANCELLED)
             {
                 throw new ConflictException("Lịch hẹn đã được hủy trước đó.");
             }
 
-            appointment.Status = "Cancelled";
+            appointment.Status = AppointmentConstants.CANCELLED;
             appointment.CancelReason = request.Reason?.Trim();
             await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
@@ -317,8 +317,8 @@ namespace MediMateService.Services.Implementations
             var bookedAppointments = await _unitOfWork.Repository<Appointments>()
                 .FindAsync(a => a.DoctorId == doctorId
                                  && a.AppointmentDate.Date == date.Date
-                                 && a.Status != "Cancelled"
-                                 && a.Status != "Rejected");
+                                 && a.Status != AppointmentConstants.CANCELLED
+                                 && a.Status != AppointmentConstants.REJECTED);
 
             var bookedTimes = bookedAppointments.Select(a => a.AppointmentTime).ToList();
 
@@ -380,7 +380,7 @@ namespace MediMateService.Services.Implementations
                 throw new ForbiddenException("Bạn không có quyền cập nhật lịch hẹn này.");
             }
 
-            if (appointment.Status == "Cancelled" || appointment.Status == "Completed")
+            if (appointment.Status == AppointmentConstants.CANCELLED || appointment.Status == AppointmentConstants.COMPLETED)
             {
                 throw new BadRequestException($"Không thể cập nhật lịch hẹn đã ở trạng thái {appointment.Status}.");
             }
@@ -389,7 +389,7 @@ namespace MediMateService.Services.Implementations
             if (!string.Equals(appointment.Status, request.Status, StringComparison.OrdinalIgnoreCase))
             {
                 // --- NGHIỆP VỤ: TỪ CHỐI (REJECTED) -> HOÀN LƯỢT KHÁM ---
-                if (request.Status.Equals("Rejected", StringComparison.OrdinalIgnoreCase) && member?.FamilyId != null)
+                if (request.Status.Equals(AppointmentConstants.REJECTED, StringComparison.OrdinalIgnoreCase) && member?.FamilyId != null)
                 {
                     var currentDate = DateOnly.FromDateTime(DateTime.Now);
                     var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
@@ -414,7 +414,7 @@ namespace MediMateService.Services.Implementations
                     session.Status = request.Status;
 
                     // [NEW] Ghi nhận thời gian kết thúc buổi khám
-                    if (request.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                    if (request.Status.Equals(AppointmentConstants.COMPLETED, StringComparison.OrdinalIgnoreCase))
                     {
                         session.EndedAt = DateTime.Now;
                     }
@@ -430,7 +430,7 @@ namespace MediMateService.Services.Implementations
                 string title = "";
                 string message = "";
 
-                if (request.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+                if (request.Status.Equals(AppointmentConstants.APPROVED, StringComparison.OrdinalIgnoreCase))
                 {
                     title = "✅ Lịch khám đã được xác nhận";
                     message = $"Bác sĩ đã chấp nhận lịch khám của {member.FullName}. Vui lòng chuẩn bị sẵn sàng vào khung giờ đã đặt.";
@@ -447,12 +447,12 @@ namespace MediMateService.Services.Implementations
                         );
                     }
                 }
-                else if (request.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                else if (request.Status.Equals(AppointmentConstants.COMPLETED, StringComparison.OrdinalIgnoreCase))
                 {
                     title = "🏁 Buổi khám đã hoàn thành";
                     message = $"Buổi tư vấn của {member.FullName} đã kết thúc. Vui lòng kiểm tra lại tin nhắn để xem toa thuốc hoặc lời dặn dò của bác sĩ (nếu có).";
                 }
-                else if (request.Status.Equals("Rejected", StringComparison.OrdinalIgnoreCase))
+                else if (request.Status.Equals(AppointmentConstants.REJECTED, StringComparison.OrdinalIgnoreCase))
                 {
                     title = "❌ Lịch khám bị từ chối";
                     message = $"Rất tiếc, bác sĩ không thể tiếp nhận lịch khám của {member.FullName}. Lượt khám đã được hoàn trả lại cho bạn.";

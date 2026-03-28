@@ -271,7 +271,8 @@ namespace MediMate.Controllers
                 AverageRating = dto.AverageRating,
                 Status = dto.Status,
                 CreatedAt = dto.CreatedAt,
-                UserId = dto.UserId
+                UserId = dto.UserId,
+                AvatarUrl = dto.AvatarUrl
             };
         }
 

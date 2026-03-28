@@ -17,6 +17,7 @@ namespace MediMateService.DTOs
         public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.Now.AddMinutes(-2);
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 
     public class CreateDoctorDto

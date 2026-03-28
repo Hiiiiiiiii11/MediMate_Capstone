@@ -15,6 +15,7 @@ namespace MediMate.Models.Doctors
         public string? RejectionReason { get; set; }
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
+        public string? AvatarUrl { get; set; }
         public bool IsOnline { get; set; } = false;
         public DateTime? LastSeenAt { get; set; }
     }

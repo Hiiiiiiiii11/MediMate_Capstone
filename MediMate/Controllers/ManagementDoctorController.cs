@@ -114,7 +114,8 @@ namespace MediMate.Controllers
             IsOnline = dto.IsOnline,
             LastSeenAt = dto.LastSeenAt,
             CreatedAt = dto.CreatedAt,
-            UserId = dto.UserId
+            UserId = dto.UserId,
+            AvatarUrl = dto.AvatarUrl
         };
 
         private static DoctorAvailabilityResponse MapAvailabilityResponse(DoctorAvailabilityDto dto) => new()

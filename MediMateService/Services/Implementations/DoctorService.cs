@@ -429,7 +429,8 @@ namespace MediMateService.Services.Implementations
             RejectionReason = e.RejectionReason,
             LastSeenAt = e.LastSeenAt,
             CreatedAt = e.CreatedAt,
-            UserId = e.UserId
+            UserId = e.UserId,
+            AvatarUrl = e.User?.AvatarUrl
         };
 
         private static DoctorAvailabilityDto MapToDto(DoctorAvailability e) => new()

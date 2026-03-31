@@ -113,7 +113,7 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<AppointmentResponse>.Ok(MapAppointmentResponse(data), "Hủy lịch hẹn thành công."));
         }
 
-       
+
         [HttpPut("{appointmentId}/status")]
         [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
         public async Task<IActionResult> UpdateAppointmentStatus(Guid appointmentId, [FromBody] UpdateAppointmentRequest request)
@@ -133,6 +133,23 @@ namespace MediMate.Controllers
             catch (Exception ex)
             {
                 return StatusCode(400, ApiResponse<object>.Fail(ex.Message, 400));
+            }
+        }
+
+        [HttpGet("detail/{appointmentId}")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDetailDto>), 200)]
+        public async Task<IActionResult> GetAppointmentDetail(Guid id)
+        {
+            try
+            {
+                var result = await _appointmentService.GetAppointmentDetailAsync(id);
+                if (!result.Success) return StatusCode(result.Code, result);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<AppointmentDetailDto>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
             }
         }
 

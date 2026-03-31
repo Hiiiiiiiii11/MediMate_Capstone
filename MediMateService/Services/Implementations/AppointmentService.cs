@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 
@@ -486,6 +487,45 @@ namespace MediMateService.Services.Implementations
                 .ThenBy(a => a.AppointmentTime)
                 .Select(MapAppointment)
                 .ToList();
+        }
+        public async Task<ApiResponse<AppointmentDetailDto>> GetAppointmentDetailAsync(Guid appointmentId)
+        {
+            // Sử dụng GetQueryable và Include để lấy dữ liệu từ các bảng liên quan
+            var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
+                .Include(a => a.Doctor)
+                    .ThenInclude(d => d!.User) // Lấy thông tin User của Bác sĩ (chứa Tên, Avatar...)
+                .Include(a => a.Member)        // Lấy thông tin bệnh nhân
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+            if (appointment == null)
+            {
+                return ApiResponse<AppointmentDetailDto>.Fail("Không tìm thấy thông tin lịch hẹn.", 404);
+            }
+
+            var detail = new AppointmentDetailDto
+            {
+                AppointmentId = appointment.AppointmentId,
+                AppointmentDate = appointment.AppointmentDate,
+                AppointmentTime = appointment.AppointmentTime,
+                Status = appointment.Status,
+                CancelReason = appointment.CancelReason,
+                CreatedAt = appointment.CreatedAt,
+
+                // Map thông tin Bác sĩ (Giả sử Tên và Avatar nằm trong bảng User)
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.Doctor?.User?.FullName ?? "Chưa cập nhật",
+                DoctorAvatar = appointment.Doctor?.User?.AvatarUrl,
+                Specialty = appointment.Doctor?.Specialty,
+
+                // Map thông tin Bệnh nhân
+                MemberId = appointment.MemberId,
+                MemberName = appointment.Member?.FullName ?? "Chưa cập nhật",
+                MemberAvatar = appointment.Member?.AvatarUrl,
+                MemberGender = appointment.Member?.Gender,
+                MemberDateOfBirth = appointment.Member?.DateOfBirth
+            };
+
+            return ApiResponse<AppointmentDetailDto>.Ok(detail, "Lấy chi tiết lịch hẹn thành công.");
         }
 
         private static AppointmentDto MapAppointment(Appointments item)

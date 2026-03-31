@@ -126,19 +126,6 @@ namespace MediMateService.Services.Implementations
 
             await _appointmentRepository.AddAppointmentAsync(appointment);
 
-            var session = new ConsultationSessions
-            {
-                ConsultanSessionId = Guid.NewGuid(),
-                AppointmentId = appointment.AppointmentId,
-                DoctorId = appointment.DoctorId,
-                MemberId = appointment.MemberId,
-                StartedAt = appointment.AppointmentDate,
-                EndedAt = null,
-                Status = "Active",
-                DoctorNote = null
-            };
-            await _appointmentRepository.AddSessionAsync(session);
-
             var doctorUser = await _unitOfWork.Repository<Doctors>().GetByIdAsync(request.DoctorId);
             if (doctorUser != null)
             {
@@ -436,14 +423,31 @@ namespace MediMateService.Services.Implementations
                     message = $"Bác sĩ đã chấp nhận lịch khám của {member.FullName}. Vui lòng chuẩn bị sẵn sàng vào khung giờ đã đặt.";
 
                     var appointmentFullTime = appointment.AppointmentDate.Date.Add(appointment.AppointmentTime);
-                    var notifyTime = appointmentFullTime.AddMinutes(-15);
 
-                    // Chỉ đặt lịch nếu giờ báo thức nằm ở tương lai
+                    // Job T-15 phút: Gửi thông báo nhắc giờ khám (giữ nguyên logic cũ)
+                    var notifyTime = appointmentFullTime.AddMinutes(-15);
                     if (notifyTime > DateTime.Now)
                     {
                         _backgroundJobClient.Schedule<IReminderJobService>(
                             job => job.NotifyUpcomingAppointmentAsync(appointment.AppointmentId),
                             new DateTimeOffset(notifyTime)
+                        );
+                    }
+
+                    // Job T-5 phút: Tạo ConsultationSession trước 5 phút để phòng khám sẵn sàng
+                    var sessionCreateTime = appointmentFullTime.AddMinutes(-5);
+                    if (sessionCreateTime > DateTime.Now)
+                    {
+                        _backgroundJobClient.Schedule<IReminderJobService>(
+                            job => job.CreateConsultationSessionAsync(appointment.AppointmentId),
+                            new DateTimeOffset(sessionCreateTime)
+                        );
+                    }
+                    else
+                    {
+                        // Nếu đã qua T-5 (approve sát giờ), tạo session ngay lập tức
+                        _backgroundJobClient.Enqueue<IReminderJobService>(
+                            job => job.CreateConsultationSessionAsync(appointment.AppointmentId)
                         );
                     }
                 }

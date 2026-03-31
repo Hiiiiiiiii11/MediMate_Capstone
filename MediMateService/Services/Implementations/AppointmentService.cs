@@ -43,10 +43,6 @@ namespace MediMateService.Services.Implementations
             {
                 throw new NotFoundException("Không tìm thấy hồ sơ thành viên.");
             }
-            if (member.UserId != userId)
-            {
-                throw new ForbiddenException("Bạn không có quyền đặt lịch cho hồ sơ này.");
-            }
 
             var doctor = await _doctorRepository.GetDoctorByIdAsync(request.DoctorId);
             if (doctor == null || !string.Equals(doctor.Status, DoctorStatuses.Active, StringComparison.OrdinalIgnoreCase))

@@ -44,13 +44,7 @@ namespace MediMate.Controllers
             try
             {
                 // 1. Lấy UserId từ Token JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? User.FindFirst("Id")?.Value;
-
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                {
-                    return Unauthorized(ApiResponse<object>.Fail("Token không hợp lệ hoặc đã hết hạn.", 401));
-                }
+                var userId = _currentUserService.UserId;
 
                 // 2. Chuyển đổi Request từ API sang DTO của Service
                 var createDto = new CreateAppointmentDto
@@ -126,9 +120,7 @@ namespace MediMate.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? User.FindFirst("Id")?.Value;
-                Guid userId = Guid.Parse(userIdClaim!);
+                var userId = _currentUserService.UserId;
 
                 var updateDto = new UpdateAppointmentDto
                 {

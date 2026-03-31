@@ -1,0 +1,110 @@
+using MediMateService.DTOs;
+using MediMateService.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Share.Common;
+using System.Security.Claims;
+
+namespace MediMate.Controllers
+{
+    /// <summary>
+    /// Quản lý vòng đời của ConsultationSession:
+    /// join, mark doctor late, cancel no-show, end by user.
+    /// </summary>
+    [Route("api/v1/sessions")]
+    [ApiController]
+    [Authorize]
+    public class ConsultationSessionController : ControllerBase
+    {
+        private readonly IConsultationService _consultationService;
+        private readonly ICurrentUserService _currentUserService;
+
+        public ConsultationSessionController(
+            IConsultationService consultationService,
+            ICurrentUserService currentUserService)
+        {
+            _consultationService = consultationService;
+            _currentUserService = currentUserService;
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // GET: Lấy session theo appointmentId
+        // ─────────────────────────────────────────────────────────
+        [HttpGet("by-appointment/{appointmentId}")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> GetByAppointment(Guid appointmentId)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.GetByAppointmentIdAsync(appointmentId, userId);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Lấy thông tin phiên tư vấn thành công."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // PATCH: User hoặc Doctor join session
+        //   role = "user" | "doctor"
+        //   Khi cả 2 join → Status tự động chuyển sang InProgress (event-driven)
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/join")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> JoinSession(Guid sessionId, [FromBody] JoinSessionDto request)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.JoinSessionAsync(sessionId, userId, request.Role);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Tham gia phiên tư vấn thành công."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // PATCH: Bệnh nhân ghi nhận bác sĩ trễ hẹn
+        //   Body: { "lateMinutes": 10 }
+        //   Note được ghi: "Bác sĩ đi trễ 10 phút"
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/doctor-late")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> MarkDoctorLate(Guid sessionId, [FromBody] DoctorLateDto request)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.MarkDoctorLateAsync(sessionId, userId, request.LateMinutes);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Đã ghi nhận bác sĩ trễ hẹn."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // PATCH: Bệnh nhân huỷ phiên vì bác sĩ không tham gia (no-show)
+        //   Note tự động: "Khách huỷ vì lý do không gặp bác sĩ"
+        //   Appointment → Cancelled, lượt khám được hoàn trả
+        // ─────────────────────────────────────────────────────────
+        [HttpPut("{sessionId}/cancel-no-show")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> CancelNoShow(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.CancelNoShowAsync(sessionId, userId);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Đã huỷ phiên tư vấn do bác sĩ không tham gia."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // POST: Chỉ bệnh nhân (User) mới được kết thúc phiên meet
+        //   Sau khi End: bác sĩ vẫn có thể gửi tin nhắn, bệnh nhân thì không
+        //   Appointment → Completed
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/end")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> EndSessionByUser(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.EndSessionByUserAsync(sessionId, userId);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Phiên tư vấn đã kết thúc thành công."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // POST: Bác sĩ gắn đơn thuốc vào session
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/attach-prescription")]
+        [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
+        public async Task<IActionResult> AttachPrescription(Guid sessionId, [FromBody] AttachPrescriptionDto request)
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.AttachPrescriptionAsync(sessionId, userId, request);
+            return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Đã gắn đơn thuốc vào phiên tư vấn."));
+        }
+    }
+}

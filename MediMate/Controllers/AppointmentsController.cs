@@ -138,11 +138,11 @@ namespace MediMate.Controllers
 
         [HttpGet("detail/{appointmentId}")]
         [ProducesResponseType(typeof(ApiResponse<AppointmentDetailDto>), 200)]
-        public async Task<IActionResult> GetAppointmentDetail(Guid id)
+        public async Task<IActionResult> GetAppointmentDetail(Guid appointmentId)
         {
             try
             {
-                var result = await _appointmentService.GetAppointmentDetailAsync(id);
+                var result = await _appointmentService.GetAppointmentDetailAsync(appointmentId);
                 if (!result.Success) return StatusCode(result.Code, result);
 
                 return Ok(result);

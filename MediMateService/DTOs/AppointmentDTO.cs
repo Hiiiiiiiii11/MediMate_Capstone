@@ -49,4 +49,27 @@ namespace MediMateService.DTOs
     {
         public string Status { get; set; } = string.Empty; // "Approved", "Rejected", "Completed"
     }
+
+    public class AppointmentDetailDto
+    {
+        public Guid AppointmentId { get; set; }
+        public DateTime AppointmentDate { get; set; }
+        public TimeSpan AppointmentTime { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? CancelReason { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        // Thông tin Bác sĩ
+        public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; } = string.Empty;
+        public string? DoctorAvatar { get; set; }
+        public string? Specialty { get; set; }
+
+        // Thông tin Bệnh nhân (Member)
+        public Guid MemberId { get; set; }
+        public string MemberName { get; set; } = string.Empty;
+        public string? MemberAvatar { get; set; }
+        public string? MemberGender { get; set; }
+        public DateTime? MemberDateOfBirth { get; set; }
+    }
 }

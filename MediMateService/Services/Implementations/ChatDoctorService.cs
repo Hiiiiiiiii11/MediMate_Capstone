@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -54,14 +54,15 @@ namespace MediMateService.Services.Implementations
 
             if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            //// Kiểm tra phiên chat có đang mở không (VD: Status = "In-Progress")
+            //// Kiểm tra phiên chat có đang mở không
             if (session.Status == "Rejected")
                 return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã bị từ chối, không thể gửi tin nhắn.", 400);
 
-            if (session.Status == "Completed" && !isDoctorRequest)
+            if (session.Status == ConsultationSessionConstants.ENDED && !isDoctorRequest)
             {
-                // Bệnh nhân cố nhắn tin khi đã Completed -> Chặn
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Buổi khám đã kết thúc. Bạn không thể gửi thêm tin nhắn, nhưng vẫn có thể xem lời dặn của bác sĩ.", 403);
+                // Sau khi phiên kết thúc: User không thể nhắn thêm, Doctor vẫn có thể nhắn
+                return ApiResponse<ChatDoctorMessageResponse>.Fail(
+                    "Phiên tư vấn đã kết thúc. Bạn không thể gửi thêm tin nhắn, nhưng bác sĩ vẫn có thể liên hệ với bạn.", 403);
             }
 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))

@@ -322,7 +322,10 @@ namespace MediMateService.Services.Implementations
             {
                 TimeSpan currentSlotTime = shift.StartTime;
 
-                while (currentSlotTime + slotDuration <= shift.EndTime)
+                // FIX BUGS: Bù thêm 1 phút vào EndTime để xử lý ca 23:59 vs 24:00
+                TimeSpan adjustedEndTime = shift.EndTime.Add(TimeSpan.FromMinutes(1));
+
+                while (currentSlotTime + slotDuration <= adjustedEndTime)
                 {
                     // NẾU LÀ HÔM NAY: Ẩn các slot có giờ bắt đầu <= Giờ hiện tại + 30 phút
                     if (isToday && currentSlotTime <= currentTime.Add(bufferTime))

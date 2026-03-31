@@ -12,6 +12,6 @@ namespace MediMateService.Services
         Task<ApiResponse<AutheticationResponse>> LoginDependentByQrAsync(DependentQrLoginRequest request);
         Task<ApiResponse<AutheticationResponse>> VerifyOtpAsync(VerifyOtpRequest request);
         string GenerateJwtTokenForDependent(Members member, string typeLogin);
-        Task<ApiResponse<bool>> LogoutAsync(Guid accountId, string role, string token);
+        Task<ApiResponse<bool>> LogoutAsync(Guid? accountId, string role, string token);
     }
 }

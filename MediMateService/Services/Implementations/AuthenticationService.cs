@@ -317,7 +317,7 @@ namespace MediMateService.Services.Implementations
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public async Task<ApiResponse<bool>> LogoutAsync(Guid accountId, string role, string token)
+        public async Task<ApiResponse<bool>> LogoutAsync(Guid? accountId, string role, string token)
         {
             // 1. Xóa FCM Token như cũ
             if (role == "Dependent")

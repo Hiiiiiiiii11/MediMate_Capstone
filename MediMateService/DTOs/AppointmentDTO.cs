@@ -30,6 +30,7 @@ namespace MediMateService.DTOs
         public Guid MemberId { get; set; }
         public Guid AvailabilityId { get; set; }
         public DateTime AppointmentDate { get; set; }
+        public TimeSpan AppointmentTime { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? CancelReason { get; set; }
         public DateTime CreatedAt { get; set; }

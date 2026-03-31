@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260331130636_ConsultantSessionV2_AddJoinTracking")]
+    partial class ConsultantSessionV2_AddJoinTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

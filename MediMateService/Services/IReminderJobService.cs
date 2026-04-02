@@ -16,5 +16,6 @@ namespace MediMateService.Services
         /// Session tạo lúc T-5 → job này chạy sau 65 phút từ lúc tạo.
         /// </summary>
         Task AutoEndExpiredSessionAsync(Guid sessionId);
+        Task AutoCancelUnapprovedAppointmentAsync(Guid appointmentId);
     }
 }

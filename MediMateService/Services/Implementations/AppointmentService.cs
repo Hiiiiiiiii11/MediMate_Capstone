@@ -138,6 +138,23 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+            var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
+            var autoCancelTime = appointmentFullTime.AddMinutes(-30);
+
+            // Kiểm tra xem khách đang đặt xa hay đặt sát giờ
+            if (autoCancelTime <= DateTime.Now)
+            {
+                // Bệnh nhân đặt sát giờ (chỉ cách giờ khám từ 15-30 phút)
+                // -> Dời mốc tự động hủy sang sát giờ khám (trước 5 phút) để bác sĩ có thêm thời gian duyệt.
+                autoCancelTime = appointmentFullTime.AddMinutes(-5);
+            }
+
+            // Lên lịch Hangfire kiểm tra và hủy tự động
+            _backgroundJobClient.Schedule<IReminderJobService>(
+                job => job.AutoCancelUnapprovedAppointmentAsync(appointment.AppointmentId),
+                new DateTimeOffset(autoCancelTime)
+            );
+
             return MapAppointment(appointment);
         }
 

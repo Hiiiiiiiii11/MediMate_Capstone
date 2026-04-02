@@ -257,5 +257,68 @@ namespace MediMateService.Services.Implementations
                 );
             }
         }
+
+        public async Task AutoCancelUnapprovedAppointmentAsync(Guid appointmentId)
+        {
+            // 1. Tìm lịch hẹn (Sử dụng UnitOfWork hoặc Repository bạn đang inject trong class này)
+            var appointment = await _unitOfWork.Repository<Appointments>().GetByIdAsync(appointmentId);
+
+            if (appointment == null) return;
+
+            // 2. Nếu lịch hẹn KHÔNG còn ở trạng thái PENDING nữa thì bỏ qua (Bác sĩ đã duyệt hoặc tự hủy rồi)
+            if (!appointment.Status.Equals(AppointmentConstants.PENDING, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            // 3. Tiến hành tự động hủy
+            appointment.Status = AppointmentConstants.CANCELLED;
+            appointment.CancelReason = "Hệ thống tự động hủy do bác sĩ không phản hồi kịp thời.";
+            _unitOfWork.Repository<Appointments>().Update(appointment);
+
+            // 4. Hoàn trả lại lượt khám cho gia đình
+            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
+            if (member?.FamilyId != null)
+            {
+                var currentDate = DateOnly.FromDateTime(DateTime.Now);
+                var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
+                    .FindAsync(s => s.FamilyId == member.FamilyId
+                                     && s.Status == "Active"
+                                     && s.EndDate >= currentDate)).FirstOrDefault();
+
+                if (activeSubscription != null)
+                {
+                    activeSubscription.RemainingConsultantCount += 1;
+                    _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
+                }
+            }
+
+            await _unitOfWork.CompleteAsync();
+
+            // 5. Gửi thông báo cho Bệnh nhân
+            if (member != null)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: member.UserId ?? Guid.Empty,
+                    title: "⏳ Lịch khám đã bị hủy tự động",
+                    message: $"Bác sĩ hiện không có mặt để phản hồi lịch khám lúc {appointment.AppointmentTime:hh\\:mm}. Lượt khám đã được hoàn trả, bạn vui lòng đặt bác sĩ khác nhé.",
+                    type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                    referenceId: appointment.AppointmentId
+                );
+            }
+
+            // 6. Gửi thông báo cho Bác sĩ (Để bác sĩ biết là đã mất khách)
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(appointment.DoctorId);
+            if (doctor != null)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: doctor.UserId,
+                    title: "⚠️ Lịch khám đã bị hủy tự động",
+                    message: $"Bạn đã bỏ lỡ lịch đặt khám của bệnh nhân {member?.FullName ?? "Unknown"} vì không duyệt kịp thời gian.",
+                    type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                    referenceId: appointment.AppointmentId
+                );
+            }
+        }
     }
 }

@@ -16,12 +16,13 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationService _notificationService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IActivityLogService _activityLogService;
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient)
+            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService)
 
         {
             _appointmentRepository = appointmentRepository;
@@ -29,6 +30,7 @@ namespace MediMateService.Services.Implementations
             _unitOfWork = unitOfWork;
             _notificationService = notificationService;
             _backgroundJobClient = backgroundJobClient;
+            _activityLogService = activityLogService;
         }
         //check lịch availability
         public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
@@ -137,6 +139,18 @@ namespace MediMateService.Services.Implementations
                     referenceId: appointment.AppointmentId
                 );
             }
+
+            // Ghi log vào Activity Log
+            await _activityLogService.LogActivityAsync(
+                familyId: (Guid)member.FamilyId!,
+                memberId: member.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: "Appointment", // Bạn có thể thêm vào ActivityEntityNames hằng số này
+                entityId: appointment.AppointmentId,
+                description: $"{member.FullName} đã đặt lịch khám trực tuyến với bác sĩ."
+            );
+
+            await _unitOfWork.CompleteAsync();
 
             var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
             var autoCancelTime = appointmentFullTime.AddMinutes(-30);

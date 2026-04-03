@@ -16,12 +16,13 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationService _notificationService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IActivityLogService _activityLogService;
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient)
+            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService)
 
         {
             _appointmentRepository = appointmentRepository;
@@ -29,6 +30,7 @@ namespace MediMateService.Services.Implementations
             _unitOfWork = unitOfWork;
             _notificationService = notificationService;
             _backgroundJobClient = backgroundJobClient;
+            _activityLogService = activityLogService;
         }
         //check lịch availability
         public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
@@ -138,6 +140,20 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+
+            // Ghi log vào Activity Log
+            await _activityLogService.LogActivityAsync(
+                familyId: (Guid)member.FamilyId!,
+                memberId: member.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: "Appointment", // Bạn có thể thêm vào ActivityEntityNames hằng số này
+                entityId: appointment.AppointmentId,
+                description: $"{member.FullName} đã đặt lịch khám trực tuyến với bác sĩ."
+            );
+
+            await _unitOfWork.CompleteAsync();
+
+
             var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
             var autoCancelTime = appointmentFullTime.AddMinutes(-30);
 
@@ -234,25 +250,41 @@ namespace MediMateService.Services.Implementations
 
         public async Task<List<AppointmentDto>> GetAppointmentsAsync(Guid userId)
         {
+            // 1. Lấy lịch hẹn với tư cách là Bác sĩ (nếu có)
             var doctor = (await _unitOfWork.Repository<Doctors>()
-             .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+                .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+
             var doctorAppointments = doctor == null
                 ? new List<Appointments>()
                 : await _appointmentRepository.GetAppointmentsByDoctorIdAsync(doctor.DoctorId);
 
-            var userMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == userId);
-            var memberAppointments = new List<Appointments>();
-            foreach (var member in userMembers)
-            {
-                var items = await _appointmentRepository.GetAppointmentsByMemberIdAsync(member.MemberId);
-                memberAppointments.AddRange(items);
-            }
+            // 2. Lấy danh sách các FamilyId mà User này là thành viên
+            var userMemberProfiles = await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.UserId == userId && m.FamilyId != null);
 
+            var familyIds = userMemberProfiles.Select(m => m.FamilyId!.Value).Distinct().ToList();
+
+            // 3. Lấy tất cả MemberId thuộc về những gia đình trên
+            // Bước này giúp lấy được cả MemberId của con cái, người thân trong cùng gia đình
+            var allFamilyMemberIds = await _unitOfWork.Repository<Members>()
+                .GetQueryable()
+                .Where(m => m.FamilyId.HasValue && familyIds.Contains(m.FamilyId.Value))
+                .Select(m => m.MemberId)
+                .ToListAsync();
+
+            // 4. Lấy lịch hẹn của tất cả các thành viên trong các gia đình đó
+            var memberAppointments = await _unitOfWork.Repository<Appointments>()
+                .GetQueryable()
+                .Where(a => allFamilyMemberIds.Contains(a.MemberId))
+                .ToListAsync();
+
+            // 5. Gộp lịch hẹn (Bác sĩ + Thành viên gia đình), loại bỏ trùng lặp và sắp xếp
             var merged = memberAppointments
                 .Concat(doctorAppointments)
                 .GroupBy(a => a.AppointmentId)
                 .Select(g => g.First())
                 .OrderByDescending(a => a.AppointmentDate)
+                .ThenByDescending(a => a.AppointmentTime)
                 .ToList();
 
             return merged.Select(MapAppointment).ToList();

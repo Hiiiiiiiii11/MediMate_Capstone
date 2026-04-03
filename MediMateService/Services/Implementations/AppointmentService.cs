@@ -140,6 +140,7 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+
             // Ghi log vào Activity Log
             await _activityLogService.LogActivityAsync(
                 familyId: (Guid)member.FamilyId!,
@@ -151,6 +152,7 @@ namespace MediMateService.Services.Implementations
             );
 
             await _unitOfWork.CompleteAsync();
+
 
             var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
             var autoCancelTime = appointmentFullTime.AddMinutes(-30);

@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 
@@ -15,12 +16,13 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationService _notificationService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IActivityLogService _activityLogService;
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient)
+            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService)
 
         {
             _appointmentRepository = appointmentRepository;
@@ -28,6 +30,7 @@ namespace MediMateService.Services.Implementations
             _unitOfWork = unitOfWork;
             _notificationService = notificationService;
             _backgroundJobClient = backgroundJobClient;
+            _activityLogService = activityLogService;
         }
         //check lịch availability
         public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
@@ -42,10 +45,6 @@ namespace MediMateService.Services.Implementations
             if (member == null)
             {
                 throw new NotFoundException("Không tìm thấy hồ sơ thành viên.");
-            }
-            if (member.UserId != userId)
-            {
-                throw new ForbiddenException("Bạn không có quyền đặt lịch cho hồ sơ này.");
             }
 
             var doctor = await _doctorRepository.GetDoctorByIdAsync(request.DoctorId);
@@ -141,6 +140,37 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+
+            // Ghi log vào Activity Log
+            await _activityLogService.LogActivityAsync(
+                familyId: (Guid)member.FamilyId!,
+                memberId: member.MemberId,
+                actionType: ActivityActionTypes.CREATE,
+                entityName: "Appointment", // Bạn có thể thêm vào ActivityEntityNames hằng số này
+                entityId: appointment.AppointmentId,
+                description: $"{member.FullName} đã đặt lịch khám trực tuyến với bác sĩ."
+            );
+
+            await _unitOfWork.CompleteAsync();
+
+
+            var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
+            var autoCancelTime = appointmentFullTime.AddMinutes(-30);
+
+            // Kiểm tra xem khách đang đặt xa hay đặt sát giờ
+            if (autoCancelTime <= DateTime.Now)
+            {
+                // Bệnh nhân đặt sát giờ (chỉ cách giờ khám từ 15-30 phút)
+                // -> Dời mốc tự động hủy sang sát giờ khám (trước 5 phút) để bác sĩ có thêm thời gian duyệt.
+                autoCancelTime = appointmentFullTime.AddMinutes(-5);
+            }
+
+            // Lên lịch Hangfire kiểm tra và hủy tự động
+            _backgroundJobClient.Schedule<IReminderJobService>(
+                job => job.AutoCancelUnapprovedAppointmentAsync(appointment.AppointmentId),
+                new DateTimeOffset(autoCancelTime)
+            );
+
             return MapAppointment(appointment);
         }
 
@@ -220,25 +250,41 @@ namespace MediMateService.Services.Implementations
 
         public async Task<List<AppointmentDto>> GetAppointmentsAsync(Guid userId)
         {
+            // 1. Lấy lịch hẹn với tư cách là Bác sĩ (nếu có)
             var doctor = (await _unitOfWork.Repository<Doctors>()
-             .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+                .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+
             var doctorAppointments = doctor == null
                 ? new List<Appointments>()
                 : await _appointmentRepository.GetAppointmentsByDoctorIdAsync(doctor.DoctorId);
 
-            var userMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.UserId == userId);
-            var memberAppointments = new List<Appointments>();
-            foreach (var member in userMembers)
-            {
-                var items = await _appointmentRepository.GetAppointmentsByMemberIdAsync(member.MemberId);
-                memberAppointments.AddRange(items);
-            }
+            // 2. Lấy danh sách các FamilyId mà User này là thành viên
+            var userMemberProfiles = await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.UserId == userId && m.FamilyId != null);
 
+            var familyIds = userMemberProfiles.Select(m => m.FamilyId!.Value).Distinct().ToList();
+
+            // 3. Lấy tất cả MemberId thuộc về những gia đình trên
+            // Bước này giúp lấy được cả MemberId của con cái, người thân trong cùng gia đình
+            var allFamilyMemberIds = await _unitOfWork.Repository<Members>()
+                .GetQueryable()
+                .Where(m => m.FamilyId.HasValue && familyIds.Contains(m.FamilyId.Value))
+                .Select(m => m.MemberId)
+                .ToListAsync();
+
+            // 4. Lấy lịch hẹn của tất cả các thành viên trong các gia đình đó
+            var memberAppointments = await _unitOfWork.Repository<Appointments>()
+                .GetQueryable()
+                .Where(a => allFamilyMemberIds.Contains(a.MemberId))
+                .ToListAsync();
+
+            // 5. Gộp lịch hẹn (Bác sĩ + Thành viên gia đình), loại bỏ trùng lặp và sắp xếp
             var merged = memberAppointments
                 .Concat(doctorAppointments)
                 .GroupBy(a => a.AppointmentId)
                 .Select(g => g.First())
                 .OrderByDescending(a => a.AppointmentDate)
+                .ThenByDescending(a => a.AppointmentTime)
                 .ToList();
 
             return merged.Select(MapAppointment).ToList();
@@ -322,7 +368,10 @@ namespace MediMateService.Services.Implementations
             {
                 TimeSpan currentSlotTime = shift.StartTime;
 
-                while (currentSlotTime + slotDuration <= shift.EndTime)
+                // FIX BUGS: Bù thêm 1 phút vào EndTime để xử lý ca 23:59 vs 24:00
+                TimeSpan adjustedEndTime = shift.EndTime.Add(TimeSpan.FromMinutes(1));
+
+                while (currentSlotTime + slotDuration <= adjustedEndTime)
                 {
                     // NẾU LÀ HÔM NAY: Ẩn các slot có giờ bắt đầu <= Giờ hiện tại + 30 phút
                     if (isToday && currentSlotTime <= currentTime.Add(bufferTime))
@@ -487,6 +536,45 @@ namespace MediMateService.Services.Implementations
                 .ThenBy(a => a.AppointmentTime)
                 .Select(MapAppointment)
                 .ToList();
+        }
+        public async Task<ApiResponse<AppointmentDetailDto>> GetAppointmentDetailAsync(Guid appointmentId)
+        {
+            // Sử dụng GetQueryable và Include để lấy dữ liệu từ các bảng liên quan
+            var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
+                .Include(a => a.Doctor)
+                    .ThenInclude(d => d!.User) // Lấy thông tin User của Bác sĩ (chứa Tên, Avatar...)
+                .Include(a => a.Member)        // Lấy thông tin bệnh nhân
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+            if (appointment == null)
+            {
+                return ApiResponse<AppointmentDetailDto>.Fail("Không tìm thấy thông tin lịch hẹn.", 404);
+            }
+
+            var detail = new AppointmentDetailDto
+            {
+                AppointmentId = appointment.AppointmentId,
+                AppointmentDate = appointment.AppointmentDate,
+                AppointmentTime = appointment.AppointmentTime,
+                Status = appointment.Status,
+                CancelReason = appointment.CancelReason,
+                CreatedAt = appointment.CreatedAt,
+
+                // Map thông tin Bác sĩ (Giả sử Tên và Avatar nằm trong bảng User)
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.Doctor?.User?.FullName ?? "Chưa cập nhật",
+                DoctorAvatar = appointment.Doctor?.User?.AvatarUrl,
+                Specialty = appointment.Doctor?.Specialty,
+
+                // Map thông tin Bệnh nhân
+                MemberId = appointment.MemberId,
+                MemberName = appointment.Member?.FullName ?? "Chưa cập nhật",
+                MemberAvatar = appointment.Member?.AvatarUrl,
+                MemberGender = appointment.Member?.Gender,
+                MemberDateOfBirth = appointment.Member?.DateOfBirth
+            };
+
+            return ApiResponse<AppointmentDetailDto>.Ok(detail, "Lấy chi tiết lịch hẹn thành công.");
         }
 
         private static AppointmentDto MapAppointment(Appointments item)

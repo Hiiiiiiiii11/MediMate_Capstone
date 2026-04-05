@@ -20,6 +20,8 @@ public class PayOSService : IPayOSService
     private readonly ILogger<PayOSService> _logger;
     private readonly IUnitOfWork _unitOfWork;
 
+    private readonly IActivityLogService _activityLogService;
+
     private readonly string _clientId;
     private readonly string _apiKey;
     private readonly string _checksumKey;
@@ -27,7 +29,7 @@ public class PayOSService : IPayOSService
     private readonly string _defaultReturnUrl;
     private readonly string _defaultCancelUrl;
 
-    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork)
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService)
     {
         _httpClient = httpClient;
         _configuration = configuration;
@@ -44,6 +46,7 @@ public class PayOSService : IPayOSService
         _httpClient.BaseAddress = new Uri(_baseUrl);
         _httpClient.DefaultRequestHeaders.Add("x-client-id", _clientId);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _activityLogService = activityLogService;
     }
 
     public async Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default)
@@ -272,6 +275,19 @@ public class PayOSService : IPayOSService
                 sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
 
                 _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
+                _context.FamilySubscriptions.UpdateRange(oldActiveSubscriptions);
+
+                var member = await _context.Members
+        .FirstOrDefaultAsync(m => m.UserId == transaction.Payment.UserId && m.FamilyId == sub.FamilyId, cancellationToken);
+
+                await _activityLogService.LogActivityAsync(
+                    familyId: sub.FamilyId,
+                    memberId: member?.MemberId ?? Guid.Empty,
+                    actionType: ActivityActionTypes.UPDATE, // Hoặc dùng Action riêng cho Payment
+                    entityName: ActivityEntityNames.FAMILY,
+                    entityId: sub.FamilyId,
+                    description: $"Gia đình đã nâng cấp thành công lên gói '{sub.Package.PackageName}'."
+                );
             }
             else
             {

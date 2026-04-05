@@ -19,7 +19,6 @@ public class PayOSService : IPayOSService
     private readonly IConfiguration _configuration;
     private readonly ILogger<PayOSService> _logger;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly MediMateDbContext _context;
 
     private readonly string _clientId;
     private readonly string _apiKey;
@@ -28,13 +27,12 @@ public class PayOSService : IPayOSService
     private readonly string _defaultReturnUrl;
     private readonly string _defaultCancelUrl;
 
-    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, MediMateDbContext context)
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _unitOfWork = unitOfWork;
-        _context = context;
 
         _clientId = Environment.GetEnvironmentVariable("PAYOS_CLIENT_ID") ?? _configuration["PayOS:ClientId"] ?? throw new InvalidOperationException("PayOS ClientId not configured");
         _apiKey = Environment.GetEnvironmentVariable("PAYOS_API_KEY") ?? _configuration["PayOS:ApiKey"] ?? throw new InvalidOperationException("PayOS ApiKey not configured");
@@ -221,7 +219,7 @@ public class PayOSService : IPayOSService
             _logger.LogInformation("Processing webhook for order {OrderCode}. IsSuccess: {IsSuccess}", orderCode, isSuccess);
 
             // Tìm giao dịch liên quan (Eager loading các bảng cần thiết)
-            var transaction = await _context.Transactions
+            var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
                 .Include(t => t.Payment)
                 .ThenInclude(p => p.Subscription)
                 .ThenInclude(s => s.Package)
@@ -257,7 +255,7 @@ public class PayOSService : IPayOSService
                 var sub = transaction.Payment.Subscription;
 
                 // Hủy các gói đang kích hoạt cũ của Gia đình này
-                var oldActiveSubscriptions = await _context.FamilySubscriptions
+                var oldActiveSubscriptions = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
                     .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
                     .ToListAsync(cancellationToken);
 
@@ -273,7 +271,7 @@ public class PayOSService : IPayOSService
                 sub.RemainingOcrCount = sub.Package.OcrLimit;
                 sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
 
-                _context.FamilySubscriptions.UpdateRange(oldActiveSubscriptions);
+                _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
             }
             else
             {
@@ -294,8 +292,8 @@ public class PayOSService : IPayOSService
             }
 
             // Lưu toàn bộ thay đổi xuống DB
-            _context.Transactions.Update(transaction);
-            await _context.SaveChangesAsync(cancellationToken);
+            _unitOfWork.Repository<Transactions>().Update(transaction);
+            await _unitOfWork.CompleteAsync();
 
             return true;
         }
@@ -537,7 +535,7 @@ public class PayOSService : IPayOSService
         {
             _logger.LogInformation("Manually updating status for OrderCode {OrderCode} to {Status}", orderCode, status);
 
-            var transaction = await _context.Transactions
+            var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
                 .Include(t => t.Payment)
                 .ThenInclude(p => p.Subscription)
                 .FirstOrDefaultAsync(t => t.GatewayName == "PayOS" && t.GatewayTransactionId == orderCode.ToString(), cancellationToken);
@@ -575,8 +573,8 @@ public class PayOSService : IPayOSService
                     transaction.Payment.Subscription.Status = finalStatus;
                 }
 
-                _context.Transactions.Update(transaction);
-                await _context.SaveChangesAsync(cancellationToken);
+                _unitOfWork.Repository<Transactions>().Update(transaction);
+                await _unitOfWork.CompleteAsync();
 
                 return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái thành {finalStatus}.");
             }

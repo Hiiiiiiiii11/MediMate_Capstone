@@ -275,9 +275,8 @@ public class PayOSService : IPayOSService
                 sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
 
                 _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
-                _context.FamilySubscriptions.UpdateRange(oldActiveSubscriptions);
 
-                var member = await _context.Members
+                var member = await _unitOfWork.Repository<Members>().GetQueryable()
         .FirstOrDefaultAsync(m => m.UserId == transaction.Payment.UserId && m.FamilyId == sub.FamilyId, cancellationToken);
 
                 await _activityLogService.LogActivityAsync(

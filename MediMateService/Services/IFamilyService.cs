@@ -18,6 +18,10 @@ namespace MediMateService.Services
         Task<ApiResponse<FamilyResponse>> UpdateFamilyAsync(Guid familyId, Guid userId, UpdateFamilyRequest request);
         Task<ApiResponse<bool>> DeleteFamilyAsync(Guid familyId, Guid userId);
         Task<ApiResponse<FamilySubscriptionResponse>> GetFamilySubscriptionAsync(Guid familyId);
+        
+        // Admin methods for family subscriptions
+        Task<ApiResponse<PagedResult<AdminFamilySubscriptionResponse>>> GetAllFamilySubscriptionsAsync(AdminFamilySubscriptionFilter filter);
+        Task<ApiResponse<bool>> UpdateFamilySubscriptionStatusAsync(Guid subscriptionId, string status);
     }
 
    

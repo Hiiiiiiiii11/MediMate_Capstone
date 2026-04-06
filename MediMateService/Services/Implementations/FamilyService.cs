@@ -395,5 +395,84 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<FamilySubscriptionResponse>.Ok(response, "Lấy thông tin gói đăng ký thành công.");
         }
+        
+        public async Task<ApiResponse<PagedResult<AdminFamilySubscriptionResponse>>> GetAllFamilySubscriptionsAsync(AdminFamilySubscriptionFilter filter)
+        {
+            var query = _unitOfWork.Repository<FamilySubscriptions>().GetQueryable();
+            
+            if (!string.IsNullOrEmpty(filter.Status))
+            {
+                query = query.Where(fs => fs.Status.ToLower() == filter.Status.ToLower());
+            }
+
+            if (filter.PackageId.HasValue)
+            {
+                query = query.Where(fs => fs.PackageId == filter.PackageId.Value);
+            }
+
+            if (!string.IsNullOrEmpty(filter.SearchTerm))
+            {
+                var search = filter.SearchTerm.ToLower();
+                query = query.Where(fs => fs.Family.FamilyName.ToLower().Contains(search) 
+                                       || fs.User.FullName.ToLower().Contains(search)
+                                       || fs.User.Email.ToLower().Contains(search));
+            }
+
+            var totalCount = query.Count();
+
+            var subscriptions = query
+                .OrderByDescending(fs => fs.StartDate)
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(fs => new AdminFamilySubscriptionResponse
+                {
+                    SubscriptionId = fs.SubscriptionId,
+                    FamilyId = fs.FamilyId,
+                    FamilyName = fs.Family.FamilyName ?? "N/A",
+                    FamilyAvatarUrl = fs.Family.FamilyAvatarUrl,
+                    PackageName = fs.Package.PackageName,
+                    StartDate = fs.StartDate,
+                    EndDate = fs.EndDate,
+                    Status = fs.Status,
+                    RemainingOcrCount = fs.RemainingOcrCount,
+                    RemainingConsultantCount = fs.RemainingConsultantCount,
+                    Price = fs.Package.Price,
+                    UserName = fs.User.FullName ?? "N/A",
+                    UserEmail = fs.User.Email
+                })
+                .ToList();
+
+            var result = new PagedResult<AdminFamilySubscriptionResponse>
+            {
+                Items = subscriptions,
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize
+            };
+
+            return ApiResponse<PagedResult<AdminFamilySubscriptionResponse>>.Ok(result);
+        }
+
+        public async Task<ApiResponse<bool>> UpdateFamilySubscriptionStatusAsync(Guid subscriptionId, string status)
+        {
+            var subscription = await _unitOfWork.Repository<FamilySubscriptions>().GetByIdAsync(subscriptionId);
+            if (subscription == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy gói đăng ký.", 404);
+            }
+
+            var allowedStatuses = new[] { "Active", "Cancelled", "Expired" };
+            if (!allowedStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
+            {
+                return ApiResponse<bool>.Fail("Trạng thái không hợp lệ. Các trạng thái cho phép: Active, Cancelled, Expired.", 400);
+            }
+
+            subscription.Status = status;
+
+            _unitOfWork.Repository<FamilySubscriptions>().Update(subscription);
+            await _unitOfWork.CompleteAsync();
+
+            return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái gói thành {status}.");
+        }
     }
 }

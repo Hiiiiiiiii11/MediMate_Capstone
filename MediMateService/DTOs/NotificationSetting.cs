@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -18,6 +18,9 @@ namespace MediMateService.DTOs
         public bool EnableFamilyAlert { get; set; }
         public string CustomSetting { get; set; } = string.Empty;
         public DateTime UpdateAt { get; set; }
+        public int MinimumHoursGap { get; set; }
+        public int MaxDosesPerDay { get; set; }
+        public int MissedDosesThreshold { get; set; }
     }
 
     public class UpdateNotificationSettingRequest
@@ -32,5 +35,8 @@ namespace MediMateService.DTOs
 
         public bool? EnableFamilyAlert { get; set; }
         public string? CustomSetting { get; set; }
+        public int? MinimumHoursGap { get; set; }
+        public int? MaxDosesPerDay { get; set; }
+        public int? MissedDosesThreshold { get; set; }
     }
 }

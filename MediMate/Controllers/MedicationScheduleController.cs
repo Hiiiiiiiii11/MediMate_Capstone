@@ -239,5 +239,23 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+
+        [HttpPost("reminders/{reminderId}/snooze")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> SnoozeReminder(Guid reminderId, [FromBody] int delayMinutes)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.SnoozeReminderAsync(reminderId, callerId, delayMinutes);
+
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
     }
 }

@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
+
 namespace MediMateService.Services.Implementations
 {
     public class AppointmentService : IAppointmentService
@@ -17,12 +20,13 @@ namespace MediMateService.Services.Implementations
         private readonly INotificationService _notificationService;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IActivityLogService _activityLogService;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService)
+            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService, IHubContext<MediMateHub> hubContext)
 
         {
             _appointmentRepository = appointmentRepository;
@@ -31,6 +35,7 @@ namespace MediMateService.Services.Implementations
             _notificationService = notificationService;
             _backgroundJobClient = backgroundJobClient;
             _activityLogService = activityLogService;
+            _hubContext = hubContext;
         }
         //check lịch availability
         public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
@@ -168,6 +173,12 @@ namespace MediMateService.Services.Implementations
                 new DateTimeOffset(autoCancelTime)
             );
 
+            // SignalR Update
+            if (doctor.User != null) {
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
+            }
+            await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveAppointmentUpdate");
+
             return MapAppointment(appointment);
         }
 
@@ -240,6 +251,14 @@ namespace MediMateService.Services.Implementations
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId
                 );
+            }
+
+            // SignalR Update
+            if (doctor != null) {
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
+            }
+            if (member?.UserId != null) {
+                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("ReceiveAppointmentUpdate");
             }
 
             return MapAppointment(appointment);
@@ -519,6 +538,12 @@ namespace MediMateService.Services.Implementations
                         referenceId: appointment.AppointmentId
                     );
                 }
+
+                // SignalR Update
+                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("ReceiveAppointmentUpdate");
+            }
+            if (doctor != null) {
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
             }
 
             return MapAppointment(appointment);

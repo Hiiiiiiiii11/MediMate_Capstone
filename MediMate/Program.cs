@@ -48,7 +48,11 @@ namespace MediMate
                             "https://demo.medimate.health.vn",
                             "http://localhost:3000",   // React / Next.js
                             "http://localhost:5173",   // Vite
-                            "http://localhost:4200"    // Angular
+                            "http://localhost:4200",   // Angular
+                            "http://localhost:8081",   // Expo Metro Bundler
+                            "http://10.0.2.2:8081",   // Android Emulator -> Host
+                            "exp://localhost:8081",    // Expo Go (local)
+                            "exp://127.0.0.1:8081"    // Expo Go (loopback)
                         )
                         .AllowAnyHeader()
                         .AllowAnyMethod()

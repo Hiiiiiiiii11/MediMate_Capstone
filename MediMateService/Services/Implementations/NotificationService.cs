@@ -68,7 +68,13 @@ namespace MediMateService.Services.Implementations
                 }
 
                 // SignalR Push Update
-                await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotificationUpdate");
+                await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotification", new {
+                    title,
+                    message,
+                    type,
+                    referenceId,
+                    createdAt = DateTime.Now
+                });
 
                 return ApiResponse<bool>.Ok(true, "Gửi thông báo thành công.");
             }

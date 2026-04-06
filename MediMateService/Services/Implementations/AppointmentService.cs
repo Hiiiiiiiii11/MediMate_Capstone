@@ -175,9 +175,15 @@ namespace MediMateService.Services.Implementations
 
             // SignalR Update
             if (doctor.User != null) {
-                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new {
+                    appointmentId = appointment.AppointmentId,
+                    status = appointment.Status
+                });
             }
-            await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveAppointmentUpdate");
+            await _hubContext.Clients.Group($"User_{userId}").SendAsync("AppointmentStatusUpdated", new {
+                appointmentId = appointment.AppointmentId,
+                status = appointment.Status
+            });
 
             return MapAppointment(appointment);
         }
@@ -255,10 +261,16 @@ namespace MediMateService.Services.Implementations
 
             // SignalR Update
             if (doctor != null) {
-                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new {
+                    appointmentId = appointment.AppointmentId,
+                    status = appointment.Status
+                });
             }
             if (member?.UserId != null) {
-                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("ReceiveAppointmentUpdate");
+                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("AppointmentStatusUpdated", new {
+                    appointmentId = appointment.AppointmentId,
+                    status = appointment.Status
+                });
             }
 
             return MapAppointment(appointment);
@@ -540,10 +552,16 @@ namespace MediMateService.Services.Implementations
                 }
 
                 // SignalR Update
-                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("ReceiveAppointmentUpdate");
+                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("AppointmentStatusUpdated", new { 
+                    appointmentId = appointment.AppointmentId, 
+                    status = request.Status 
+                });
             }
             if (doctor != null) {
-                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("ReceiveAppointmentUpdate");
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new { 
+                    appointmentId = appointment.AppointmentId, 
+                    status = request.Status 
+                });
             }
 
             return MapAppointment(appointment);

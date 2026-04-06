@@ -21,6 +21,7 @@ namespace MediMateRepository.Model
         public DateTime? SyncTokenExpireAt { get; set; }
         public string? FcmToken { get; set; }
         public bool IsActive { get; set; }
+        public virtual Families? Family { get; set; }
         public virtual HealthProfiles? HealthProfile { get; set; }
         public virtual NotificationSetting? NotificationSetting { get; set; }
     }

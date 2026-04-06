@@ -16,11 +16,13 @@ namespace MediMate.Controllers
     {
         private readonly IDoctorService _doctorService;
         private readonly IUserService _userService;
+        private readonly IFamilyService _familyService;
 
-        public AdminController(IDoctorService doctorService, IUserService userService)
+        public AdminController(IDoctorService doctorService, IUserService userService, IFamilyService familyService)
         {
             _doctorService = doctorService;
             _userService = userService;
+            _familyService = familyService;
         }
 
         [HttpPost("doctors")]
@@ -47,6 +49,22 @@ namespace MediMate.Controllers
                 FullName = request.FullName
             });
             return Ok(data);
+        }
+
+        [HttpGet("family-subscriptions")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminFamilySubscriptionResponse>>), 200)]
+        public async Task<IActionResult> GetAllFamilySubscriptions([FromQuery] AdminFamilySubscriptionFilter filter)
+        {
+            var data = await _familyService.GetAllFamilySubscriptionsAsync(filter);
+            return StatusCode(data.Code, data);
+        }
+
+        [HttpPut("family-subscriptions/{subscriptionId}/status")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> UpdateFamilySubscriptionStatus(Guid subscriptionId, [FromBody] UpdateSubscriptionStatusRequest request)
+        {
+            var data = await _familyService.UpdateFamilySubscriptionStatusAsync(subscriptionId, request.Status);
+            return StatusCode(data.Code, data);
         }
 
         private static ManagementDoctorResponse MapResponse(DoctorDto dto) => new()

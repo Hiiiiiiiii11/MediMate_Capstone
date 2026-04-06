@@ -8,6 +8,7 @@ using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
 using MediMateRepository.Repositories.Implementations;
+using MediMateService.Hubs;
 using MediMateService.Services;
 using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -110,6 +111,7 @@ namespace MediMate
             builder.Services.AddScoped<IAgoraService, AgoraService>();
             builder.Services.AddScoped<IMedicationLogService, MedicationLogService>();
             builder.Services.AddMemoryCache();
+            builder.Services.AddSignalR();
 
             builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -258,13 +260,22 @@ namespace MediMate
 
                     options.Events = new JwtBearerEvents
                     {
-                        //neus có cookie thì dùng
                         OnMessageReceived = context =>
                         {
+                            // 1. Nếu có Cookie thì dùng Cookie (cho Web truyền thống)
                             if (context.Request.Cookies.TryGetValue("token", out var token))
                             {
                                 context.Token = token;
                             }
+                            
+                            // 2. Đọc token từ query string "access_token" do SignalR Client gửi lên
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hub"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            
                             return Task.CompletedTask;
                         },
 
@@ -351,7 +362,7 @@ namespace MediMate
             app.UseAuthentication();
             app.UseAuthorization();
 
-
+            app.MapHub<MediMateHub>("/hub/medimate");
             app.MapControllers();
             using (var scope = app.Services.CreateScope())
             {

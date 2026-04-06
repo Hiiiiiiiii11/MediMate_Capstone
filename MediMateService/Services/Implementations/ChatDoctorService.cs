@@ -9,6 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
+
 namespace MediMateService.Services.Implementations
 {
     public class ChatDoctorService : IChatDoctorService
@@ -17,13 +20,15 @@ namespace MediMateService.Services.Implementations
         private readonly ICurrentUserService _currentUserService;
         private readonly IUploadPhotoService _uploadPhotoService;
         private readonly INotificationService _notificationService;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, INotificationService notificationService)
+        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, INotificationService notificationService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
             _notificationService = notificationService;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<IEnumerable<ChatDoctorMessageResponse>>> GetSessionMessagesAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
@@ -112,13 +117,20 @@ namespace MediMateService.Services.Implementations
                 referenceId: sessionId // Gửi kèm SessionId để lúc bấm vào thông báo App sẽ mở thẳng phòng chat này ra
             );
 
+            // Bắn SignalR
+            var responseData = MapToResponse(message, session);
+            await _hubContext.Clients.Group($"User_{receiverUserId}").SendAsync("ReceiveMessage", responseData);
+            await _hubContext.Clients.Group($"User_{currentUserId}").SendAsync("ReceiveMessage", responseData);
+
             // Dùng hàm MapToResponse cho tin nhắn vừa tạo
-            return ApiResponse<ChatDoctorMessageResponse>.Ok(MapToResponse(message, session));
+            return ApiResponse<ChatDoctorMessageResponse>.Ok(responseData);
         }
 
         public async Task<ApiResponse<bool>> MarkMessagesAsReadAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
         {
-            var session = await _unitOfWork.Repository<ConsultationSessions>().GetByIdAsync(sessionId);
+            var session = (await _unitOfWork.Repository<ConsultationSessions>()
+                .FindAsync(s => s.ConsultanSessionId == sessionId, "Doctor,Member")).FirstOrDefault();
+                
             if (session == null) return ApiResponse<bool>.Fail("Phiên tư vấn không tồn tại.", 404);
 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
@@ -139,6 +151,13 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<ChatDoctorMessages>().Update(msg);
                 }
                 await _unitOfWork.CompleteAsync();
+
+                // SignalR thông báo đã đọc
+                var participant1 = session.Doctor?.UserId ?? Guid.Empty;
+                var participant2 = session.Member?.UserId ?? Guid.Empty;
+
+                if (participant1 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant1}").SendAsync("ReceiveMessageUpdate");
+                if (participant2 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant2}").SendAsync("ReceiveMessageUpdate");
             }
 
             return ApiResponse<bool>.Ok(true);

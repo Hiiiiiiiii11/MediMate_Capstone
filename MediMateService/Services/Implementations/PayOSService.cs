@@ -448,47 +448,35 @@ public class PayOSService : IPayOSService
     // ==========================================
     public async Task<ApiResponse<PagedResult<PaymentItemDto>>> GetPaymentsByUserIdAsync(Guid userId, PaymentFilterDto filter)
     {
-        // Nhớ Include thêm Transactions để có thể truy xuất OrderCode
         IQueryable<Payments> query = _unitOfWork.Repository<Payments>().GetQueryable()
             .Include(p => p.User)
-            .Include(p => p.Transactions) // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY
+            .Include(p => p.Transactions)
+            .Include(p => p.Subscription).ThenInclude(s => s!.Family)
+            .Include(p => p.Subscription).ThenInclude(s => s!.Package)
             .Where(p => p.UserId == userId);
 
         query = ApplyFiltersAndSorting(query, filter);
-
         var totalCount = await query.CountAsync();
-
-        var payments = await query
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .ToListAsync();
+        var payments = await query.Skip((filter.PageNumber - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
 
         var items = payments.Select(p => new PaymentItemDto
         {
             PaymentId = p.PaymentId,
             UserId = p.UserId,
             UserName = p.User?.FullName ?? "Unknown",
-
-            // Lấy OrderCode từ Transaction đầu tiên liên kết với Payment này
             OrderCode = p.Transactions != null && p.Transactions.Any()
-                ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0")
-                : 0,
-
+                        ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0") : 0,
             Amount = p.Amount,
             PaymentContent = p.PaymentContent ?? "",
             Status = p.Status,
-            CreatedAt = p.CreatedAt
+            CreatedAt = p.CreatedAt,
+            // --- DATA BỔ SUNG ---
+            PackageName = p.Subscription?.Package?.PackageName ?? "N/A",
+            FamilyName = p.Subscription?.Family?.FamilyName ?? "N/A",
+            FamilyId = p.Subscription?.FamilyId ?? Guid.Empty
         }).ToList();
 
-        var result = new PagedResult<PaymentItemDto>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = filter.PageNumber,
-            PageSize = filter.PageSize
-        };
-
-        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(result, "Lấy danh sách thanh toán thành công.");
+        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(new PagedResult<PaymentItemDto> { Items = items, TotalCount = totalCount, PageNumber = filter.PageNumber, PageSize = filter.PageSize });
     }
 
     // ==========================================

@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -105,6 +105,21 @@ namespace MediMateService.Services.Implementations
                 setting.CustomSetting = request.CustomSetting;
                 hasChanges = true;
             }
+            if (request.MinimumHoursGap.HasValue && setting.MinimumHoursGap != request.MinimumHoursGap.Value)
+            {
+                setting.MinimumHoursGap = request.MinimumHoursGap.Value;
+                hasChanges = true;
+            }
+            if (request.MaxDosesPerDay.HasValue && setting.MaxDosesPerDay != request.MaxDosesPerDay.Value)
+            {
+                setting.MaxDosesPerDay = request.MaxDosesPerDay.Value;
+                hasChanges = true;
+            }
+            if (request.MissedDosesThreshold.HasValue && setting.MissedDosesThreshold != request.MissedDosesThreshold.Value)
+            {
+                setting.MissedDosesThreshold = request.MissedDosesThreshold.Value;
+                hasChanges = true;
+            }
 
             // Lưu xuống DB nếu có thay đổi
             if (hasChanges)
@@ -126,7 +141,10 @@ namespace MediMateService.Services.Implementations
                         setting.EnableSmsNotification,
                         setting.ReminderAdvanceMinutes,
                         setting.EnableFamilyAlert,
-                        setting.CustomSetting
+                        setting.CustomSetting,
+                        setting.MinimumHoursGap,
+                        setting.MaxDosesPerDay,
+                        setting.MissedDosesThreshold
                     };
 
                     await _activityLogService.LogActivityAsync(
@@ -157,6 +175,9 @@ namespace MediMateService.Services.Implementations
                 ReminderAdvanceMinutes = s.ReminderAdvanceMinutes,
                 EnableFamilyAlert = s.EnableFamilyAlert,
                 CustomSetting = s.CustomSetting,
+                MinimumHoursGap = s.MinimumHoursGap,
+                MaxDosesPerDay = s.MaxDosesPerDay,
+                MissedDosesThreshold = s.MissedDosesThreshold,
                 UpdateAt = s.UpdateAt
             };
         }

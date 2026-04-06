@@ -101,6 +101,55 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<bool>.Ok(true, "Đã lưu lịch sử uống thuốc.");
         }
 
+        public async Task<ApiResponse<bool>> SnoozeReminderAsync(Guid reminderId, Guid currentUserId, int delayMinutes)
+        {
+            var reminder = (await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => r.ReminderId == reminderId, "Schedule")).FirstOrDefault();
+
+            if (reminder == null || reminder.Status != "Pending")
+                return ApiResponse<bool>.Fail("Không tìm thấy nhắc nhở hoặc đã xử lý.", 404);
+
+            if (!await _currentUserService.CheckAccess(reminder.Schedule.MemberId, currentUserId))
+                return ApiResponse<bool>.Fail("Không có quyền truy cập.", 403);
+
+            if (delayMinutes <= 0 || delayMinutes > 1440) return ApiResponse<bool>.Fail("Thời gian hoãn không hợp lệ.", 400);
+
+            reminder.ReminderTime = reminder.ReminderTime.AddMinutes(delayMinutes);
+            reminder.EndTime = reminder.EndTime.AddMinutes(delayMinutes);
+
+            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
+
+            var log = new MedicationLogs
+            {
+                LogId = Guid.NewGuid(),
+                MemberId = reminder.Schedule.MemberId,
+                ScheduleId = reminder.ScheduleId,
+                ReminderId = reminder.ReminderId,
+                LogDate = DateTime.Now.Date,
+                ScheduledTime = reminder.ReminderTime,
+                ActualTime = DateTime.Now,
+                Status = "Snoozed",
+                Notes = $"Đã báo thức lại sau {delayMinutes} phút.",
+                CreatedAt = DateTime.Now
+            };
+
+            await _unitOfWork.Repository<MedicationLogs>().AddAsync(log);
+            await _unitOfWork.CompleteAsync();
+
+            // Re-schedule Hangfire Jobs cho mốc thời gian mới
+            _backgroundJobClient.Schedule<IReminderJobService>(
+                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                new DateTimeOffset(reminder.ReminderTime)
+            );
+
+            _backgroundJobClient.Schedule<IReminderJobService>(
+                job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
+                new DateTimeOffset(reminder.EndTime)
+            );
+
+            return ApiResponse<bool>.Ok(true, "Đã hoãn báo thức thành công.");
+        }
+
         // =======================================================
         // LẤY NHẮC NHỞ THEO GIA ĐÌNH (CHO DASHBOARD CHUNG)
         // =======================================================
@@ -227,8 +276,12 @@ namespace MediMateService.Services.Implementations
                         foreach (var reminder in newReminders)
                         {
                             _backgroundJobClient.Schedule<IReminderJobService>(
-                                job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
-                                new DateTimeOffset(reminder.EndTime)
+                                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                                new DateTimeOffset(reminder.ReminderTime) // Thông báo đúng giờ
+                            );
+                            _backgroundJobClient.Schedule<IReminderJobService>(
+                                job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
+                                new DateTimeOffset(reminder.EndTime) // Đánh dấu Missed và Cảnh báo lúc EndTime
                             );
                         }
                     }
@@ -373,6 +426,59 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<List<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember == null) return ApiResponse<List<ScheduleResponse>>.Fail("Không tìm thấy bệnh nhân.", 404);
+
+            int minHoursGap = 2; // Default
+            int maxDosesPerDay = 6; // Default
+            
+            if (targetMember.FamilyId.HasValue)
+            {
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+                if (familySetting != null)
+                {
+                    minHoursGap = familySetting.MinimumHoursGap > 0 ? familySetting.MinimumHoursGap : 2;
+                    maxDosesPerDay = familySetting.MaxDosesPerDay > 0 ? familySetting.MaxDosesPerDay : 6;
+                }
+            }
+
+            // --- KIỂM TRA RÀNG BUỘC (CONFLICT VALIDATION) ---
+            var proposedDosesCount = new Dictionary<string, int>(); // Số liều tạo ra mỗi ngày cho mỗi thuốc
+            var allProposedTimes = new Dictionary<string, List<TimeSpan>>();
+
+            foreach (var item in request.Schedules)
+            {
+                var timeRanges = ParseTimeRanges(item.SpecificTimes);
+                if (!proposedDosesCount.ContainsKey(item.MedicineName))
+                {
+                    proposedDosesCount[item.MedicineName] = 0;
+                    allProposedTimes[item.MedicineName] = new List<TimeSpan>();
+                }
+                
+                proposedDosesCount[item.MedicineName] += timeRanges.Count;
+
+                if (proposedDosesCount[item.MedicineName] > maxDosesPerDay)
+                {
+                    return ApiResponse<List<ScheduleResponse>>.Fail($"Vượt quá số liều tối đa mỗi ngày ({maxDosesPerDay} liều) cho thuốc {item.MedicineName}.", 400);
+                }
+
+                foreach (var range in timeRanges)
+                {
+                    // Check overlapped blocks
+                    foreach (var existingTime in allProposedTimes[item.MedicineName])
+                    {
+                        var diff = Math.Abs((existingTime - range.Start).TotalHours);
+                        if (diff < minHoursGap)
+                        {
+                            return ApiResponse<List<ScheduleResponse>>.Fail($"Khoảng cách giữa 2 liều của {item.MedicineName} quá sát nhau. Cần cách nhau tối thiểu {minHoursGap} giờ.", 400);
+                        }
+                    }
+                    allProposedTimes[item.MedicineName].Add(range.Start);
+                }
+            }
+            // --- KẾT THÚC KIỂM TRA RÀNG BUỘC ---
+
             // Fetch existing schedules for the member to reuse time blocks
             var existingSchedules = (await _unitOfWork.Repository<MedicationSchedules>()
                 .FindAsync(s => s.MemberId == memberId)).ToList();
@@ -466,8 +572,13 @@ namespace MediMateService.Services.Implementations
             foreach (var reminder in allReminders)
             {
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
-                    new DateTimeOffset(reminder.EndTime)
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                    new DateTimeOffset(reminder.ReminderTime) // Đúng giờ báo thức
+                );
+                
+                _backgroundJobClient.Schedule<IReminderJobService>(
+                    job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
+                    new DateTimeOffset(reminder.EndTime) // Lúc kiểm tra Missed
                 );
             }
 

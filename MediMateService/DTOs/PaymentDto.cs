@@ -82,9 +82,14 @@ namespace MediMateService.DTOs
     {
         public Guid PaymentId { get; set; }
         public Guid UserId { get; set; }
-        public string UserName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty; // Người thực hiện
 
-        public long OrderCode { get; set; } // <--- ĐÃ THÊM ORDER CODE VÀO ĐÂY
+        public long OrderCode { get; set; }
+
+        // --- THÔNG TIN ĐỐI TƯỢNG ---
+        public string PackageName { get; set; } = string.Empty; // Tên gói hội viên
+        public string FamilyName { get; set; } = string.Empty;  // Mua cho gia đình nào
+        public Guid FamilyId { get; set; }
 
         public decimal Amount { get; set; }
         public string PaymentContent { get; set; } = string.Empty;
@@ -96,5 +101,15 @@ namespace MediMateService.DTOs
     {
         [Required(ErrorMessage = "Trạng thái không được để trống.")]
         public string Status { get; set; } = string.Empty;
+    }
+    public class PaymentResultDto
+    {
+        public long OrderCode { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string PackageName { get; set; } = string.Empty;
+        public string FamilyName { get; set; } = string.Empty;
+        public string BuyerName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
     }
 }

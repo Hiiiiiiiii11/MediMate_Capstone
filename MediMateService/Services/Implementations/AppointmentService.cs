@@ -87,6 +87,7 @@ namespace MediMateService.Services.Implementations
                 .FindAsync(a => a.DoctorId == request.DoctorId
                                 && a.AvailabilityId == request.AvailabilityId
                                 && a.AppointmentDate.Date == request.AppointmentDate.Date
+                                && a.AppointmentTime == request.AppointmentTime
                                 && a.Status != AppointmentConstants.CANCELLED
                                 && a.Status != AppointmentConstants.REJECTED)).Any();
             if (isSlotBooked) throw new ConflictException("Khung giờ này đã có bệnh nhân khác đặt.");

@@ -25,9 +25,9 @@ namespace MediMateService.Services.Implementations
         }
 
         // ─────────────────────────────────────────────────────────────────
-        // CHECK & NOTIFY: MEDICATION REMINDER QUÁ HẠN
+        // CHECK & NOTIFY: TỚI GIỜ UỐNG THUỐC
         // ─────────────────────────────────────────────────────────────────
-        public async Task CheckAndNotifyOverdueReminder(Guid reminderId)
+        public async Task NotifyReminderTimeAsync(Guid reminderId)
         {
             var reminder = (await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.ReminderId == reminderId,
@@ -82,6 +82,76 @@ namespace MediMateService.Services.Implementations
             reminder.SentAt = DateTime.Now;
             _unitOfWork.Repository<MedicationReminders>().Update(reminder);
             await _unitOfWork.CompleteAsync();
+        }
+
+        public async Task CheckAndNotifyOverdueReminder(Guid reminderId)
+        {
+            // Backward compatibility
+            await NotifyReminderTimeAsync(reminderId);
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // CHECK QUÁ HÀN VÀ CẢNH BÁO LIÊN TỤC BỎ THUỐC ĐẾN NGƯỜI NHÀ
+        // ─────────────────────────────────────────────────────────────────
+        public async Task CheckMissedReminderAndAlertFamilyAsync(Guid reminderId)
+        {
+            var reminder = (await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => r.ReminderId == reminderId,
+                includeProperties: "Schedule,Schedule.Member")).FirstOrDefault();
+
+            if (reminder == null || reminder.Status != "Pending" || !reminder.Schedule.IsActive) return;
+
+            var targetMember = reminder.Schedule.Member;
+            if (targetMember == null || !targetMember.FamilyId.HasValue) return;
+
+            // Đổi trạng thái sang Missed do hết giờ (đã tới EndTime) mà vẫn Pending
+            reminder.Status = "Missed";
+            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
+
+            var log = new MedicationLogs
+            {
+                LogId = Guid.NewGuid(),
+                MemberId = reminder.Schedule.MemberId,
+                ScheduleId = reminder.ScheduleId,
+                ReminderId = reminder.ReminderId,
+                LogDate = DateTime.Now.Date,
+                ScheduledTime = reminder.ReminderTime,
+                ActualTime = DateTime.Now,
+                Status = "Missed",
+                Notes = "Tự động đánh dấu Missed do hết thời gian uống.",
+                CreatedAt = DateTime.Now
+            };
+            await _unitOfWork.Repository<MedicationLogs>().AddAsync(log);
+            await _unitOfWork.CompleteAsync();
+
+            // Kiểm tra số lần bỏ thuốc liên tiếp
+            var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+
+            int threshold = familySetting?.MissedDosesThreshold ?? 3;
+
+            var recentLogs = await _unitOfWork.Repository<MedicationLogs>()
+                .FindAsync(l => l.MemberId == targetMember.MemberId);
+
+            var recentSortedLogs = recentLogs.OrderByDescending(l => l.LogDate).ThenByDescending(l => l.ScheduledTime).Take(threshold).ToList();
+
+            if (recentSortedLogs.Count == threshold && recentSortedLogs.All(l => l.Status == "Missed" || l.Status == "Skipped"))
+            {
+                // Cảnh báo khẩn cấp vì đã bỏ liên tiếp
+                var family = await _unitOfWork.Repository<Families>().GetByIdAsync(targetMember.FamilyId.Value);
+                if (family != null)
+                {
+                    var creatorUser = await _unitOfWork.Repository<User>().GetByIdAsync(family.CreateBy);
+                    if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken))
+                    {
+                        string urgentTitle = "🚨 CẢNH BÁO KHẨN CẤP: BỎ THUỐC";
+                        string urgentBody = $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
+                        var data = new Dictionary<string, string> { { "alertType", "Urgent" } };
+
+                        await _firebaseService.SendNotificationAsync(creatorUser.FcmToken, urgentTitle, urgentBody, data);
+                    }
+                }
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────

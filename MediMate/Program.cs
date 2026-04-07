@@ -43,7 +43,17 @@ namespace MediMate
             {
                 options.AddPolicy("MediMatePolicy", policy =>
                 {
-                    policy.WithOrigins(configuredOrigins)
+                    policy.WithOrigins(
+                            "https://medimate.health.vn",
+                            "https://demo.medimate.health.vn",
+                            "http://localhost:3000",
+                            "http://localhost:5173",
+                            "http://localhost:4200",
+                            "http://localhost:8081",
+                            "http://10.0.2.2:8081",
+                            "exp://localhost:8081",
+                            "exp://127.0.0.1:8081"
+                        )
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();

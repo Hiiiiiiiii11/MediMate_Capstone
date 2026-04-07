@@ -43,8 +43,10 @@ namespace MediMate
                 Env.TraversePath().Load(".env.Local");
             }
             builder.Configuration.AddEnvironmentVariables();
+            // gRPC is temporarily disabled in production troubleshooting.
+            // Keep the settings for later re-enable.
             var grpcSettings = builder.Configuration.GetSection("Grpc").Get<GrpcSettings>() ?? new GrpcSettings();
-            var enableGrpc = ResolveGrpcEnabled(builder.Configuration, builder.Environment);
+            var enableGrpc = false;
             builder.Services.Configure<GrpcSettings>(builder.Configuration.GetSection("Grpc"));
             var configuredOrigins = ResolveAllowedOrigins(builder.Configuration);
             builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -178,7 +180,7 @@ namespace MediMate
             builder.Services.AddHttpClient();
             builder.Services.AddScoped<IOcrService, OcrService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
-            builder.Services.AddGrpc();
+            // builder.Services.AddGrpc(); // temporarily disabled
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -392,10 +394,10 @@ namespace MediMate
             app.UseAuthorization();
 
             app.MapHub<MediMateHub>("/hub/medimate");
-            if (enableGrpc)
-            {
-                app.MapGrpcService<AuthGrpcService>();
-            }
+            // if (enableGrpc)
+            // {
+            //     app.MapGrpcService<AuthGrpcService>();
+            // }
             app.MapControllers();
             using (var scope = app.Services.CreateScope())
             {
@@ -467,16 +469,16 @@ namespace MediMate
             });
         }
 
-        private static bool ResolveGrpcEnabled(IConfiguration configuration, IWebHostEnvironment environment)
-        {
-            var value = configuration["Grpc:Enabled"] ?? configuration["GRPC_ENABLED"];
-            if (bool.TryParse(value, out var parsed))
-            {
-                return parsed;
-            }
-
-            return environment.IsDevelopment();
-        }
+        // private static bool ResolveGrpcEnabled(IConfiguration configuration, IWebHostEnvironment environment)
+        // {
+        //     var value = configuration["Grpc:Enabled"] ?? configuration["GRPC_ENABLED"];
+        //     if (bool.TryParse(value, out var parsed))
+        //     {
+        //         return parsed;
+        //     }
+        //
+        //     return environment.IsDevelopment();
+        // }
 
         private static string[] ResolveAllowedOrigins(IConfiguration configuration)
         {

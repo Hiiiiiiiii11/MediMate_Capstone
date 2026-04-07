@@ -165,6 +165,10 @@ namespace MediMateService.Services.Implementations
 
         private async Task<bool> ValidateAccessAsync(ConsultationSessions session, Guid currentUserId, bool isDoctorRequest)
         {
+            // ── Guardian luôn được đọc chat (không cần isDoctorRequest) ─────
+            if (session.GuardianUserId.HasValue && session.GuardianUserId.Value == currentUserId)
+                return true;
+
             if (isDoctorRequest)
             {
                 // Tìm DoctorProfile của currentUserId đang đăng nhập

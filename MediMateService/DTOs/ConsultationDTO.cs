@@ -14,6 +14,10 @@ namespace MediMateService.DTOs
         public bool UserJoined { get; set; }
         public bool DoctorJoined { get; set; }
 
+        // Guardian
+        public Guid? GuardianUserId { get; set; }
+        public bool GuardianJoined { get; set; }
+
         // Notes
         public string? Note { get; set; }
         public string? DoctorNote { get; set; }
@@ -45,5 +49,16 @@ namespace MediMateService.DTOs
     public class CancelNoShowDto
     {
         // Không cần body, nhưng để dto cho nhất quán
+    }
+
+    /// <summary>Response khi Guardian (người giám hộ) tham gia cuộc gọi 3 bên</summary>
+    public class GuardianJoinResponse
+    {
+        public string Token { get; set; } = string.Empty;
+        public uint Uid { get; set; }
+        public string ChannelName { get; set; } = string.Empty;
+        public Guid SessionId { get; set; }
+        public string MemberName { get; set; } = string.Empty;
+        public string DoctorName { get; set; } = string.Empty;
     }
 }

@@ -44,6 +44,7 @@ namespace MediMate
             }
             builder.Configuration.AddEnvironmentVariables();
             var grpcSettings = builder.Configuration.GetSection("Grpc").Get<GrpcSettings>() ?? new GrpcSettings();
+            var enableGrpc = ResolveGrpcEnabled(builder.Configuration, builder.Environment);
             builder.Services.Configure<GrpcSettings>(builder.Configuration.GetSection("Grpc"));
             var configuredOrigins = ResolveAllowedOrigins(builder.Configuration);
             builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -54,10 +55,13 @@ namespace MediMate
             });
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenLocalhost(grpcSettings.Port, listenOptions =>
+                if (enableGrpc)
                 {
-                    listenOptions.Protocols = HttpProtocols.Http2;
-                });
+                    options.ListenLocalhost(grpcSettings.Port, listenOptions =>
+                    {
+                        listenOptions.Protocols = HttpProtocols.Http2;
+                    });
+                }
 
                 ConfigureApiListeners(options, builder.Configuration, grpcSettings.Port);
             });
@@ -377,7 +381,7 @@ namespace MediMate
             app.UseSwaggerUI();
 
             app.UseWhen(ctx =>
-                    ctx.Connection.LocalPort != grpcSettings.Port &&
+                    (!enableGrpc || ctx.Connection.LocalPort != grpcSettings.Port) &&
                     !HttpMethods.IsOptions(ctx.Request.Method),
                 branch =>
             {
@@ -388,7 +392,10 @@ namespace MediMate
             app.UseAuthorization();
 
             app.MapHub<MediMateHub>("/hub/medimate");
-            app.MapGrpcService<AuthGrpcService>();
+            if (enableGrpc)
+            {
+                app.MapGrpcService<AuthGrpcService>();
+            }
             app.MapControllers();
             using (var scope = app.Services.CreateScope())
             {
@@ -462,6 +469,17 @@ namespace MediMate
             {
                 listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
             });
+        }
+
+        private static bool ResolveGrpcEnabled(IConfiguration configuration, IWebHostEnvironment environment)
+        {
+            var value = configuration["Grpc:Enabled"] ?? configuration["GRPC_ENABLED"];
+            if (bool.TryParse(value, out var parsed))
+            {
+                return parsed;
+            }
+
+            return environment.IsDevelopment();
         }
 
         private static string[] ResolveAllowedOrigins(IConfiguration configuration)

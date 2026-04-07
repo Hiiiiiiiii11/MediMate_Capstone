@@ -43,17 +43,7 @@ namespace MediMate
             {
                 options.AddPolicy("MediMatePolicy", policy =>
                 {
-                    policy.WithOrigins(
-                            "https://medimate.health.vn",
-                            "https://demo.medimate.health.vn",
-                            "http://localhost:3000",   // React / Next.js
-                            "http://localhost:5173",   // Vite
-                            "http://localhost:4200",   // Angular
-                            "http://localhost:8081",   // Expo Metro Bundler
-                            "http://10.0.2.2:8081",   // Android Emulator -> Host
-                            "exp://localhost:8081",    // Expo Go (local)
-                            "exp://127.0.0.1:8081"    // Expo Go (loopback)
-                        )
+                    policy.WithOrigins(configuredOrigins)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
@@ -356,6 +346,7 @@ namespace MediMate
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
             app.UseHangfireDashboard("/hangfire");
+            app.UseForwardedHeaders();
 
 
             app.UseSwagger();

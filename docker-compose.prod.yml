@@ -59,6 +59,9 @@ services:
       FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
       AGORA_APP_ID: ${AGORA_APP_ID}
       AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE}
+      PythonRag__BaseUrl: ${PythonRag__BaseUrl}
+      PythonRag__TimeoutSeconds: ${PythonRag__TimeoutSeconds}
+      Grpc__Port: ${Grpc__Port}
     depends_on:
       postgres:
         condition: service_healthy

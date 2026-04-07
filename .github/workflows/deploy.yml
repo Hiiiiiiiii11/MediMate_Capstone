@@ -95,6 +95,10 @@ jobs:
             FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
             AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
             AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
+            PythonRag__BaseUrl=${{ secrets.PYTHON_RAG_BASE_URL }}
+            PythonRag__TimeoutSeconds=${{ secrets.PYTHON_RAG_TIMEOUT_SECONDS }}
+            Grpc__Port=${{ secrets.GRPC_PORT }}
+
             EOF
 
             docker compose -f docker-compose.prod.yml pull

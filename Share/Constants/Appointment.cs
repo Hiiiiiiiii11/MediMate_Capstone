@@ -39,5 +39,6 @@ namespace Share.Constants
         public const string SESSION_IN_PROGRESS = "SESSION_IN_PROGRESS";
         public const string SESSION_ENDED = "SESSION_ENDED";
         public const string SESSION_TIMEOUT = "SESSION_TIMEOUT";
+        public const string GUARDIAN_SESSION_INVITE = "GUARDIAN_SESSION_INVITE";
     }
 }

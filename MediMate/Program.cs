@@ -4,8 +4,6 @@ using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Hangfire;
 using Hangfire.PostgreSql;
-using MediMate.Configuration;
-using MediMate.Grpc;
 using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
@@ -14,8 +12,6 @@ using MediMateService.Hubs;
 using MediMateService.Services;
 using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -24,7 +20,6 @@ using Microsoft.OpenApi.Models;
 using Share.Cloudinaries;
 using Share.Common;
 using Share.Jwt;
-using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -43,30 +38,6 @@ namespace MediMate
                 Env.TraversePath().Load(".env.Local");
             }
             builder.Configuration.AddEnvironmentVariables();
-            // gRPC is temporarily disabled in production troubleshooting.
-            // Keep the settings for later re-enable.
-            var grpcSettings = builder.Configuration.GetSection("Grpc").Get<GrpcSettings>() ?? new GrpcSettings();
-            var enableGrpc = false;
-            builder.Services.Configure<GrpcSettings>(builder.Configuration.GetSection("Grpc"));
-            var configuredOrigins = ResolveAllowedOrigins(builder.Configuration);
-            builder.Services.Configure<ForwardedHeadersOptions>(options =>
-            {
-                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-                options.KnownNetworks.Clear();
-                options.KnownProxies.Clear();
-            });
-            builder.WebHost.ConfigureKestrel(options =>
-            {
-                if (enableGrpc)
-                {
-                    options.ListenLocalhost(grpcSettings.Port, listenOptions =>
-                    {
-                        listenOptions.Protocols = HttpProtocols.Http2;
-                    });
-                }
-
-                ConfigureApiListeners(options, builder.Configuration, grpcSettings.Port);
-            });
 
             builder.Services.AddCors(options =>
             {
@@ -180,7 +151,6 @@ namespace MediMate
             builder.Services.AddHttpClient();
             builder.Services.AddScoped<IOcrService, OcrService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
-            // builder.Services.AddGrpc(); // temporarily disabled
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -382,22 +352,12 @@ namespace MediMate
             app.UseSwagger();
             app.UseSwaggerUI();
 
-            app.UseWhen(ctx =>
-                    (!enableGrpc || ctx.Connection.LocalPort != grpcSettings.Port) &&
-                    !HttpMethods.IsOptions(ctx.Request.Method),
-                branch =>
-            {
-                branch.UseHttpsRedirection();
-            });
+            app.UseHttpsRedirection();
             app.UseCors("MediMatePolicy");
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapHub<MediMateHub>("/hub/medimate");
-            // if (enableGrpc)
-            // {
-            //     app.MapGrpcService<AuthGrpcService>();
-            // }
             app.MapControllers();
             using (var scope = app.Services.CreateScope())
             {
@@ -430,88 +390,6 @@ namespace MediMate
             }
 
             app.Run();
-        }
-
-        private static void ConfigureApiListeners(KestrelServerOptions options, IConfiguration configuration, int grpcPort)
-        {
-            var urls = configuration["ASPNETCORE_URLS"];
-            if (!string.IsNullOrWhiteSpace(urls))
-            {
-                var candidates = urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var hasApiListener = false;
-                foreach (var candidate in candidates)
-                {
-                    if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) || uri.Port <= 0 || uri.Port == grpcPort)
-                    {
-                        continue;
-                    }
-
-                    options.ListenAnyIP(uri.Port, listenOptions =>
-                    {
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-                        if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-                        {
-                            listenOptions.UseHttps();
-                        }
-                    });
-                    hasApiListener = true;
-                }
-
-                if (hasApiListener)
-                {
-                    return;
-                }
-            }
-
-            options.ListenAnyIP(5157, listenOptions =>
-            {
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-            });
-        }
-
-        // private static bool ResolveGrpcEnabled(IConfiguration configuration, IWebHostEnvironment environment)
-        // {
-        //     var value = configuration["Grpc:Enabled"] ?? configuration["GRPC_ENABLED"];
-        //     if (bool.TryParse(value, out var parsed))
-        //     {
-        //         return parsed;
-        //     }
-        //
-        //     return environment.IsDevelopment();
-        // }
-
-        private static string[] ResolveAllowedOrigins(IConfiguration configuration)
-        {
-            var defaults = new[]
-            {
-                "https://medimate.health.vn",
-                "https://demo.medimate.health.vn",
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "http://localhost:4200",
-                "http://localhost:8081",
-                "http://10.0.2.2:8081",
-                "exp://localhost:8081",
-                "exp://127.0.0.1:8081"
-            };
-
-            var extraOrigins = configuration["Cors:AllowedOrigins"]
-                ?? configuration["CORS_ALLOWED_ORIGINS"];
-
-            if (string.IsNullOrWhiteSpace(extraOrigins))
-            {
-                return defaults;
-            }
-
-            var extras = extraOrigins
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(o => o.Trim().TrimEnd('/'))
-                .Where(o => !string.IsNullOrWhiteSpace(o));
-
-            return defaults
-                .Concat(extras)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
         }
     }
 }

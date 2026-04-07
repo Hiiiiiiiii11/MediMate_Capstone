@@ -14,6 +14,7 @@ using MediMateService.Hubs;
 using MediMateService.Services;
 using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +45,13 @@ namespace MediMate
             builder.Configuration.AddEnvironmentVariables();
             var grpcSettings = builder.Configuration.GetSection("Grpc").Get<GrpcSettings>() ?? new GrpcSettings();
             builder.Services.Configure<GrpcSettings>(builder.Configuration.GetSection("Grpc"));
+            var configuredOrigins = ResolveAllowedOrigins(builder.Configuration);
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenLocalhost(grpcSettings.Port, listenOptions =>
@@ -58,17 +66,7 @@ namespace MediMate
             {
                 options.AddPolicy("MediMatePolicy", policy =>
                 {
-                    policy.WithOrigins(
-                            "https://medimate.health.vn",
-                            "https://demo.medimate.health.vn",
-                            "http://localhost:3000",   // React / Next.js
-                            "http://localhost:5173",   // Vite
-                            "http://localhost:4200",   // Angular
-                            "http://localhost:8081",   // Expo Metro Bundler
-                            "http://10.0.2.2:8081",   // Android Emulator -> Host
-                            "exp://localhost:8081",    // Expo Go (local)
-                            "exp://127.0.0.1:8081"    // Expo Go (loopback)
-                        )
+                    policy.WithOrigins(configuredOrigins)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
@@ -372,12 +370,16 @@ namespace MediMate
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
             app.UseHangfireDashboard("/hangfire");
+            app.UseForwardedHeaders();
 
 
             app.UseSwagger();
             app.UseSwaggerUI();
 
-            app.UseWhen(ctx => ctx.Connection.LocalPort != grpcSettings.Port, branch =>
+            app.UseWhen(ctx =>
+                    ctx.Connection.LocalPort != grpcSettings.Port &&
+                    !HttpMethods.IsOptions(ctx.Request.Method),
+                branch =>
             {
                 branch.UseHttpsRedirection();
             });
@@ -460,6 +462,40 @@ namespace MediMate
             {
                 listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
             });
+        }
+
+        private static string[] ResolveAllowedOrigins(IConfiguration configuration)
+        {
+            var defaults = new[]
+            {
+                "https://medimate.health.vn",
+                "https://demo.medimate.health.vn",
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:4200",
+                "http://localhost:8081",
+                "http://10.0.2.2:8081",
+                "exp://localhost:8081",
+                "exp://127.0.0.1:8081"
+            };
+
+            var extraOrigins = configuration["Cors:AllowedOrigins"]
+                ?? configuration["CORS_ALLOWED_ORIGINS"];
+
+            if (string.IsNullOrWhiteSpace(extraOrigins))
+            {
+                return defaults;
+            }
+
+            var extras = extraOrigins
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(o => o.Trim().TrimEnd('/'))
+                .Where(o => !string.IsNullOrWhiteSpace(o));
+
+            return defaults
+                .Concat(extras)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
     }
 }

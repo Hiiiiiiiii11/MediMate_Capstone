@@ -444,11 +444,7 @@ namespace MediMate
                         continue;
                     }
 
-                    var ip = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                        ? IPAddress.Loopback
-                        : IPAddress.Any;
-
-                    options.Listen(ip, uri.Port, listenOptions =>
+                    options.ListenAnyIP(uri.Port, listenOptions =>
                     {
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
                         if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))

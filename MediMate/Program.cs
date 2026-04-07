@@ -4,6 +4,8 @@ using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Hangfire;
 using Hangfire.PostgreSql;
+using MediMate.Configuration;
+using MediMate.Grpc;
 using MediMate.Middleware;
 using MediMateRepository.Data;
 using MediMateRepository.Repositories;
@@ -12,6 +14,7 @@ using MediMateService.Hubs;
 using MediMateService.Services;
 using MediMateService.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -20,6 +23,7 @@ using Microsoft.OpenApi.Models;
 using Share.Cloudinaries;
 using Share.Common;
 using Share.Jwt;
+using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -38,6 +42,17 @@ namespace MediMate
                 Env.TraversePath().Load(".env.Local");
             }
             builder.Configuration.AddEnvironmentVariables();
+            var grpcSettings = builder.Configuration.GetSection("Grpc").Get<GrpcSettings>() ?? new GrpcSettings();
+            builder.Services.Configure<GrpcSettings>(builder.Configuration.GetSection("Grpc"));
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.ListenLocalhost(grpcSettings.Port, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http2;
+                });
+
+                ConfigureApiListeners(options, builder.Configuration, grpcSettings.Port);
+            });
 
             builder.Services.AddCors(options =>
             {
@@ -161,6 +176,7 @@ namespace MediMate
             builder.Services.AddHttpClient();
             builder.Services.AddScoped<IOcrService, OcrService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddGrpc();
 
             // Add services to the container.
             builder.Services.AddControllers()
@@ -361,12 +377,16 @@ namespace MediMate
             app.UseSwagger();
             app.UseSwaggerUI();
 
-            app.UseHttpsRedirection();
+            app.UseWhen(ctx => ctx.Connection.LocalPort != grpcSettings.Port, branch =>
+            {
+                branch.UseHttpsRedirection();
+            });
             app.UseCors("MediMatePolicy");
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapHub<MediMateHub>("/hub/medimate");
+            app.MapGrpcService<AuthGrpcService>();
             app.MapControllers();
             using (var scope = app.Services.CreateScope())
             {
@@ -399,6 +419,47 @@ namespace MediMate
             }
 
             app.Run();
+        }
+
+        private static void ConfigureApiListeners(KestrelServerOptions options, IConfiguration configuration, int grpcPort)
+        {
+            var urls = configuration["ASPNETCORE_URLS"];
+            if (!string.IsNullOrWhiteSpace(urls))
+            {
+                var candidates = urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var hasApiListener = false;
+                foreach (var candidate in candidates)
+                {
+                    if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) || uri.Port <= 0 || uri.Port == grpcPort)
+                    {
+                        continue;
+                    }
+
+                    var ip = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                        ? IPAddress.Loopback
+                        : IPAddress.Any;
+
+                    options.Listen(ip, uri.Port, listenOptions =>
+                    {
+                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+                        if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                        {
+                            listenOptions.UseHttps();
+                        }
+                    });
+                    hasApiListener = true;
+                }
+
+                if (hasApiListener)
+                {
+                    return;
+                }
+            }
+
+            options.ListenAnyIP(5157, listenOptions =>
+            {
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            });
         }
     }
 }

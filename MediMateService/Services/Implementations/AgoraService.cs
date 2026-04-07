@@ -49,7 +49,8 @@ namespace MediMateService.Services.Implementations
                 var builder = new RtcTokenBuilder();
                 string token = builder.BuildToken(
                     _appId, _appCertificate, channelName,
-                    isPublisher, privilegeExpiredTs
+                    isPublisher,
+                    privilegeExpiredTs
                 );
 
                 return ApiResponse<string>.Ok(token, "Tạo Token gọi Video thành công.");
@@ -95,7 +96,8 @@ namespace MediMateService.Services.Implementations
                 var builder = new RtcTokenBuilder();
                 string token = builder.BuildToken(
                     _appId, _appCertificate, channelName,
-                    isPublisher: true, privilegeExpiredTs
+                    true,
+                    privilegeExpiredTs
                 );
 
                 // ── Cập nhật GuardianJoined = true ────────────────────────

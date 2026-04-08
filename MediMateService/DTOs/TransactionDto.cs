@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
@@ -43,6 +43,24 @@ namespace MediMateService.DTOs
     public class UpdateTransactionStatusRequest
     {
         [Required(ErrorMessage = "Trạng thái không được để trống.")]
+        public string Status { get; set; } = string.Empty;
+    }
+    public class ApprovePayoutRequest
+    {
+        [Required(ErrorMessage = "Vui lòng nhập mã giao dịch ngân hàng")]
+        public string BankTransactionCode { get; set; } = string.Empty; 
+    }
+
+    public class PendingPayoutDto
+    {
+        public Guid PayoutId { get; set; }
+        public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; } = string.Empty;
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime CalculatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
     }
 }

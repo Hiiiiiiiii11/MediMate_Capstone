@@ -65,13 +65,26 @@ namespace MediMateService.Services.Implementations
             string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
             string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
             
+            // Lấy AutoSnooze từ cấu hình
+            bool isAutoSnooze = false;
+            try {
+                if (!string.IsNullOrEmpty(family.NotificationSetting?.CustomSetting)) {
+                    var customObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(family.NotificationSetting.CustomSetting);
+                    if (customObj != null && customObj.ContainsKey("autoSnooze")) {
+                        isAutoSnooze = customObj["autoSnooze"]?.GetValue<bool>() ?? false;
+                    }
+                }
+            } catch (Exception) { }
+
             var data = new Dictionary<string, string> 
             { 
                 { "type", "MEDICATION_REMINDER" },
                 { "reminderId", reminderId.ToString() },
                 { "scheduleName", reminder.Schedule.ScheduleName },
                 { "memberName", targetMember.FullName },
-                { "reminderTime", reminder.ReminderTime.ToString("yyyy-MM-ddTHH:mm:ss") }
+                { "reminderTime", reminder.ReminderTime.ToString("yyyy-MM-ddTHH:mm:ss") },
+                { "endTime", reminder.EndTime.ToString("yyyy-MM-ddTHH:mm:ss") },
+                { "autoSnooze", isAutoSnooze.ToString().ToLower() }
             };
 
             if (canSendToMember && !string.IsNullOrEmpty(targetMember.FcmToken))
@@ -95,6 +108,19 @@ namespace MediMateService.Services.Implementations
             reminder.SentAt = DateTime.Now;
             _unitOfWork.Repository<MedicationReminders>().Update(reminder);
             await _unitOfWork.CompleteAsync();
+
+            // Lặp lại chu kỳ báo thức (Auto-Snooze) 15 phút một lần cho đến khi đạt EndTime
+            if (isAutoSnooze)
+            {
+                var nextPushTime = DateTime.Now.AddMinutes(15);
+                if (nextPushTime < reminder.EndTime)
+                {
+                    _backgroundJobClient.Schedule<IReminderJobService>(
+                        job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                        new DateTimeOffset(nextPushTime)
+                    );
+                }
+            }
         }
 
         public async Task CheckAndNotifyOverdueReminder(Guid reminderId)
@@ -113,6 +139,10 @@ namespace MediMateService.Services.Implementations
                 includeProperties: "Schedule,Schedule.Member")).FirstOrDefault();
 
             if (reminder == null || reminder.Status != "Pending" || !reminder.Schedule.IsActive) return;
+
+            // PHÒNG BỆNH: Nếu user Snooze, EndTime trong DB đã bị dài ra. 
+            // Job cũ (theo EndTime cũ) có thể chạy sớm hơn EndTime mới. Nếu còn sớm, bỏ qua Job này!
+            if (DateTime.Now < reminder.EndTime) return;
 
             var targetMember = reminder.Schedule.Member;
             if (targetMember == null || !targetMember.FamilyId.HasValue) return;

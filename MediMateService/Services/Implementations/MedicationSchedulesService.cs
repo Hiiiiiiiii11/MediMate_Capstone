@@ -114,11 +114,13 @@ namespace MediMateService.Services.Implementations
 
             if (delayMinutes <= 0 || delayMinutes > 1440) return ApiResponse<bool>.Fail("Thời gian hoãn không hợp lệ.", 400);
 
-            reminder.ReminderTime = reminder.ReminderTime.AddMinutes(delayMinutes);
-            reminder.EndTime = reminder.EndTime.AddMinutes(delayMinutes);
+            var nextPushTime = DateTime.Now.AddMinutes(delayMinutes);
+            if (nextPushTime >= reminder.EndTime)
+            {
+                return ApiResponse<bool>.Fail("Không thể hoãn vì đã sắp hết thời gian được phép uống thuốc.", 400);
+            }
 
-            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
-
+            // Ghi Log Snoozed
             var log = new MedicationLogs
             {
                 LogId = Guid.NewGuid(),
@@ -134,18 +136,21 @@ namespace MediMateService.Services.Implementations
             };
 
             await _unitOfWork.Repository<MedicationLogs>().AddAsync(log);
+            
+            // Cập nhật trạng thái Reminder thành Snoozed (Tuỳ chọn để UI biết)
+            reminder.Status = "Snoozed";
+            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
+            
             await _unitOfWork.CompleteAsync();
 
-            // Re-schedule Hangfire Jobs cho mốc thời gian mới
+            // Re-schedule Hangfire Job để đẩy thông báo tiếp theo
             _backgroundJobClient.Schedule<IReminderJobService>(
                 job => job.NotifyReminderTimeAsync(reminder.ReminderId),
-                new DateTimeOffset(reminder.ReminderTime)
+                new DateTimeOffset(nextPushTime)
             );
 
-            _backgroundJobClient.Schedule<IReminderJobService>(
-                job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
-                new DateTimeOffset(reminder.EndTime)
-            );
+            // KHÔNG đẩy EndTime đi chỗ khác, cũng KHÔNG tạo lại Job Missed check. 
+            // Job Missed check ban đầu vẫn nằm ở EndTime đợi sẵn để chốt sổ!
 
             return ApiResponse<bool>.Ok(true, "Đã hoãn báo thức thành công.");
         }
@@ -272,16 +277,23 @@ namespace MediMateService.Services.Implementations
 
                     if (newReminders.Any())
                     {
+                        var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                            .FindAsync(s => s.FamilyId == detail.Schedule.Member.FamilyId)).FirstOrDefault();
+                        int advanceMinutes = familySetting?.ReminderAdvanceMinutes ?? 15;
+
                         await _unitOfWork.CompleteAsync();
                         foreach (var reminder in newReminders)
                         {
+                            var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+                            if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
                             _backgroundJobClient.Schedule<IReminderJobService>(
                                 job => job.NotifyReminderTimeAsync(reminder.ReminderId),
-                                new DateTimeOffset(reminder.ReminderTime) // Thông báo đúng giờ
+                                new DateTimeOffset(pushTime) // Báo trước AdvanceMinutes
                             );
                             _backgroundJobClient.Schedule<IReminderJobService>(
                                 job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
-                                new DateTimeOffset(reminder.EndTime) // Đánh dấu Missed và Cảnh báo lúc EndTime
+                                new DateTimeOffset(reminder.EndTime) // Đánh dấu Missed tại EndTime
                             );
                         }
                     }
@@ -431,6 +443,7 @@ namespace MediMateService.Services.Implementations
 
             int minHoursGap = 2; // Default
             int maxDosesPerDay = 6; // Default
+            int advanceMinutes = 15; // Default
             
             if (targetMember.FamilyId.HasValue)
             {
@@ -440,6 +453,7 @@ namespace MediMateService.Services.Implementations
                 {
                     minHoursGap = familySetting.MinimumHoursGap > 0 ? familySetting.MinimumHoursGap : 2;
                     maxDosesPerDay = familySetting.MaxDosesPerDay > 0 ? familySetting.MaxDosesPerDay : 6;
+                    advanceMinutes = familySetting.ReminderAdvanceMinutes;
                 }
             }
 
@@ -571,14 +585,17 @@ namespace MediMateService.Services.Implementations
             // Lên lịch Hangfire cho TẤT CẢ nhắc nhở mới
             foreach (var reminder in allReminders)
             {
+                var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+                if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
                 _backgroundJobClient.Schedule<IReminderJobService>(
                     job => job.NotifyReminderTimeAsync(reminder.ReminderId),
-                    new DateTimeOffset(reminder.ReminderTime) // Đúng giờ báo thức
+                    new DateTimeOffset(pushTime) // Báo trước Advance Minutes
                 );
                 
                 _backgroundJobClient.Schedule<IReminderJobService>(
                     job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
-                    new DateTimeOffset(reminder.EndTime) // Lúc kiểm tra Missed
+                    new DateTimeOffset(reminder.EndTime) // Lúc chốt sổ Missed
                 );
             }
 

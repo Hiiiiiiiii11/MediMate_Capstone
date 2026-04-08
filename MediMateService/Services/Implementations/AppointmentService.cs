@@ -569,7 +569,10 @@ namespace MediMateService.Services.Implementations
         public async Task<List<AppointmentDto>> GetAppointmentsByDoctorIdAsync(Guid doctorId)
         {
             var appointments = await _unitOfWork.Repository<Appointments>()
-                .FindAsync(a => a.DoctorId == doctorId);
+                .GetQueryable()
+                .Include(appointments => appointments.Member)
+                .Where(a => a.DoctorId == doctorId)
+                .ToListAsync();
 
             return appointments
                 .OrderByDescending(a => a.AppointmentDate)
@@ -638,6 +641,7 @@ namespace MediMateService.Services.Implementations
                 AppointmentId = item.AppointmentId,
                 DoctorId = item.DoctorId,
                 MemberId = item.MemberId,
+                MemberName = item.Member?.FullName,
                 AvailabilityId = item.AvailabilityId,
                 AppointmentDate = item.AppointmentDate,
                 AppointmentTime = item.AppointmentTime,

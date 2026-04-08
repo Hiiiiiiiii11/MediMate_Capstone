@@ -13,10 +13,11 @@ namespace MediMateService.Services.Implementations
     public class TransactionService : ITransactionService
     {
         private readonly IUnitOfWork _unitOfWork;
-
-        public TransactionService(IUnitOfWork unitOfWork)
+        private readonly INotificationService _notificationService;
+        public TransactionService(IUnitOfWork unitOfWork, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
+            _notificationService = notificationService;
         }
 
         // ==========================================
@@ -269,6 +270,7 @@ namespace MediMateService.Services.Implementations
 
             return query;
         }
+
     public async Task<ApiResponse<TransactionDetailDto>> GetTransactionByPaymentIdAsync(Guid paymentId)
         {
             var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
@@ -276,6 +278,9 @@ namespace MediMateService.Services.Implementations
                     .ThenInclude(p => p!.User)
                 .Include(t => t.Payment)
                     .ThenInclude(p => p!.Subscription)
+                .Include(t => t.Payout)
+                    .ThenInclude(dp => dp!.ConsultationSession)
+                        .ThenInclude(cs => cs!.Doctor)
                 .FirstOrDefaultAsync(t => t.PaymentId == paymentId);
 
             if (transaction == null)
@@ -286,11 +291,15 @@ namespace MediMateService.Services.Implementations
             var detail = new TransactionDetailDto
             {
                 TransactionId = transaction.TransactionId,
-                SenderName = transaction.Payment?.User?.FullName ?? "Unknown",
-                ReceiverName = "MediMate",
+                SenderName = transaction.TransactionType == TransactionTypes.MoneyReceived
+                    ? (transaction.Payment?.User?.FullName ?? "Unknown")
+                    : "MediMate",
+                ReceiverName = transaction.TransactionType == TransactionTypes.MoneyReceived
+                    ? "MediMate"
+                    : $"Bác sĩ {transaction.Payout?.ConsultationSession?.Doctor?.FullName ?? "Unknown"}",
                 TransactionType = transaction.TransactionType,
                 Content = transaction.Payment?.PaymentContent ?? "",
-                Amount = transaction.Payment?.Amount ?? 0,
+                Amount = transaction.Payment?.Amount ?? transaction.Payout?.Amount ?? 0,
                 TransactionCode = transaction.TransactionCode,
                 PaymentCode = transaction.GatewayTransactionId ?? "",
                 AppointmentDate = transaction.PaidAt,
@@ -299,6 +308,107 @@ namespace MediMateService.Services.Implementations
             };
 
             return ApiResponse<TransactionDetailDto>.Ok(detail, "Lấy chi tiết giao dịch thành công.");
+        }
+
+        public async Task<ApiResponse<PagedResult<PendingPayoutDto>>> GetPendingPayoutsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null)
+        {
+            var query = _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(cs => cs!.Doctor)
+                        .ThenInclude(d => d!.User) // Include để lấy tên
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(cs => cs!.Doctor)
+                        .ThenInclude(d => d!.DoctorBankAccount) // Include để lấy STK ngân hàng
+                .Where(p => p.Status == "Pending"); // Chỉ lấy các phiếu đang nợ
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.ToLower();
+                query = query.Where(p => p.ConsultationSession.Doctor.FullName.ToLower().Contains(term));
+            }
+
+            var totalCount = await query.CountAsync();
+            var payouts = await query
+                .OrderBy(p => p.CalculatedAt) // Ưu tiên trả nợ cũ trước
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = payouts.Select(p => new PendingPayoutDto
+            {
+                PayoutId = p.PayoutId,
+                DoctorId = p.ConsultationSession.DoctorId,
+                DoctorName = p.ConsultationSession.Doctor?.User?.FullName ?? p.ConsultationSession.Doctor?.FullName ?? "Unknown",
+                BankName = p.ConsultationSession.Doctor?.DoctorBankAccount?.BankName ?? "Chưa cập nhật",
+                AccountNumber = p.ConsultationSession.Doctor?.DoctorBankAccount?.AccountNumber ?? "Chưa cập nhật",
+                AccountHolder = p.ConsultationSession.Doctor?.DoctorBankAccount?.AccountHolder ?? "Chưa cập nhật",
+                Amount = p.Amount,
+                CalculatedAt = p.CalculatedAt,
+                Status = p.Status
+            }).ToList();
+
+            var result = new PagedResult<PendingPayoutDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            return ApiResponse<PagedResult<PendingPayoutDto>>.Ok(result, "Lấy danh sách cần giải ngân thành công.");
+        }
+
+        public async Task<ApiResponse<bool>> ApproveDoctorPayoutAsync(Guid payoutId, ApprovePayoutRequest request)
+        {
+            var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(cs => cs!.Doctor)
+                .FirstOrDefaultAsync(p => p.PayoutId == payoutId);
+
+            if (payout == null)
+                return ApiResponse<bool>.Fail("Không tìm thấy phiếu giải ngân này.", 404);
+
+            if (payout.Status == "Paid" || payout.Status == "Success")
+                return ApiResponse<bool>.Fail("Phiếu này đã được thanh toán rồi.", 400);
+
+            if (string.IsNullOrWhiteSpace(request.BankTransactionCode))
+                return ApiResponse<bool>.Fail("Vui lòng nhập Mã giao dịch ngân hàng để làm bằng chứng.", 400);
+
+            // 1. Cập nhật Payout thành Đã Trả (Paid)
+            payout.Status = "Paid";
+            payout.PaidAt = DateTime.Now;
+            _unitOfWork.Repository<DoctorPayout>().Update(payout);
+
+            // 2. Ghi sổ Transaction (Dòng tiền đi ra)
+            var transaction = new Transactions
+            {
+                TransactionId = Guid.NewGuid(),
+                TransactionCode = $"PAYOUT-{DateTime.Now.Ticks % 100000}",
+                PayoutId = payout.PayoutId,
+                GatewayName = "BankTransfer", 
+                GatewayTransactionId = request.BankTransactionCode, 
+                TransactionStatus = "Success",
+                TransactionType = TransactionTypes.MoneySent, // Quan trọng
+                AmountPaid = payout.Amount,
+                PaidAt = DateTime.Now
+            };
+
+            await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
+            await _unitOfWork.CompleteAsync();
+
+            // 3. [NEW] Bắn Notification báo tiền về cho Bác sĩ
+            if (payout.ConsultationSession?.Doctor != null)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: payout.ConsultationSession.Doctor.UserId,
+                    title: "💰 Nhận tiền tư vấn",
+                    message: $"MediMate đã thanh toán {payout.Amount:N0}đ cho ca tư vấn của bạn. Mã GD: {request.BankTransactionCode}. Vui lòng kiểm tra tài khoản.",
+                    type: "PAYOUT_SUCCESS", // Type tuỳ m định nghĩa ở Constants
+                    referenceId: payout.PayoutId
+                );
+            }
+
+            return ApiResponse<bool>.Ok(true, "Đã ghi nhận thanh toán cho bác sĩ thành công!");
         }
     }
 }

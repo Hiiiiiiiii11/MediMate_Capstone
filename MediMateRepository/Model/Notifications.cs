@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -12,8 +12,10 @@ namespace MediMateRepository.Model
         [Key]
         public Guid NotificationId { get; set; } = Guid.NewGuid();
 
-        // ID của người nhận thông báo (Bệnh nhân hoặc Bác sĩ)
-        public Guid UserId { get; set; }
+        // ID của người nhận thông báo (Bệnh nhân hoặc Bác sĩ), có thể null nếu thông báo cho Member trực tiếp
+        public Guid? UserId { get; set; }
+
+        public Guid? MemberId { get; set; }
 
         [Required]
         [MaxLength(200)]
@@ -35,6 +37,7 @@ namespace MediMateRepository.Model
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        public virtual User User { get; set; } = null!;
+        public virtual User? User { get; set; }
+        public virtual Members? Member { get; set; }
     }
 }

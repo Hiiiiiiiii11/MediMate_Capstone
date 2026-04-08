@@ -253,7 +253,7 @@ namespace MediMateService.Services.Implementations
             var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
-
+            var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
             // Xác minh người gọi là bệnh nhân (User) của phiên này
             if (session.MemberId != callerMemberId)
             {

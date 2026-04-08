@@ -25,6 +25,12 @@ namespace MediMateRepository.Repositories.Implementations
                 .FirstOrDefaultAsync(r => r.ConsultanSessionId == sessionId);
         }
 
+        public async Task<Ratings?> GetRatingByIdAsync(Guid ratingId)
+        {
+            return await _context.Ratings
+                .FirstOrDefaultAsync(r => r.RatingId == ratingId);
+        }
+
         public async Task<List<Ratings>> GetRatingsByDoctorIdAsync(Guid doctorId)
         {
             return await _context.Ratings
@@ -36,6 +42,18 @@ namespace MediMateRepository.Repositories.Implementations
         public async Task AddRatingAsync(Ratings rating)
         {
             await _context.Ratings.AddAsync(rating);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateRatingAsync(Ratings rating)
+        {
+            _context.Ratings.Update(rating);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task DeleteRatingAsync(Ratings rating)
+        {
+            _context.Ratings.Remove(rating);
             await _context.SaveChangesAsync();
         }
     }

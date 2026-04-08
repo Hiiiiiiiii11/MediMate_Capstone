@@ -13,7 +13,7 @@
         public List<PrescriptionImageDto> Images { get; set; } = new List<PrescriptionImageDto>();
 
         // Danh sách thuốc (Đã được UI bóc tách thành text)
-        public List<PrescriptionMedicineDto> Medicines { get; set; } = new List<PrescriptionMedicineDto>();
+        public List<PrescriptionMedicineResponse> Medicines { get; set; } = new List<PrescriptionMedicineResponse>();
     }
 
     public class PrescriptionImageDto
@@ -28,7 +28,7 @@
         public string ThumbnailUrl { get; set; }
     }
 
-    public class PrescriptionMedicineDto
+    public class PrescriptionMedicineResponse
     {
         public Guid? PrescriptionMedicineId { get; set; }
         public string MedicineName { get; set; }
@@ -48,7 +48,7 @@
 
         // Nếu gửi null: Giữ nguyên danh sách thuốc cũ
         // Nếu gửi list (kể cả rỗng): Xóa thuốc cũ, thay bằng thuốc mới
-        public List<PrescriptionMedicineDto>? Medicines { get; set; }
+        public List<PrescriptionMedicineResponse>? Medicines { get; set; }
     }
 
     // Response trả về cho UI
@@ -63,7 +63,7 @@
         public string Notes { get; set; }
 
         public List<PrescriptionImageDto> Images { get; set; }
-        public List<PrescriptionMedicineDto> Medicines { get; set; }
+        public List<PrescriptionMedicineResponse> Medicines { get; set; }
     }
 
     
@@ -83,6 +83,6 @@
         public string? PrescriptionCode { get; set; }
         public string? PrescriptionDate { get; set; }  
         public string? Notes { get; set; }
-        public List<PrescriptionMedicineDto> Medicines { get; set; } = new();
+        public List<PrescriptionMedicineResponse> Medicines { get; set; } = new();
     }
 }

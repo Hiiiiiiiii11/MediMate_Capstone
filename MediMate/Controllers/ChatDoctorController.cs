@@ -1,4 +1,4 @@
-﻿using MediMateService.DTOs;
+using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +20,7 @@ namespace MediMate.Controllers
             _currentUserService = currentUserService;
         }
         [HttpGet("sessions/{sessionId}/messages")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ChatDoctorMessageResponse>>), 200)]
         public async Task<IActionResult> GetSessionMessages(Guid sessionId)
         {
             try
@@ -45,6 +46,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("sessions/{sessionId}/messages")]
+        [ProducesResponseType(typeof(ApiResponse<ChatDoctorMessageResponse>), 200)]
         public async Task<IActionResult> SendMessage(Guid sessionId, [FromForm] SendChatDoctorRequest request)
         {
             try
@@ -75,6 +77,7 @@ namespace MediMate.Controllers
 
 
         [HttpGet("families/{familyId}/sessions")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ChatSessionSummaryResponse>>), 200)]
         public async Task<IActionResult> GetSessionsByFamily(Guid familyId)
         {
             var userId = _currentUserService.UserId;
@@ -86,6 +89,7 @@ namespace MediMate.Controllers
 
         // 2. Lấy danh sách phòng chat theo DoctorId (Góc nhìn Bác sĩ)
         [HttpGet("doctors/{doctorId}/sessions")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ChatSessionSummaryResponse>>), 200)]
         public async Task<IActionResult> GetSessionsByDoctor(Guid doctorId)
         {
             var userId = _currentUserService.UserId;
@@ -97,6 +101,7 @@ namespace MediMate.Controllers
 
         // 3. Lấy thông tin Header của 1 phòng chat
         [HttpGet("sessions/{sessionId}/details")]
+        [ProducesResponseType(typeof(ApiResponse<ChatSessionSummaryResponse>), 200)]
         public async Task<IActionResult> GetSessionDetails(Guid sessionId, [FromQuery] bool isDoctorRequest = false)
         {
             var userId = _currentUserService.UserId;
@@ -107,6 +112,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPut("sessions/{sessionId}/messages/read")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> MarkMessagesAsRead(Guid sessionId)
         {
             try

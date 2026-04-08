@@ -23,6 +23,7 @@ namespace MediMate.Controllers
         [HttpGet]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<ManagementDoctorResponse>>), 200)]
         public async Task<IActionResult> GetDoctors([FromQuery] GetDoctorsRequest request, [FromQuery] string? status = null)
         {
             var data = await _doctorService.GetDoctorsAsync(request.Specialty, status);
@@ -33,6 +34,7 @@ namespace MediMate.Controllers
         [HttpGet("{doctorId}")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager},{Roles.Doctor}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<ManagementDoctorResponse>), 200)]
         public async Task<IActionResult> GetDoctorById(Guid doctorId)
         {
             var data = await _doctorService.GetDoctorByIdAsync(doctorId);
@@ -43,24 +45,18 @@ namespace MediMate.Controllers
         [HttpPost("{doctorId}/verify")]
         //[Authorize(Roles = Roles.DoctorManager)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<ManagementDoctorResponse>), 200)]
         public async Task<IActionResult> Verify(Guid doctorId)
         {
             var data = await _doctorService.VerifyDoctorAsync(doctorId);
             return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Xác minh bằng cấp thành công."));
         }
 
-        [HttpPost("{doctorId}/approve")]
-        //[Authorize(Roles = Roles.DoctorManager)]
-        [Authorize]
-        public async Task<IActionResult> Approve(Guid doctorId)
-        {
-            var data = await _doctorService.ApproveDoctorAsync(doctorId);
-            return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Bác sĩ đã được phê duyệt."));
-        }
 
         [HttpPost("{doctorId}/reject")]
         //[Authorize(Roles = $"{Roles.Admin},{Roles.DoctorManager}")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<ManagementDoctorResponse>), 200)]
         public async Task<IActionResult> Reject(Guid doctorId, [FromBody] RejectDoctorRequest request)
         {
             var data = await _doctorService.RejectDoctorAsync(doctorId, request.Reason);
@@ -118,7 +114,8 @@ namespace MediMate.Controllers
             IsOnline = dto.IsOnline,
             LastSeenAt = dto.LastSeenAt,
             CreatedAt = dto.CreatedAt,
-            UserId = dto.UserId
+            UserId = dto.UserId,
+            AvatarUrl = dto.AvatarUrl
         };
 
         private static DoctorAvailabilityResponse MapAvailabilityResponse(DoctorAvailabilityDto dto) => new()

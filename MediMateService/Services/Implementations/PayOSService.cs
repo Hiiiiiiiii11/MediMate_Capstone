@@ -8,6 +8,8 @@ using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Share.Common;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations;
 
@@ -17,7 +19,8 @@ public class PayOSService : IPayOSService
     private readonly IConfiguration _configuration;
     private readonly ILogger<PayOSService> _logger;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly MediMateDbContext _context;
+
+    private readonly IActivityLogService _activityLogService;
 
     private readonly string _clientId;
     private readonly string _apiKey;
@@ -26,13 +29,12 @@ public class PayOSService : IPayOSService
     private readonly string _defaultReturnUrl;
     private readonly string _defaultCancelUrl;
 
-    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, MediMateDbContext context)
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _unitOfWork = unitOfWork;
-        _context = context;
 
         _clientId = Environment.GetEnvironmentVariable("PAYOS_CLIENT_ID") ?? _configuration["PayOS:ClientId"] ?? throw new InvalidOperationException("PayOS ClientId not configured");
         _apiKey = Environment.GetEnvironmentVariable("PAYOS_API_KEY") ?? _configuration["PayOS:ApiKey"] ?? throw new InvalidOperationException("PayOS ApiKey not configured");
@@ -44,6 +46,7 @@ public class PayOSService : IPayOSService
         _httpClient.BaseAddress = new Uri(_baseUrl);
         _httpClient.DefaultRequestHeaders.Add("x-client-id", _clientId);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _activityLogService = activityLogService;
     }
 
     public async Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default)
@@ -62,7 +65,7 @@ public class PayOSService : IPayOSService
             {
                 throw new InvalidOperationException($"Gia đình hiện có {memberCount} thành viên, vượt quá giới hạn {package.MemberLimit} của gói này. Vui lòng chọn gói cao hơn.");
             }
-            int orderCode = (int)(DateTime.UtcNow.Ticks % int.MaxValue);
+            int orderCode = (int)(DateTime.Now.Ticks % int.MaxValue);
             var subscription = new FamilySubscriptions
             {
                 SubscriptionId = Guid.NewGuid(),
@@ -70,8 +73,8 @@ public class PayOSService : IPayOSService
                 PackageId = request.PackageId,
                 UserId = userId,
                 // Dates will be finalized when payment succeeds
-                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                EndDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                StartDate = DateOnly.FromDateTime(DateTime.Now),
+                EndDate = DateOnly.FromDateTime(DateTime.Now),
                 Status = "Pending",
                 AutoRenew = false
             };
@@ -86,7 +89,7 @@ public class PayOSService : IPayOSService
                 Amount = package.Price,
                 PaymentContent = $"Mua goi {package.PackageName}",
                 Status = "Pending",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
             await _unitOfWork.Repository<Payments>().AddAsync(payment);
 
@@ -99,7 +102,7 @@ public class PayOSService : IPayOSService
                 GatewayName = "PayOS",
                 GatewayTransactionId = orderCode.ToString(),
                 TransactionStatus = "Pending",
-                TransactionType = "Tiền nhận vào",
+                TransactionType = TransactionTypes.MoneyReceived,
                 AmountPaid = 0 // Will update on success
             };
             await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
@@ -124,7 +127,7 @@ public class PayOSService : IPayOSService
                 },
                 cancelUrl = request.CancelUrl ?? _defaultCancelUrl,
                 returnUrl = request.ReturnUrl ?? _defaultReturnUrl,
-                expiredAt = (int?)DateTime.UtcNow.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
+                expiredAt = (int?)DateTime.Now.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
             };
 
             var signature = CreateSignature(payload);
@@ -212,14 +215,14 @@ public class PayOSService : IPayOSService
         }
     }
 
-    public async Task<bool> ProcessPaymentWebhookAsync(int orderCode, CancellationToken cancellationToken = default)
+    public async Task<bool> ProcessPaymentWebhookAsync(int orderCode, bool isSuccess, CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Processing webhook for order {OrderCode}", orderCode);
+            _logger.LogInformation("Processing webhook for order {OrderCode}. IsSuccess: {IsSuccess}", orderCode, isSuccess);
 
-            // Find transaction logic bypassing Repositories simple query since we need eager loading
-            var transaction = await _context.Transactions
+            // Tìm giao dịch liên quan (Eager loading các bảng cần thiết)
+            var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
                 .Include(t => t.Payment)
                 .ThenInclude(p => p.Subscription)
                 .ThenInclude(s => s.Package)
@@ -231,49 +234,87 @@ public class PayOSService : IPayOSService
                 return false;
             }
 
+            // Nếu giao dịch đã được ghi nhận là Thành công trước đó thì bỏ qua (tránh Webhook gọi trùng lặp)
             if (transaction.TransactionStatus == "Success" || transaction.Payment.Status == "Success")
             {
-                // Already processed
                 return true;
             }
 
-            // Update Transaction
-            transaction.TransactionStatus = "Success";
-            transaction.AmountPaid = transaction.Payment.Amount;
-            transaction.PaidAt = DateTime.UtcNow;
-
-            // Update Payment
-            transaction.Payment.Status = "Success";
-
-            // Update Subscription
-            var sub = transaction.Payment.Subscription;
-            
-            // 1. Deactivate current active subscriptions for this family
-            var oldActiveSubscriptions = await _context.FamilySubscriptions
-                .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
-                .ToListAsync(cancellationToken);
-            
-            foreach(var oldSub in oldActiveSubscriptions)
+            if (isSuccess)
             {
-                oldSub.Status = "Inactive";
+                // ==========================================
+                // TRƯỜNG HỢP 1: THANH TOÁN THÀNH CÔNG
+                // ==========================================
+
+                // 1. Cập nhật Transaction
+                transaction.TransactionStatus = "Success";
+                transaction.AmountPaid = transaction.Payment.Amount;
+                transaction.PaidAt = DateTime.Now;
+
+                // 2. Cập nhật Payment
+                transaction.Payment.Status = "Success";
+
+                // 3. Cập nhật Subscription
+                var sub = transaction.Payment.Subscription;
+
+                // Hủy các gói đang kích hoạt cũ của Gia đình này
+                var oldActiveSubscriptions = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
+                    .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var oldSub in oldActiveSubscriptions)
+                {
+                    oldSub.Status = "Inactive";
+                }
+
+                // Kích hoạt gói mới và thiết lập ngày tháng, số lượt
+                sub.Status = "Active";
+                sub.StartDate = DateOnly.FromDateTime(DateTime.Now);
+                sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
+                sub.RemainingOcrCount = sub.Package.OcrLimit;
+                sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
+
+                _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
+
+                var member = await _unitOfWork.Repository<Members>().GetQueryable()
+        .FirstOrDefaultAsync(m => m.UserId == transaction.Payment.UserId && m.FamilyId == sub.FamilyId, cancellationToken);
+
+                await _activityLogService.LogActivityAsync(
+                    familyId: sub.FamilyId,
+                    memberId: member?.MemberId ?? Guid.Empty,
+                    actionType: ActivityActionTypes.UPDATE, // Hoặc dùng Action riêng cho Payment
+                    entityName: ActivityEntityNames.FAMILY,
+                    entityId: sub.FamilyId,
+                    description: $"Gia đình đã nâng cấp thành công lên gói '{sub.Package.PackageName}'."
+                );
+            }
+            else
+            {
+                // ==========================================
+                // TRƯỜNG HỢP 2: THANH TOÁN THẤT BẠI / HỦY BỎ
+                // ==========================================
+
+                transaction.TransactionStatus = "Failed";
+                transaction.PaidAt = DateTime.Now; // Ghi nhận thời điểm báo lỗi
+
+                transaction.Payment.Status = "Failed";
+
+                // Hủy bỏ gói Subscription (chưa kích hoạt)
+                if (transaction.Payment.Subscription != null)
+                {
+                    transaction.Payment.Subscription.Status = "Failed";
+                }
             }
 
-            // 2. Activate new subscription and initialize counts
-            sub.Status = "Active";
-            sub.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
-            sub.RemainingOcrCount = sub.Package.OcrLimit;
-            sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
-
-            _context.Transactions.Update(transaction);
-            _context.FamilySubscriptions.UpdateRange(oldActiveSubscriptions);
-            await _context.SaveChangesAsync(cancellationToken);
+            // Lưu toàn bộ thay đổi xuống DB
+            _unitOfWork.Repository<Transactions>().Update(transaction);
+            await _unitOfWork.CompleteAsync();
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing payment completion for order {OrderCode}", orderCode);
+            _logger.LogError(ex, "Error processing payment webhook for order {OrderCode}", orderCode);
             return false;
         }
     }
@@ -357,4 +398,195 @@ public class PayOSService : IPayOSService
             return "";
         }
     }
+
+    public async Task<ApiResponse<PagedResult<PaymentItemDto>>> GetAllPaymentsAsync(PaymentFilterDto filter)
+    {
+        // Đã bổ sung Include Transactions ở đây
+        IQueryable<Payments> query = _unitOfWork.Repository<Payments>().GetQueryable()
+            .Include(p => p.User)
+            .Include(p => p.Transactions);
+
+        query = ApplyFiltersAndSorting(query, filter);
+
+        var totalCount = await query.CountAsync();
+
+        var payments = await query
+            .Skip((filter.PageNumber - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync();
+
+        var items = payments.Select(p => new PaymentItemDto
+        {
+            PaymentId = p.PaymentId,
+            UserId = p.UserId,
+            UserName = p.User?.FullName ?? "Unknown",
+
+            // Đã bổ sung map OrderCode ở đây
+            OrderCode = p.Transactions != null && p.Transactions.Any()
+                ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0")
+                : 0,
+
+            Amount = p.Amount,
+            PaymentContent = p.PaymentContent ?? "",
+            Status = p.Status,
+            CreatedAt = p.CreatedAt
+        }).ToList();
+
+        var result = new PagedResult<PaymentItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = filter.PageNumber,
+            PageSize = filter.PageSize
+        };
+
+        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(result, "Lấy danh sách thanh toán thành công.");
+    }
+
+    // ==========================================
+    // 2. LẤY PAYMENTS CỦA 1 USER (CHO APP)
+    // ==========================================
+    public async Task<ApiResponse<PagedResult<PaymentItemDto>>> GetPaymentsByUserIdAsync(Guid userId, PaymentFilterDto filter)
+    {
+        IQueryable<Payments> query = _unitOfWork.Repository<Payments>().GetQueryable()
+            .Include(p => p.User)
+            .Include(p => p.Transactions)
+            .Include(p => p.Subscription).ThenInclude(s => s!.Family)
+            .Include(p => p.Subscription).ThenInclude(s => s!.Package)
+            .Where(p => p.UserId == userId);
+
+        query = ApplyFiltersAndSorting(query, filter);
+        var totalCount = await query.CountAsync();
+        var payments = await query.Skip((filter.PageNumber - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
+
+        var items = payments.Select(p => new PaymentItemDto
+        {
+            PaymentId = p.PaymentId,
+            UserId = p.UserId,
+            UserName = p.User?.FullName ?? "Unknown",
+            OrderCode = p.Transactions != null && p.Transactions.Any()
+                        ? long.Parse(p.Transactions.First().GatewayTransactionId ?? "0") : 0,
+            Amount = p.Amount,
+            PaymentContent = p.PaymentContent ?? "",
+            Status = p.Status,
+            CreatedAt = p.CreatedAt,
+            // --- DATA BỔ SUNG ---
+            PackageName = p.Subscription?.Package?.PackageName ?? "N/A",
+            FamilyName = p.Subscription?.Family?.FamilyName ?? "N/A",
+            FamilyId = p.Subscription?.FamilyId ?? Guid.Empty
+        }).ToList();
+
+        return ApiResponse<PagedResult<PaymentItemDto>>.Ok(new PagedResult<PaymentItemDto> { Items = items, TotalCount = totalCount, PageNumber = filter.PageNumber, PageSize = filter.PageSize });
+    }
+
+    // ==========================================
+    // 3. HÀM HELPER: XỬ LÝ LỌC & SẮP XẾP CHUNG
+    // ==========================================
+    private IQueryable<Payments> ApplyFiltersAndSorting(IQueryable<Payments> query, PaymentFilterDto filter)
+    {
+        // Lọc theo từ khóa (Tìm trong Nội dung thanh toán hoặc Tên người dùng)
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
+        {
+            var term = filter.SearchTerm.ToLower();
+            query = query.Where(p =>
+                (p.PaymentContent != null && p.PaymentContent.ToLower().Contains(term)) ||
+                (p.User != null && p.User.FullName.ToLower().Contains(term))
+            );
+        }
+
+        // Lọc theo Trạng thái (Pending, Success...)
+        if (!string.IsNullOrEmpty(filter.Status))
+        {
+            var status = filter.Status.ToLower();
+            query = query.Where(p => p.Status.ToLower() == status);
+        }
+
+        // Sắp xếp
+        if (!string.IsNullOrEmpty(filter.SortBy))
+        {
+            var sortBy = filter.SortBy.ToLower();
+            switch (sortBy)
+            {
+                case "amount":
+                    query = filter.IsDescending
+                        ? query.OrderByDescending(p => p.Amount)
+                        : query.OrderBy(p => p.Amount);
+                    break;
+                case "createdat":
+                default:
+                    query = filter.IsDescending
+                        ? query.OrderByDescending(p => p.CreatedAt)
+                        : query.OrderBy(p => p.CreatedAt);
+                    break;
+            }
+        }
+        else
+        {
+            // Mặc định luôn sắp xếp mới nhất lên đầu
+            query = query.OrderByDescending(p => p.CreatedAt);
+        }
+
+        return query;
+    }
+
+    // ==========================================
+    // CẬP NHẬT TRẠNG THÁI TỪ FRONTEND (THÀNH CÔNG / THẤT BẠI / HỦY)
+    // ==========================================
+    public async Task<ApiResponse<bool>> UpdatePaymentStatusAsync(int orderCode, string status, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Manually updating status for OrderCode {OrderCode} to {Status}", orderCode, status);
+
+            var transaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
+                .Include(t => t.Payment)
+                .ThenInclude(p => p.Subscription)
+                .FirstOrDefaultAsync(t => t.GatewayName == "PayOS" && t.GatewayTransactionId == orderCode.ToString(), cancellationToken);
+
+            if (transaction == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy giao dịch hợp lệ.", 404);
+            }
+
+            // Chặn: Không cho phép cập nhật lùi từ Success về Failed/Cancelled
+            if (transaction.TransactionStatus == "Success" || transaction.Payment.Status == "Success")
+            {
+                return ApiResponse<bool>.Ok(true, "Giao dịch này đã được xử lý thành công trước đó.");
+            }
+
+            // XỬ LÝ THEO TRẠNG THÁI CHUẨN ĐÃ ĐƯỢC CONTROLLER VALIDATE
+            if (status == "SUCCESS")
+            {
+                bool isProcessed = await ProcessPaymentWebhookAsync(orderCode, true, cancellationToken);
+                return isProcessed
+                    ? ApiResponse<bool>.Ok(true, "Đã cập nhật trạng thái Thành công.")
+                    : ApiResponse<bool>.Fail("Có lỗi khi xử lý dữ liệu kích hoạt gói.", 500);
+            }
+            else
+            {
+                // Quy chuẩn hóa format lưu vào DB: "CANCELED" / "CANCELLED" -> "Cancelled", "FAILED" -> "Failed"
+                var finalStatus = (status == "CANCELED" || status == "CANCELLED") ? "Cancelled" : "Failed";
+
+                transaction.TransactionStatus = finalStatus;
+                transaction.PaidAt = DateTime.Now;
+                transaction.Payment.Status = finalStatus;
+
+                if (transaction.Payment.Subscription != null)
+                {
+                    transaction.Payment.Subscription.Status = finalStatus;
+                }
+
+                _unitOfWork.Repository<Transactions>().Update(transaction);
+                await _unitOfWork.CompleteAsync();
+
+                return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái thành {finalStatus}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error manually updating payment status for order {OrderCode}", orderCode);
+            return ApiResponse<bool>.Fail($"Lỗi hệ thống: {ex.Message}", 500);
+        }
+    }
 }
+

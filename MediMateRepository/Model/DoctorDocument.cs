@@ -12,11 +12,12 @@ namespace MediMateRepository.Model
         public Guid DoctorId { get; set; }
         public string FileUrl { get; set; }
         public string Type { get; set; }
-        public string Status { get; set; }
-        public string ReviewBy { get; set; }
-        public string ReviewAt { get; set; }
-        public string Note { get; set; }
+        public string? Status { get; set; }
+        public string? ReviewBy { get; set; }
+        public string? ReviewAt { get; set; }
+        public string? Note { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         public virtual Doctors Doctor { get; set; }
     }
 }

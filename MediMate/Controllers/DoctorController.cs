@@ -14,18 +14,25 @@ namespace MediMate.Controllers
     public class DoctorController : ControllerBase
     {
         private readonly IDoctorService _doctorService;
+        private readonly IDoctorDocumentService _doctorDocumentService;
         private readonly IRatingService _ratingService;
         private readonly IUploadPhotoService _uploadPhotoService;
 
-        public DoctorController(IDoctorService doctorService, IRatingService ratingService, IUploadPhotoService uploadPhotoService)
+        public DoctorController(
+            IDoctorService doctorService,
+            IDoctorDocumentService doctorDocumentService,
+            IRatingService ratingService,
+            IUploadPhotoService uploadPhotoService)
         {
             _doctorService = doctorService;
+            _doctorDocumentService = doctorDocumentService;
             _ratingService = ratingService;
             _uploadPhotoService = uploadPhotoService;
         }
 
         [HttpGet]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<DoctorResponse>>), 200)]
         public async Task<IActionResult> GetDoctors([FromQuery] GetDoctorsRequest request)
         {
             var data = await _doctorService.GetPublicDoctorsAsync(request.Specialty);
@@ -35,6 +42,7 @@ namespace MediMate.Controllers
 
         [HttpGet("{doctorId}")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> GetDoctorById(Guid doctorId)
         {
             var data = await _doctorService.GetPublicDoctorByIdAsync(doctorId);
@@ -53,6 +61,7 @@ namespace MediMate.Controllers
 
         [HttpGet("{doctorId}/reviews")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<List<DoctorReviewResponse>>), 200)]
         public async Task<IActionResult> GetReviews(Guid doctorId)
         {
             var data = await _ratingService.GetDoctorReviewsAsync(doctorId);
@@ -64,6 +73,7 @@ namespace MediMate.Controllers
         [HttpGet("me")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> GetMyProfile()
         {
             var userId = GetCurrentUserId();
@@ -76,16 +86,57 @@ namespace MediMate.Controllers
         [HttpPost("me/submit")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> SubmitProfile([FromForm] SubmitDoctorRequest request)
         {
             var userId = GetCurrentUserId();
             var doc = await _doctorService.GetMyProfileAsync(userId);
-            
-            string? licenseImageUrl = doc.LicenseImage;
-            if (request.LicenseImage != null)
+
+            if (request.LicenseImage != null && request.LicenseImage.Count > 3)
             {
-                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.LicenseImage);
-                licenseImageUrl = uploadResult.OriginalUrl;
+                return BadRequest(ApiResponse<object>.Fail("Chỉ được tải lên tối đa 3 LicenseImage.", 400));
+            }
+
+            string? licenseImageUrl = doc.LicenseImage;
+            if (request.LicenseImage != null && request.LicenseImage.Count > 0)
+            {
+                var uploadedLicenseUrls = new List<string>();
+
+                foreach (var file in request.LicenseImage)
+                {
+                    string fileUrl;
+                    if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
+                        fileUrl = uploadResult.OriginalUrl;
+                    }
+                    else
+                    {
+                        fileUrl = await _uploadPhotoService.UploadDocumentAsync(file);
+                    }
+
+                    uploadedLicenseUrls.Add(fileUrl);
+
+                    var createDocumentResponse = await _doctorDocumentService.CreateAsync(doc.DoctorId, userId, new CreateDoctorDocumentRequest
+                    {
+                        FileUrl = fileUrl,
+                        Type = DoctorDocumentTypes.PracticeLicense
+                    });
+
+                    if (!createDocumentResponse.Success)
+                    {
+                        return StatusCode(createDocumentResponse.Code, createDocumentResponse);
+                    }
+                }
+
+                licenseImageUrl = uploadedLicenseUrls.FirstOrDefault();
+            }
+
+            string? avatarUrl = null;
+            if (request.AvatarImage != null)
+            {
+                var avatarUploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarImage);
+                avatarUrl = avatarUploadResult.OriginalUrl;
             }
 
             var data = await _doctorService.SubmitPendingAsync(doc.DoctorId, new SubmitDoctorDto
@@ -93,6 +144,7 @@ namespace MediMate.Controllers
                 FullName = request.FullName,
                 Specialty = request.Specialty,
                 CurrentHospitalName = request.CurrentHospitalName,
+                AvatarUrl = avatarUrl,
                 LicenseNumber = request.LicenseNumber,
                 LicenseImage = licenseImageUrl,
                 YearsOfExperience = request.YearsOfExperience,
@@ -101,9 +153,79 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Đã nộp hồ sơ, chờ xét duyệt."));
         }
 
+        [HttpPut("me")]
+        [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateDoctorRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var doc = await _doctorService.GetMyProfileAsync(userId);
+
+            if (doc.Status == DoctorStatuses.Inactive)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Tài khoản chưa được kích hoạt/submit lần đầu. Vui lòng dùng endpoint /me/submit.", 400));
+            }
+
+            if (request.LicenseImage != null && request.LicenseImage.Count > 3)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Chỉ được tải lên tối đa 3 LicenseImage.", 400));
+            }
+
+            string? licenseImageUrl = doc.LicenseImage;
+            if (request.LicenseImage != null && request.LicenseImage.Count > 0)
+            {
+                var uploadedLicenseUrls = new List<string>();
+
+                foreach (var file in request.LicenseImage)
+                {
+                    string fileUrl;
+                    if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var uploadResult = await _uploadPhotoService.UploadPhotoAsync(file);
+                        fileUrl = uploadResult.OriginalUrl;
+                    }
+                    else
+                    {
+                        fileUrl = await _uploadPhotoService.UploadDocumentAsync(file);
+                    }
+
+                    uploadedLicenseUrls.Add(fileUrl);
+                    await _doctorDocumentService.CreateAsync(doc.DoctorId, userId, new CreateDoctorDocumentRequest
+                    {
+                        FileUrl = fileUrl,
+                        Type = DoctorDocumentTypes.PracticeLicense
+                    });
+                }
+
+                licenseImageUrl = uploadedLicenseUrls.FirstOrDefault();
+            }
+
+            string? avatarUrl = null;
+            if (request.AvatarImage != null)
+            {
+                var avatarUploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AvatarImage);
+                avatarUrl = avatarUploadResult.OriginalUrl;
+            }
+
+            var data = await _doctorService.UpdateMyProfileAsync(userId, new UpdateDoctorDto
+            {
+                FullName = request.FullName,
+                Specialty = request.Specialty,
+                CurrentHospitalName = request.CurrentHospitalName,
+                LicenseNumber = request.LicenseNumber,
+                LicenseImage = licenseImageUrl, // Giữ lại URL cũ hoặc lấy URL của file đầu tiên mới upload
+                YearsOfExperience = request.YearsOfExperience,
+                Bio = request.Bio,
+                AvatarUrl = avatarUrl
+            });
+
+            return Ok(ApiResponse<DoctorResponse>.Ok(MapDoctorResponse(data), "Cập nhật hồ sơ thành công. Trạng thái đã chuyển về Chờ duyệt (Pending) để xác minh lại."));
+        }
+
         [HttpPatch("me/online")]
         //[Authorize(Roles = Roles.Doctor)]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Heartbeat()
         {
             var userId = GetCurrentUserId();
@@ -120,6 +242,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("activate")]
+        [ProducesResponseType(typeof(ApiResponse<DoctorResponse>), 200)]
         public async Task<IActionResult> Activate([FromBody] ActivateDoctorRequest request)
         {
             var data = await _doctorService.ActivateDoctorAsync(request.DoctorId, request.VerifyCode);
@@ -148,7 +271,8 @@ namespace MediMate.Controllers
                 AverageRating = dto.AverageRating,
                 Status = dto.Status,
                 CreatedAt = dto.CreatedAt,
-                UserId = dto.UserId
+                UserId = dto.UserId,
+                AvatarUrl = dto.AvatarUrl
             };
         }
 

@@ -19,6 +19,7 @@ namespace MediMateRepository.Data
         public DbSet<PrescriptionImages> PrescriptionImages { get; set; }
         public DbSet<MedicationLogs> MedicationLogs { get; set; }
         public DbSet<MedicationSchedules> MedicationSchedules { get; set; }
+        public DbSet<MedicationScheduleDetails> MedicationScheduleDetails { get; set; }
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
@@ -66,6 +67,7 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<PrescriptionImages>().HasKey(pi => pi.ImageId);
             modelBuilder.Entity<MedicationLogs>().HasKey(ml => ml.LogId);
             modelBuilder.Entity<MedicationSchedules>().HasKey(ms => ms.ScheduleId);
+            modelBuilder.Entity<MedicationScheduleDetails>().HasKey(m => m.ScheduleDetailId);
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
@@ -167,13 +169,19 @@ namespace MediMateRepository.Data
 
 
 
-            // 1. MedicationSchedules - PrescriptionMedicines (1-1 ho?c 1-N tùy logic)
-            // ? đây b?n đang đ? 1 Schedule ?ng v?i 1 PrescriptionMedicineId
-            modelBuilder.Entity<MedicationSchedules>()
-                .HasOne(ms => ms.PrescriptionMedicines)
-                .WithMany() // M?t lo?i thu?c trong đơn có th? có nhi?u l?ch u?ng (ho?c 1, tùy b?n)
-                .HasForeignKey(ms => ms.PrescriptionMedicineId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa thu?c trong đơn -> Xóa l?ch u?ng
+            // 1. MedicationSchedules - MedicationScheduleDetails (1-N)
+            modelBuilder.Entity<MedicationScheduleDetails>()
+                .HasOne(m => m.Schedule)
+                .WithMany(ms => ms.ScheduleDetails)
+                .HasForeignKey(m => m.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 1b. PrescriptionMedicines - MedicationScheduleDetails (1-N)
+            modelBuilder.Entity<MedicationScheduleDetails>()
+                .HasOne(m => m.PrescriptionMedicine)
+                .WithMany()
+                .HasForeignKey(m => m.PrescriptionMedicineId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // 2. MedicationSchedules - Members (1-N)
             modelBuilder.Entity<MedicationSchedules>()
@@ -214,11 +222,11 @@ namespace MediMateRepository.Data
                 .HasForeignKey(ml => ml.ReminderId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa nh?c nh? -> Xóa log
 
-            // Quan h? 1-1: Members <-> NotificationSetting
+            // Quan h? 1-1: Family <-> NotificationSetting
             modelBuilder.Entity<NotificationSetting>()
-                .HasOne(ns => ns.Member)
+                .HasOne(ns => ns.Family)
                 .WithOne() // N?u b?ng Members b?n không khai báo `public virtual NotificationSetting Setting` th? đ? tr?ng WithOne()
-                .HasForeignKey<NotificationSetting>(ns => ns.MemberId)
+                .HasForeignKey<NotificationSetting>(ns => ns.FamilyId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> T? đ?ng xóa Cài đ?t thông báo
 
             // Quan h? 1-N: Families -> ActivityLogs
@@ -327,7 +335,7 @@ namespace MediMateRepository.Data
             // Doctors 1-N DoctorDocument (THÊM MỚI)
             modelBuilder.Entity<DoctorDocument>()
                 .HasOne(dd => dd.Doctor)
-                .WithMany()
+                .WithMany(d => d.DoctorDocuments)
                 .HasForeignKey(dd => dd.DoctorId)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -365,7 +373,7 @@ namespace MediMateRepository.Data
             // Payments 1-N Transactions (nullable FK)
             modelBuilder.Entity<Transactions>()
                 .HasOne(t => t.Payment)
-                .WithMany()
+                .WithMany(p => p.Transactions) // <--- CHỈ CẦN THÊM "p => p.Transactions" VÀO ĐÂY
                 .HasForeignKey(t => t.PaymentId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
@@ -392,12 +400,12 @@ namespace MediMateRepository.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<ChatDoctorMessages>()
-                .HasOne(m => m.Sender)
-                .WithMany()
-                .HasForeignKey(m => m.SenderId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.NoAction);
+            //modelBuilder.Entity<ChatDoctorMessages>()
+            //    .HasOne(m => m.Sender)
+            //    .WithMany()
+            //    .HasForeignKey(m => m.SenderId)
+            //    .IsRequired(false)
+            //    .OnDelete(DeleteBehavior.NoAction);
             //modelBuilder.Entity<ChatDoctorMessages>()
             //    .HasOne(m => m.Sender)
             //    .WithMany()

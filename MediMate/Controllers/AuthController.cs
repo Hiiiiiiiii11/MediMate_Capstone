@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Share.Common;
 using Share.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace MediMate.Controllers
@@ -23,6 +24,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("register")]
+        [ProducesResponseType(typeof(ApiResponse<AutheticationResponse>), 200)]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             try
@@ -37,6 +39,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("verify-otp")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
         {
             try
@@ -59,6 +62,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("login/user")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginUser([FromBody] LoginRequest request)
         {
             try
@@ -81,6 +85,7 @@ namespace MediMate.Controllers
         }
 
         [HttpPost("login/remain")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginRemain([FromBody] LoginRequest request)
         {
             try
@@ -102,6 +107,7 @@ namespace MediMate.Controllers
             }
         }
         [HttpPost("login-dependent")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
         public async Task<IActionResult> LoginDependent([FromBody] DependentQrLoginRequest request)
         {
             try
@@ -121,30 +127,51 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "L?i h? th?ng: " + ex.Message });
             }
         }
-        [Authorize]
+        [AllowAnonymous] // Cho phép gọi kể cả khi không có token hoặc token lỗi
         [HttpPost("logout")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> Logout()
         {
-          
-            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? User.FindFirst("Id")?.Value
-                       ?? User.FindFirst("MemberId")?.Value;
-
-            if (idClaim == null || !Guid.TryParse(idClaim, out Guid accountId))
+            // 1. Lấy token từ Header hoặc Cookie
+            string token = Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "")?.Trim() ?? "";
+            if (string.IsNullOrEmpty(token))
             {
-                return Unauthorized(ApiResponse<bool>.Fail("Token khng h?p l?.", 401));
+                token = Request.Cookies["token"]?.Trim() ?? "";
             }
 
-            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value
-                         ?? User.FindFirst("Role")?.Value
-                         ?? "User";
+            Guid? accountId = null;
+            string roleClaim = "User";
 
-            // Lấy token để blacklist
-            string token = Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "") 
-                        ?? Request.Cookies["token"] 
-                        ?? "";
+            // 2. Cố gắng lấy AccountId để xóa FCM Token
+            if (!string.IsNullOrEmpty(token))
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(token))
+                {
+                    try
+                    {
+                        // Tự giải mã token bỏ qua việc token đã hết hạn hay chưa
+                        var jwtToken = handler.ReadJwtToken(token);
+                        var idClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "Id" || c.Type == "MemberId")?.Value;
 
+                        if (Guid.TryParse(idClaim, out Guid parsedId))
+                        {
+                            accountId = parsedId;
+                        }
+
+                        roleClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "Role")?.Value ?? "User";
+                    }
+                    catch
+                    {
+                        // Nếu cấu trúc token bị lỗi nặng, bỏ qua việc lấy AccountId
+                    }
+                }
+            }
+
+            // 3. Gọi Service xử lý (DB & Blacklist)
             var result = await _authenticationService.LogoutAsync(accountId, roleClaim, token);
+
+            // 4. LUÔN LUÔN xóa Cookie trên trình duyệt/thiết bị dù token có lỗi hay không
             Response.Cookies.Delete("token", new CookieOptions
             {
                 HttpOnly = true,
@@ -153,7 +180,7 @@ namespace MediMate.Controllers
                 Path = "/"
             });
 
-            return !result.Success ? StatusCode(result.Code, result) : (IActionResult)Ok(result);
+            return Ok(result); // Luôn trả về 200 OK để Frontend dọn dẹp data
         }
 
         private void SetAuthCookie(string token)
@@ -164,7 +191,7 @@ namespace MediMate.Controllers
                 Secure = true,
                 SameSite = SameSiteMode.None,
                 Path = "/",
-                Expires = DateTime.UtcNow.AddHours(_jwtSettings.ExpirationHours)
+                Expires = DateTime.Now.AddHours(_jwtSettings.ExpirationHours)
             });
         }
     }

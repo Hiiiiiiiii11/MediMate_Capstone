@@ -2,7 +2,11 @@
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
-using System.Text.Json; // Dùng để parse JSON
+using System.Text.Json;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 namespace MediMateService.Services.Implementations
 {
@@ -20,7 +24,6 @@ namespace MediMateService.Services.Implementations
         {
             try
             {
-                // Cấu hình Serialize JSON (Bỏ qua những field bị null để tiết kiệm dung lượng DB)
                 var jsonOptions = new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
 
                 var log = new ActivityLogs
@@ -43,36 +46,36 @@ namespace MediMateService.Services.Implementations
             catch (Exception)
             {
                 // Lưu ý quan trọng: Lỗi ghi log KHÔNG ĐƯỢC LÀM CRASH luồng chính.
-                // Nếu không ghi log được thì chỉ nên ghi ra File/Console bằng ILogger
-                // _logger.LogError(ex, "Failed to write activity log");
             }
         }
 
-        // --- 2. HÀM LẤY DANH SÁCH LOG ĐỂ HIỂN THỊ LÊN APP ---
-        public async Task<ApiResponse<IEnumerable<ActivityLogResponse>>> GetFamilyActivitiesAsync(Guid familyId, Guid currentUserId, int page = 1, int pageSize = 20)
+        // --- 2. HÀM LẤY DANH SÁCH LOG ĐỂ HIỂN THỊ LÊN APP (ĐÃ SỬA ĐỔI SANG PHÂN TRANG CHUẨN) ---
+        public async Task<ApiResponse<PagedResult<ActivityLogResponse>>> GetFamilyActivitiesAsync(Guid familyId, Guid currentUserId, int page = 1, int pageSize = 20)
         {
             // 1. Kiểm tra xem user có thuộc family này không
             var requester = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).FirstOrDefault();
+                .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).FirstOrDefault();
 
             if (requester == null)
             {
-                return ApiResponse<IEnumerable<ActivityLogResponse>>.Fail("Bạn không có quyền xem hoạt động của gia đình này.", 403);
+                return ApiResponse<PagedResult<ActivityLogResponse>>.Fail("Bạn không có quyền xem hoạt động của gia đình này.", 403);
             }
 
-            // 2. Truy vấn Logs kết hợp với Tên Member (Lấy phân trang để app chạy mượt)
-            // Lấy từ mới nhất đến cũ nhất
-            var logs = await _unitOfWork.Repository<ActivityLogs>()
-                .FindAsync(al => al.FamilyId == familyId);
+            // 2. Xây dựng truy vấn an toàn bằng EF Core IQueryable để tối ưu RAM
+            var query = _unitOfWork.Repository<ActivityLogs>().GetQueryable()
+                .Where(al => al.FamilyId == familyId);
 
-            var pagedLogs = logs
+            // Đếm tổng số bản ghi TRƯỚC KHI phân trang
+            var totalCount = await query.CountAsync();
+
+            // 3. Phân trang và lấy dữ liệu
+            var pagedLogs = await query
                 .OrderByDescending(al => al.CreateAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .ToList();
+                .ToListAsync();
 
-            // 3. Map Tên Member
-            // Lấy danh sách ID của những người có trong log đợt này
+            // 4. Map Tên Member
             var memberIdsInLog = pagedLogs.Select(l => l.MemberId).Distinct().ToList();
             var members = await _unitOfWork.Repository<Members>()
                 .FindAsync(m => memberIdsInLog.Contains(m.MemberId));
@@ -90,10 +93,20 @@ namespace MediMateService.Services.Implementations
                 OldDataJson = log.OldDataJson,
                 NewDataJson = log.NewDataJson,
                 CreateAt = log.CreateAt
-            });
+            }).ToList();
 
-            return ApiResponse<IEnumerable<ActivityLogResponse>>.Ok(responseList, "Lấy lịch sử hoạt động thành công.");
+            // 5. Đóng gói dữ liệu vào PagedResult
+            var result = new PagedResult<ActivityLogResponse>
+            {
+                Items = responseList,
+                TotalCount = totalCount,
+                PageNumber = page,
+                PageSize = pageSize
+                // Nếu PagedResult của bạn có trường TotalPages, bạn có thể thêm:
+                // TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            };
+
+            return ApiResponse<PagedResult<ActivityLogResponse>>.Ok(result, "Lấy lịch sử hoạt động thành công.");
         }
-        
     }
 }

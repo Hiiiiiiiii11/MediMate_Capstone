@@ -23,5 +23,6 @@ namespace MediMateRepository.Model
         public virtual User User { get; set; } = null!;
         public virtual ICollection<DoctorAvailability> Availabilities { get; set; } = new List<DoctorAvailability>();
         public virtual ICollection<Appointments> Appointments { get; set; } = new List<Appointments>();
+        public virtual ICollection<DoctorDocument> DoctorDocuments { get; set; } = new List<DoctorDocument>();
     }
 }

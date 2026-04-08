@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -9,6 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
+
 namespace MediMateService.Services.Implementations
 {
     public class ChatDoctorService : IChatDoctorService
@@ -17,13 +20,15 @@ namespace MediMateService.Services.Implementations
         private readonly ICurrentUserService _currentUserService;
         private readonly IUploadPhotoService _uploadPhotoService;
         private readonly INotificationService _notificationService;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, INotificationService notificationService)
+        public ChatDoctorService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, INotificationService notificationService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
             _notificationService = notificationService;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<IEnumerable<ChatDoctorMessageResponse>>> GetSessionMessagesAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
@@ -54,9 +59,16 @@ namespace MediMateService.Services.Implementations
 
             if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            //// Kiểm tra phiên chat có đang mở không (VD: Status = "In-Progress")
-            if (session.Status == "Completed" || session.Status == "Cancelled")
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã kết thúc, không thể gửi thêm tin nhắn.", 400);
+            //// Kiểm tra phiên chat có đang mở không
+            if (session.Status == "Rejected")
+                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã bị từ chối, không thể gửi tin nhắn.", 400);
+
+            if (session.Status == ConsultationSessionConstants.ENDED && !isDoctorRequest)
+            {
+                // Sau khi phiên kết thúc: User không thể nhắn thêm, Doctor vẫn có thể nhắn
+                return ApiResponse<ChatDoctorMessageResponse>.Fail(
+                    "Phiên tư vấn đã kết thúc. Bạn không thể gửi thêm tin nhắn, nhưng bác sĩ vẫn có thể liên hệ với bạn.", 403);
+            }
 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
                 return ApiResponse<ChatDoctorMessageResponse>.Fail("Bạn không có quyền chat trong phiên này.", 403);
@@ -105,13 +117,20 @@ namespace MediMateService.Services.Implementations
                 referenceId: sessionId // Gửi kèm SessionId để lúc bấm vào thông báo App sẽ mở thẳng phòng chat này ra
             );
 
+            // Bắn SignalR
+            var responseData = MapToResponse(message, session);
+            await _hubContext.Clients.Group($"User_{receiverUserId}").SendAsync("ReceiveMessage", responseData);
+            await _hubContext.Clients.Group($"User_{currentUserId}").SendAsync("ReceiveMessage", responseData);
+
             // Dùng hàm MapToResponse cho tin nhắn vừa tạo
-            return ApiResponse<ChatDoctorMessageResponse>.Ok(MapToResponse(message, session));
+            return ApiResponse<ChatDoctorMessageResponse>.Ok(responseData);
         }
 
         public async Task<ApiResponse<bool>> MarkMessagesAsReadAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
         {
-            var session = await _unitOfWork.Repository<ConsultationSessions>().GetByIdAsync(sessionId);
+            var session = (await _unitOfWork.Repository<ConsultationSessions>()
+                .FindAsync(s => s.ConsultanSessionId == sessionId, "Doctor,Member")).FirstOrDefault();
+                
             if (session == null) return ApiResponse<bool>.Fail("Phiên tư vấn không tồn tại.", 404);
 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
@@ -132,6 +151,13 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<ChatDoctorMessages>().Update(msg);
                 }
                 await _unitOfWork.CompleteAsync();
+
+                // SignalR thông báo đã đọc
+                var participant1 = session.Doctor?.UserId ?? Guid.Empty;
+                var participant2 = session.Member?.UserId ?? Guid.Empty;
+
+                if (participant1 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant1}").SendAsync("ReceiveMessageUpdate");
+                if (participant2 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant2}").SendAsync("ReceiveMessageUpdate");
             }
 
             return ApiResponse<bool>.Ok(true);
@@ -139,6 +165,10 @@ namespace MediMateService.Services.Implementations
 
         private async Task<bool> ValidateAccessAsync(ConsultationSessions session, Guid currentUserId, bool isDoctorRequest)
         {
+            // ── Guardian luôn được đọc chat (không cần isDoctorRequest) ─────
+            if (session.GuardianUserId.HasValue && session.GuardianUserId.Value == currentUserId)
+                return true;
+
             if (isDoctorRequest)
             {
                 // Tìm DoctorProfile của currentUserId đang đăng nhập
@@ -158,8 +188,8 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
             // Kiểm tra user có thuộc family này không
-            var isFamilyMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).Any();
+                var isFamilyMember = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
 
             if (!isFamilyMember)
                 return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Bạn không có quyền truy cập tin nhắn của gia đình này.", 403);

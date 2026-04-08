@@ -24,6 +24,7 @@ namespace MediMate.Controllers
 
         [HttpGet("doctors/{doctorId}/available-slots")]
         [Authorize]
+        [ProducesResponseType(typeof(ApiResponse<List<AvailableSlotDto>>), 200)]
         public async Task<IActionResult> GetAvailableSlots(Guid doctorId, [FromQuery] DateTime date)
         {
             try
@@ -37,18 +38,13 @@ namespace MediMate.Controllers
             }
         }
         [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 201)]
         public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequest request)
         {
             try
             {
                 // 1. Lấy UserId từ Token JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? User.FindFirst("Id")?.Value;
-
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                {
-                    return Unauthorized(ApiResponse<object>.Fail("Token không hợp lệ hoặc đã hết hạn.", 401));
-                }
+                var userId = _currentUserService.UserId;
 
                 // 2. Chuyển đổi Request từ API sang DTO của Service
                 var createDto = new CreateAppointmentDto
@@ -73,6 +69,7 @@ namespace MediMate.Controllers
 
         }
         [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentResponse>>), 200)]
         public async Task<IActionResult> GetAppointments()
         {
             var userId = _currentUserService.UserId;
@@ -80,7 +77,19 @@ namespace MediMate.Controllers
             var response = data.Select(MapAppointmentResponse).ToList();
             return Ok(ApiResponse<List<AppointmentResponse>>.Ok(response, "Lấy danh sách lịch hẹn thành công."));
         }
+
+        [HttpGet("members/me")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentResponse>>), 200)]
+        public async Task<IActionResult> GetAppointmentsByCurrentMember()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _appointmentService.GetAppointmentsByMemberIdAsync(userId);
+            return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch hẹn của thành viên thành công."));
+        }
+
+
         [HttpGet("doctors/{doctorId}")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
         public async Task<IActionResult> GetAppointmentsByDoctor(Guid doctorId)
         {
             try
@@ -94,7 +103,16 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet("doctors/me")]
+        public async Task<IActionResult> GetAppointmentsByCurrentDoctor()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _appointmentService.GetAppointmentsByDoctorUserIdAsync(userId);
+            return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch khám của bác sĩ thành công."));
+        }
+
         [HttpPut("{appointmentId}/cancel")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentResponse>), 200)]
         public async Task<IActionResult> CancelAppointment(Guid appointmentId, [FromBody] CancelAppointmentRequest request)
         {
             var userId = _currentUserService.UserId;
@@ -106,15 +124,14 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<AppointmentResponse>.Ok(MapAppointmentResponse(data), "Hủy lịch hẹn thành công."));
         }
 
-       
+
         [HttpPut("{appointmentId}/status")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
         public async Task<IActionResult> UpdateAppointmentStatus(Guid appointmentId, [FromBody] UpdateAppointmentRequest request)
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? User.FindFirst("Id")?.Value;
-                Guid userId = Guid.Parse(userIdClaim!);
+                var userId = _currentUserService.UserId;
 
                 var updateDto = new UpdateAppointmentDto
                 {
@@ -127,6 +144,23 @@ namespace MediMate.Controllers
             catch (Exception ex)
             {
                 return StatusCode(400, ApiResponse<object>.Fail(ex.Message, 400));
+            }
+        }
+
+        [HttpGet("detail/{appointmentId}")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDetailDto>), 200)]
+        public async Task<IActionResult> GetAppointmentDetail(Guid appointmentId)
+        {
+            try
+            {
+                var result = await _appointmentService.GetAppointmentDetailAsync(appointmentId);
+                if (!result.Success) return StatusCode(result.Code, result);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<AppointmentDetailDto>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
             }
         }
 

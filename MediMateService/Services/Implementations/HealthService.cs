@@ -34,8 +34,8 @@ namespace MediMateService.Services.Implementations
 
             if (profile == null)
             {
-                // Nếu chưa có thì trả về object rỗng hoặc tạo mới tùy logic
-                return ApiResponse<HealthProfileResponse>.Fail("Chưa có hồ sơ sức khỏe.", 404);
+                // SỬA TẠI ĐÂY: Trả về 200 OK với data = null thay vì 404 Fail
+                return ApiResponse<HealthProfileResponse>.Ok(null, "Chưa có hồ sơ sức khỏe.");
             }
 
             return ApiResponse<HealthProfileResponse>.Ok(MapToResponse(profile));
@@ -77,7 +77,7 @@ namespace MediMateService.Services.Implementations
             if (targetMember != null && targetMember.FamilyId.HasValue)
             {
                 var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+     .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                 if (doer != null)
                 {
@@ -150,7 +150,7 @@ namespace MediMateService.Services.Implementations
                 if (targetMember != null && targetMember.FamilyId.HasValue)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+    .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                     if (doer != null)
                     {
@@ -175,7 +175,7 @@ namespace MediMateService.Services.Implementations
         {
             if (!await _currentUserService.CheckAccess(memberId, userId))
             {
-                return ApiResponse<bool>.Fail("Access Denied", 403);
+                return ApiResponse<bool>.Fail("Bạn không có quyền thực hiện", 403);
             }
 
             // Phải đảm bảo Profile đã tồn tại
@@ -202,7 +202,7 @@ namespace MediMateService.Services.Implementations
             if (targetMember != null && targetMember.FamilyId.HasValue)
             {
                 var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+     .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                 if (doer != null)
                 {
@@ -232,7 +232,7 @@ namespace MediMateService.Services.Implementations
             var profile = await _unitOfWork.Repository<HealthProfiles>().GetByIdAsync(condition.HealthProfileId);
             if (!await _currentUserService.CheckAccess(profile.MemberId, userId))
             {
-                return ApiResponse<bool>.Fail("Access Denied", 403);
+                return ApiResponse<bool>.Fail("Bạn không có quyền thực hiện", 403);
             }
             string conditionName = condition.ConditionName;
 
@@ -244,7 +244,7 @@ namespace MediMateService.Services.Implementations
             if (targetMember != null && targetMember.FamilyId.HasValue)
             {
                 var doer = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+    .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                 if (doer != null)
                 {
@@ -288,7 +288,7 @@ namespace MediMateService.Services.Implementations
         {
             // 1. Check quyền: User có thuộc Family này không?
             var currentUserMember = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.FamilyId == familyId && m.UserId == userId)).FirstOrDefault();
+     .FindAsync(m => m.FamilyId == familyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
             if (currentUserMember == null)
             {
@@ -433,7 +433,7 @@ namespace MediMateService.Services.Implementations
                 if (targetMember != null && targetMember.FamilyId.HasValue)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
-                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId)).FirstOrDefault();
+      .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
 
                     if (doer != null)
                     {

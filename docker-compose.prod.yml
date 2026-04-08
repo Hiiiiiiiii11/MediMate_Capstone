@@ -10,6 +10,7 @@ services:
       POSTGRES_USER: medimate
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: MediMateDB
+      TZ: Asia/Ho_Chi_Minh
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     networks:
@@ -26,6 +27,7 @@ services:
     container_name: medimate_api_prod
     restart: unless-stopped
     environment:
+      TZ: Asia/Ho_Chi_Minh
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__MedimateDbConnection: "Host=postgres;Port=5432;Database=MediMateDB;Username=medimate;Password=${POSTGRES_PASSWORD}"
       JWT__SecretKey: ${JWT_SECRET}
@@ -52,6 +54,14 @@ services:
       PayOS__BaseUrl: ${PayOS__BaseUrl}
       PayOS__ReturnUrl: ${PayOS__ReturnUrl}
       PayOS__CancelUrl: ${PayOS__CancelUrl}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      AGORA_APP_ID: ${AGORA_APP_ID}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE}
+      PythonRag__BaseUrl: ${PythonRag__BaseUrl}
+      PythonRag__TimeoutSeconds: ${PythonRag__TimeoutSeconds}
+      Grpc__Port: ${Grpc__Port}
     depends_on:
       postgres:
         condition: service_healthy

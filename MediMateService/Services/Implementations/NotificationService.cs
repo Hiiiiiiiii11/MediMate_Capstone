@@ -1,4 +1,4 @@
-﻿using FirebaseAdmin.Messaging;
+using FirebaseAdmin.Messaging;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
@@ -7,17 +7,22 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
+
 namespace MediMateService.Services.Implementations
 {
     public class NotificationService : INotificationService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFirebaseNotificationService _firebaseService; // Inject service Firebase của bạn vào đây
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public NotificationService(IUnitOfWork unitOfWork, IFirebaseNotificationService firebaseService)
+        public NotificationService(IUnitOfWork unitOfWork, IFirebaseNotificationService firebaseService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _firebaseService = firebaseService;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<bool>> SendNotificationAsync(Guid userId, string title, string message, string type, Guid? referenceId = null)
@@ -61,6 +66,15 @@ namespace MediMateService.Services.Implementations
                     // Gọi sang service Firebase hiện có của bạn
                     await _firebaseService.SendNotificationAsync(targetUser.FcmToken, title, message, payloadData);
                 }
+
+                // SignalR Push Update
+                await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotification", new {
+                    title,
+                    message,
+                    type,
+                    referenceId,
+                    createdAt = DateTime.Now
+                });
 
                 return ApiResponse<bool>.Ok(true, "Gửi thông báo thành công.");
             }
@@ -112,6 +126,9 @@ namespace MediMateService.Services.Implementations
                 notification.IsRead = true;
                 _unitOfWork.Repository<Notifications>().Update(notification);
                 await _unitOfWork.CompleteAsync();
+
+                // SignalR Push Update
+                await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc.");
@@ -134,6 +151,9 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<Notifications>().Update(notification);
                 }
                 await _unitOfWork.CompleteAsync();
+
+                // SignalR Push Update
+                await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc tất cả.");

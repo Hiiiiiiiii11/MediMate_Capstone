@@ -90,6 +90,15 @@ jobs:
             PayOS__BaseUrl=${{ secrets.PAYOS_BASE_URL }}
             PayOS__ReturnUrl=${{ secrets.PAYOS_RETURN_URL }}
             PayOS__CancelUrl=${{ secrets.PAYOS_CANCEL_URL }}
+            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+            FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+            FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+            AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
+            AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
+            PythonRag__BaseUrl=${{ secrets.PYTHON_RAG_BASE_URL }}
+            PythonRag__TimeoutSeconds=${{ secrets.PYTHON_RAG_TIMEOUT_SECONDS }}
+            Grpc__Port=${{ secrets.GRPC_PORT }}
+
             EOF
 
             docker compose -f docker-compose.prod.yml pull

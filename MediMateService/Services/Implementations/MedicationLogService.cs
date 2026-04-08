@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -7,15 +7,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using System.Threading.Tasks;
+
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
+
 namespace MediMateService.Services.Implementations
 {
     public class MedicationLogService : IMedicationLogService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public MedicationLogService(IUnitOfWork unitOfWork)
+        public MedicationLogService(IUnitOfWork unitOfWork, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
+            _hubContext = hubContext;
         }
 
         // --- 1. GHI NHẬN HÀNG ĐỘNG UỐNG THUỐC ---
@@ -74,8 +81,35 @@ namespace MediMateService.Services.Implementations
 
                 await transaction.CommitAsync();
 
+                var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                    .FindAsync(d => d.ScheduleId == schedule.ScheduleId 
+                                     && d.StartDate.Date <= reminder.ReminderDate.Date 
+                                     && d.EndDate.Date >= reminder.ReminderDate.Date, 
+                           includeProperties: "PrescriptionMedicine");
+                string medicineName = scheduleDetails.Any() 
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                    : "Thuốc theo lịch";
+
                 // Đã sửa cách gọi hàm Map (gọi như hàm bình thường)
-                var responseDto = MapToResponse(log, schedule.MedicineName);
+                var responseDto = MapToResponse(log, medicineName);
+
+                // SignalR Update: Broadcast cho toàn gia đình
+                if (member.FamilyId.HasValue) 
+                {
+                    var familyMembers = await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.FamilyId == member.FamilyId.Value);
+
+                    foreach (var fm in familyMembers)
+                    {
+                        if (fm.UserId.HasValue) {
+                            await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("ReceiveMedicationLogUpdate");
+                        }
+                    }
+                }
+                else if (member.UserId.HasValue) 
+                {
+                    await _hubContext.Clients.Group($"User_{member.UserId.Value}").SendAsync("ReceiveMedicationLogUpdate");
+                }
 
                 return ApiResponse<MedicationLogResponse>.Ok(responseDto, "Đã ghi nhận lịch sử uống thuốc.");
             }
@@ -104,7 +138,14 @@ namespace MediMateService.Services.Implementations
             foreach (var log in logs)
             {
                 var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(log.ScheduleId);
-                string medicineName = schedule?.MedicineName ?? "Không xác định";
+                var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                    .FindAsync(d => d.ScheduleId == log.ScheduleId
+                                     && d.StartDate.Date <= log.LogDate.Date
+                                     && d.EndDate.Date >= log.LogDate.Date,
+                           includeProperties: "PrescriptionMedicine");
+                string medicineName = scheduleDetails.Any() 
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                    : "Không xác định";
 
                 // Đã sửa cách gọi hàm Map
                 responseList.Add(MapToResponse(log, medicineName));
@@ -180,7 +221,14 @@ namespace MediMateService.Services.Implementations
             foreach (var log in logs)
             {
                 var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(log.ScheduleId);
-                string medicineName = schedule?.MedicineName ?? "Không xác định";
+                var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                    .FindAsync(d => d.ScheduleId == log.ScheduleId
+                                     && d.StartDate.Date <= log.LogDate.Date
+                                     && d.EndDate.Date >= log.LogDate.Date,
+                           includeProperties: "PrescriptionMedicine");
+                string medicineName = scheduleDetails.Any() 
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                    : "Không xác định";
 
                 // Lấy tên thành viên từ Dictionary đã tạo ở trên
                 string memberName = memberDict.ContainsKey(log.MemberId) ? memberDict[log.MemberId] : "Không xác định";

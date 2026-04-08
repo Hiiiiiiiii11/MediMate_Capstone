@@ -1,4 +1,4 @@
-﻿namespace MediMateService.DTOs
+namespace MediMateService.DTOs
 {
     public class DoctorDto
     {
@@ -17,6 +17,7 @@
         public bool IsOnline => LastSeenAt.HasValue && LastSeenAt.Value > DateTime.Now.AddMinutes(-2);
         public DateTime CreatedAt { get; set; }
         public Guid UserId { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 
     public class CreateDoctorDto
@@ -33,6 +34,7 @@
         public string FullName { get; set; } = string.Empty;
         public string Specialty { get; set; } = string.Empty;
         public string CurrentHospitalName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
         public string LicenseNumber { get; set; } = string.Empty;
         public string? LicenseImage { get; set; }
         public int YearsOfExperience { get; set; }
@@ -41,13 +43,14 @@
 
     public class UpdateDoctorDto
     {
-        public string FullName { get; set; } = string.Empty;
-        public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
-        public string LicenseNumber { get; set; } = string.Empty;
+        public string? FullName { get; set; }
+        public string? Specialty { get; set; }
+        public string? CurrentHospitalName { get; set; }
+        public string? LicenseNumber { get; set; }
         public string? LicenseImage { get; set; }
-        public int YearsOfExperience { get; set; }
-        public string Bio { get; set; } = string.Empty;
+        public int? YearsOfExperience { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 
     public class RejectDoctorDto
@@ -55,11 +58,6 @@
         public string? Reason { get; set; }
     }
 
-    public class ApproveDoctorDto
-    {
-        public string Action { get; set; } = "approve";
-        public string? Reason { get; set; }
-    }
 
 
     public class DoctorBankAccountDto
@@ -91,9 +89,20 @@
     {
         public Guid DocumentId { get; set; }
         public Guid DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public string? DoctorSpecialty { get; set; }
         public string FileUrl { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty; // VD: "Bằng cấp", "Chứng chỉ hành nghề"
+        public string? DocumentName { get; set; }
+        public string? DocumentType { get; set; }
+        public string Type { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty; // "Pending", "Approved", "Rejected"
+        public string? RejectReason { get; set; }
+        public DateTime? SubmittedAt { get; set; }
+        public string? ReviewedByName { get; set; }
+        public DateTime? ReviewedAt { get; set; }
+        public string? FileMimeType { get; set; }
+        public string? FileExtension { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public string? ReviewBy { get; set; }
         public string? ReviewAt { get; set; }
         public string? Note { get; set; }
@@ -152,6 +161,7 @@
     {
         public Guid ExceptionId { get; set; }
         public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; }
         public DateTime Date { get; set; }
 
         // Sửa TimeSpan? thành string?
@@ -178,6 +188,17 @@
         public TimeSpan? EndTime { get; set; }
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
+    }
+
+    public class DoctorAvailabilityExceptionFilter
+    {
+        public Guid? DoctorId { get; set; }
+        public bool? IsAvailableOverride { get; set; }
+        public DateTime? DateFrom { get; set; }
+        public DateTime? DateTo { get; set; }
+        public bool IsDescending { get; set; } = true;
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
     }
 
 

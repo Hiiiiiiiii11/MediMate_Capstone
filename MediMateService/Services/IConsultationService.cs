@@ -16,7 +16,7 @@ namespace MediMateService.Services
         Task<ConsultationSessionDto> CancelNoShowAsync(Guid sessionId, Guid userId);
 
         /// <summary>Chỉ User (Member) mới được kết thúc phiên meet.</summary>
-        Task<ConsultationSessionDto> EndSessionByUserAsync(Guid sessionId, Guid userId);
+        Task<ConsultationSessionDto> EndSessionByUserAsync(Guid sessionId, Guid callerMemberId);
 
         Task<ConsultationSessionDto> AttachPrescriptionAsync(Guid sessionId, Guid userId, AttachPrescriptionDto request);
     }

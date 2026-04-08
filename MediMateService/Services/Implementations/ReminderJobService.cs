@@ -46,6 +46,13 @@ namespace MediMateService.Services.Implementations
             var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
                 .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
 
+            int advanceMinutes = familySetting?.ReminderAdvanceMinutes ?? 15;
+            var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+
+            // BẢO VỆ: Nếu người dùng vừa ĐỔI GIỜ uống thuốc trên App (UpdateSchedule), Job cũ vẫn tồn tại và sẽ nổ sai giờ.
+            // Nếu thời điểm hiện tại đang SỚM HƠN pushTime thực tế quá 5 phút -> Đây là Job rác (mồ côi) -> Tự hủy!
+            if (DateTime.Now < pushTime.AddMinutes(-5)) return;
+
             bool canSendToMember = familySetting == null || familySetting.EnablePushNotification;
             bool canSendToFamily = familySetting == null || familySetting.EnableFamilyAlert;
 
@@ -68,13 +75,21 @@ namespace MediMateService.Services.Implementations
             // Lấy AutoSnooze từ cấu hình
             bool isAutoSnooze = false;
             try {
-                if (!string.IsNullOrEmpty(family.NotificationSetting?.CustomSetting)) {
-                    var customObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(family.NotificationSetting.CustomSetting);
+                if (!string.IsNullOrEmpty(familySetting?.CustomSetting)) {
+                    var customObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(familySetting.CustomSetting);
                     if (customObj != null && customObj.ContainsKey("autoSnooze")) {
                         isAutoSnooze = customObj["autoSnooze"]?.GetValue<bool>() ?? false;
                     }
                 }
             } catch (Exception) { }
+
+            var medicinesList = scheduleDetails.Select(d => new
+            {
+                medicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                dosage = d.Dosage,
+                instructions = d.PrescriptionMedicine?.Instructions
+            }).ToList();
+            string medicinesJson = System.Text.Json.JsonSerializer.Serialize(medicinesList);
 
             var data = new Dictionary<string, string> 
             { 
@@ -84,7 +99,8 @@ namespace MediMateService.Services.Implementations
                 { "memberName", targetMember.FullName },
                 { "reminderTime", reminder.ReminderTime.ToString("yyyy-MM-ddTHH:mm:ss") },
                 { "endTime", reminder.EndTime.ToString("yyyy-MM-ddTHH:mm:ss") },
-                { "autoSnooze", isAutoSnooze.ToString().ToLower() }
+                { "autoSnooze", isAutoSnooze.ToString().ToLower() },
+                { "medicines", medicinesJson }
             };
 
             if (canSendToMember && !string.IsNullOrEmpty(targetMember.FcmToken))

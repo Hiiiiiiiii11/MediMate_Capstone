@@ -204,17 +204,31 @@ namespace MediMateService.Services.Implementations
             // Nếu đổi giờ, cần update lại các reminders pending
             if (timeChanged)
             {
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == schedule.Member.FamilyId)).FirstOrDefault();
+                int advanceMinutes = familySetting?.ReminderAdvanceMinutes ?? 15;
+
                 var futurePendingReminders = await _unitOfWork.Repository<MedicationReminders>()
                     .FindAsync(r => r.ScheduleId == scheduleId && r.Status == "Pending" && r.ReminderDate >= DateTime.Now.Date);
 
                 foreach (var r in futurePendingReminders)
                 {
                     r.ReminderTime = r.ReminderDate.Add(schedule.TimeOfDay);
-                    r.EndTime = r.ReminderTime.AddHours(1); // Mặc định khung 1h
+                    r.EndTime = r.ReminderTime.AddHours(2); // Đồng bộ window 2h như CreateBulk
                     _unitOfWork.Repository<MedicationReminders>().Update(r);
                     
-                    // Xóa background job cũ và tạo lại nếu có thể, hoặc đơn giản để job check tự xử lý 
-                    // Trong thực tế cần gọi Hangfire Client xóa job cũ, ở đây tạm thời bỏ qua phần xóa Job ID
+                    var pushTime = r.ReminderTime.AddMinutes(-advanceMinutes);
+                    if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
+                    // Re-schedule jobs mới. 
+                    _backgroundJobClient.Schedule<IReminderJobService>(
+                        job => job.NotifyReminderTimeAsync(r.ReminderId),
+                        new DateTimeOffset(pushTime)
+                    );
+                    _backgroundJobClient.Schedule<IReminderJobService>(
+                        job => job.CheckMissedReminderAndAlertFamilyAsync(r.ReminderId),
+                        new DateTimeOffset(r.EndTime)
+                    );
                 }
                 await _unitOfWork.CompleteAsync();
             }

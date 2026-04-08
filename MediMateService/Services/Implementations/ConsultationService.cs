@@ -1,3 +1,4 @@
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
@@ -75,6 +76,27 @@ namespace MediMateService.Services.Implementations
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
 
             return MapSession(session);
+        }
+
+        // ─────────────────────────────────────────────
+        // LIST SESSIONS FOR CURRENT DOCTOR (/me)
+        // ─────────────────────────────────────────────
+        public async Task<IReadOnlyList<ConsultationSessionDto>> GetSessionsForCurrentDoctorAsync(Guid userId)
+        {
+            var doctor = (await _unitOfWork.Repository<Doctors>()
+                .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+            if (doctor == null)
+                throw new ForbiddenException("Tài khoản này không phải bác sĩ hoặc chưa có hồ sơ bác sĩ.");
+
+            var sessions = await _unitOfWork.Repository<ConsultationSessions>()
+                .GetQueryable()
+                .Include(c => c.Member)
+                .AsNoTracking()
+                .Where(s => s.DoctorId == doctor.DoctorId)
+                .OrderByDescending(s => s.StartedAt)
+                .ToListAsync();
+
+            return sessions.Select(MapSession).ToList();
         }
 
         // ─────────────────────────────────────────────
@@ -342,7 +364,7 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────
         // HELPER: MAP TO DTO
         // ─────────────────────────────────────────────
-        private static ConsultationSessionDto MapSession(MediMateRepository.Model.ConsultationSessions item)
+        private static ConsultationSessionDto MapSession(ConsultationSessions item)
         {
             return new ConsultationSessionDto
             {
@@ -350,6 +372,7 @@ namespace MediMateService.Services.Implementations
                 AppointmentId = item.AppointmentId,
                 DoctorId = item.DoctorId,
                 MemberId = item.MemberId,
+                MemberName = item.Member?.FullName,
                 StartedAt = item.StartedAt,
                 EndedAt = item.EndedAt,
                 Status = item.Status,

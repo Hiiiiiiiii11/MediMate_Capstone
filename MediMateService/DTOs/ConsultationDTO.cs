@@ -6,6 +6,7 @@ namespace MediMateService.DTOs
         public Guid AppointmentId { get; set; }
         public Guid DoctorId { get; set; }
         public Guid MemberId { get; set; }
+        public string? MemberName { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
         public string Status { get; set; } = string.Empty;

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.SignalR;
 using MediMateService.Hubs;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediMateService.Services.Implementations
 {
@@ -54,93 +55,87 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<ChatDoctorMessageResponse>> SendMessageAsync(Guid sessionId, Guid currentUserId, SendChatDoctorRequest request, bool isDoctorRequest)
         {
-            var session = (await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => s.ConsultanSessionId == sessionId, "Member,Doctor")).FirstOrDefault();
+            var session = await _unitOfWork.Repository<ConsultationSessions>()
+                .GetQueryable()
+                .Include(s => s.Doctor)
+                .Include(s => s.Member)
+                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
 
             if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            //// Kiểm tra phiên chat có đang mở không
             if (session.Status == "Rejected")
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã bị từ chối, không thể gửi tin nhắn.", 400);
+                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã bị từ chối.", 400);
 
             if (session.Status == ConsultationSessionConstants.ENDED && !isDoctorRequest)
-            {
-                // Sau khi phiên kết thúc: User không thể nhắn thêm, Doctor vẫn có thể nhắn
-                return ApiResponse<ChatDoctorMessageResponse>.Fail(
-                    "Phiên tư vấn đã kết thúc. Bạn không thể gửi thêm tin nhắn, nhưng bác sĩ vẫn có thể liên hệ với bạn.", 403);
-            }
+                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên đã kết thúc, bạn không thể gửi thêm tin nhắn.", 403);
 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Bạn không có quyền chat trong phiên này.", 403);
+                return ApiResponse<ChatDoctorMessageResponse>.Fail("Access Denied", 403);
 
-            // Xử lý upload ảnh (nếu có)
-            string? attachmentUrl = null;
-            if (request.AttachmentFile != null)
-            {
-                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.AttachmentFile);
-                attachmentUrl = uploadResult.OriginalUrl;
-            }
-
-            // Xác định SenderId và Type
-            Guid senderId = isDoctorRequest ? session.DoctorId : session.MemberId;
-            SenderType senderType = isDoctorRequest ? SenderType.Doctor : SenderType.User;
+            string? attachmentUrl = request.AttachmentFile != null
+                ? (await _uploadPhotoService.UploadPhotoAsync(request.AttachmentFile)).OriginalUrl
+                : null;
 
             var message = new ChatDoctorMessages
             {
                 ChatDoctorMessageId = Guid.NewGuid(),
                 ConsultanSessionId = sessionId,
-                SenderId = senderId,
-                Type = senderType,
+                SenderId = isDoctorRequest ? session.DoctorId : session.MemberId,
+                Type = isDoctorRequest ? SenderType.Doctor : SenderType.User,
                 Content = request.Content,
                 AttachmentUrl = attachmentUrl,
-                IsRead = false, // Tin nhắn mới gửi thì chưa đọc
+                IsRead = false,
                 SendAt = DateTime.Now
             };
 
+            // --- CẬP NHẬT UNREAD COUNT ---
+            if (isDoctorRequest)
+                session.UnreadCountMember += 1; // Bác sĩ gửi -> Member chưa đọc
+            else
+                session.UnreadCountDoctor += 1; // Member gửi -> Bác sĩ chưa đọc
+
+            _unitOfWork.Repository<ConsultationSessions>().Update(session);
             await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(message);
             await _unitOfWork.CompleteAsync();
 
-            Guid receiverUserId = isDoctorRequest ? session.Member.UserId ?? Guid.Empty : session.Doctor.UserId;
-
-            // 2. Tên người vừa gửi để hiện lên thông báo
+            // Thông báo và SignalR (Giữ nguyên logic của bạn)
+            Guid receiverUserId = isDoctorRequest ? (session.Member?.UserId ?? Guid.Empty) : session.Doctor.UserId;
             string senderName = isDoctorRequest ? (session.Doctor?.FullName ?? "Bác sĩ") : (session.Member?.FullName ?? "Bệnh nhân");
 
-            // 3. Nội dung thông báo (Nếu chỉ gửi ảnh thì hiện chữ "[Hình ảnh đính kèm]")
-            string notifBody = string.IsNullOrWhiteSpace(request.Content) ? "[Hình ảnh đính kèm]" : request.Content;
+            await _notificationService.SendNotificationAsync(receiverUserId, $"💬 {senderName}", request.Content ?? "[Hình ảnh]", ChatActionTypes.NEW_CHAT_MESSAGE, sessionId);
 
-            // Bắn thông báo! (Tự động lưu DB và gọi Firebase)
-            await _notificationService.SendNotificationAsync(
-                userId: receiverUserId,
-                title: $"💬 Tin nhắn mới từ {senderName}",
-                message: notifBody,
-                type: ChatActionTypes.NEW_CHAT_MESSAGE,
-                referenceId: sessionId // Gửi kèm SessionId để lúc bấm vào thông báo App sẽ mở thẳng phòng chat này ra
-            );
 
-            // Bắn SignalR
             var responseData = MapToResponse(message, session);
             await _hubContext.Clients.Group($"User_{receiverUserId}").SendAsync("ReceiveMessage", responseData);
             await _hubContext.Clients.Group($"User_{currentUserId}").SendAsync("ReceiveMessage", responseData);
 
-            // Dùng hàm MapToResponse cho tin nhắn vừa tạo
             return ApiResponse<ChatDoctorMessageResponse>.Ok(responseData);
         }
 
         public async Task<ApiResponse<bool>> MarkMessagesAsReadAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
         {
-            var session = (await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => s.ConsultanSessionId == sessionId, "Doctor,Member")).FirstOrDefault();
-                
+            var session = await _unitOfWork.Repository<ConsultationSessions>()
+                .GetQueryable()
+                .Include(s => s.Doctor)
+                .Include(s => s.Member)
+                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
+
             if (session == null) return ApiResponse<bool>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
-                return ApiResponse<bool>.Fail("Access Denied", 403);
+            // Kiểm tra quyền: Hỗ trợ cả UserId và MemberId (Logic bạn đã viết rất tốt)
+            bool hasAccess = isDoctorRequest
+                ? (session.Doctor != null && session.Doctor.UserId == currentUserId)
+                : (session.MemberId == currentUserId || session.Member?.UserId == currentUserId);
 
-            var targetTypeToMark = isDoctorRequest ? SenderType.User : SenderType.Doctor;
+            if (!hasAccess) return ApiResponse<bool>.Fail("Access Denied", 403);
 
+            // Xác định đối tượng gửi tin nhắn để đánh dấu đã đọc
+            var targetSenderType = isDoctorRequest ? SenderType.User : SenderType.Doctor;
+
+            // 1. Cập nhật trạng thái từng tin nhắn trong DB
             var unreadMessages = await _unitOfWork.Repository<ChatDoctorMessages>()
                 .FindAsync(m => m.ConsultanSessionId == sessionId
-                                && m.Type == targetTypeToMark
+                                && m.Type == targetSenderType
                                 && !m.IsRead);
 
             if (unreadMessages.Any())
@@ -150,14 +145,23 @@ namespace MediMateService.Services.Implementations
                     msg.IsRead = true;
                     _unitOfWork.Repository<ChatDoctorMessages>().Update(msg);
                 }
+
+                // 2. [QUAN TRỌNG]: RESET BỘ ĐẾM TRONG SESSION
+                if (isDoctorRequest) session.UnreadCountDoctor = 0;
+                else session.UnreadCountMember = 0;
+
+                _unitOfWork.Repository<ConsultationSessions>().Update(session);
                 await _unitOfWork.CompleteAsync();
 
-                // SignalR thông báo đã đọc
-                var participant1 = session.Doctor?.UserId ?? Guid.Empty;
-                var participant2 = session.Member?.UserId ?? Guid.Empty;
+                // 3. SignalR thông báo cập nhật UI (badge, danh sách tin nhắn)
+                var doctorUserId = session.Doctor?.UserId ?? Guid.Empty;
+                var memberUserId = session.Member?.UserId ?? Guid.Empty;
 
-                if (participant1 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant1}").SendAsync("ReceiveMessageUpdate");
-                if (participant2 != Guid.Empty) await _hubContext.Clients.Group($"User_{participant2}").SendAsync("ReceiveMessageUpdate");
+                if (doctorUserId != Guid.Empty)
+                    await _hubContext.Clients.Group($"User_{doctorUserId}").SendAsync("ReceiveMessageUpdate", new { sessionId });
+
+                if (memberUserId != Guid.Empty)
+                    await _hubContext.Clients.Group($"User_{memberUserId}").SendAsync("ReceiveMessageUpdate", new { sessionId });
             }
 
             return ApiResponse<bool>.Ok(true);
@@ -187,68 +191,50 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
-            // Kiểm tra user có thuộc family này không
-                var isFamilyMember = (await _unitOfWork.Repository<Members>()
-                    .FindAsync(m => m.FamilyId == familyId && (m.UserId == currentUserId || m.MemberId == currentUserId))).Any();
-
-            if (!isFamilyMember)
-                return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Bạn không có quyền truy cập tin nhắn của gia đình này.", 403);
-
-            // Lấy tất cả thành viên trong gia đình
             var familyMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == familyId);
             var memberIds = familyMembers.Select(m => m.MemberId).ToList();
 
-            // Lấy các phiên chat có MemberId nằm trong danh sách trên
-            // Include thêm Doctor và Messages để lấy thông tin hiển thị
+            if (!familyMembers.Any(m => m.UserId == currentUserId || m.MemberId == currentUserId))
+                return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Access Denied", 403);
+
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
                 .FindAsync(s => memberIds.Contains(s.MemberId), includeProperties: "Doctor,Messages");
 
             var result = sessions.Select(s => new ChatSessionSummaryResponse
             {
                 SessionId = s.ConsultanSessionId,
-                PartnerName = s.Doctor?.FullName ?? "Bác sĩ ẩn danh",
-                PartnerAvatar = s.Doctor?.LicenseImage, // Hoặc trường AvatarUrl nếu bảng Doctor của bạn có
+                PartnerName = s.Doctor?.FullName ?? "Bác sĩ",
+                PartnerAvatar = s.Doctor?.LicenseImage,
                 Status = s.Status,
-
-                // Sắp xếp tin nhắn mới nhất lên đầu để lấy nội dung hiển thị
-                // SỬA: Thay Message thành Content, CreatedAt thành SendAt
                 LastMessage = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.Content,
                 LastMessageTime = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.SendAt,
-
-                // SỬA: Đếm tin nhắn dựa trên Enum SenderType
-                UnreadCount = s.Messages?.Count(m => m.Type == SenderType.Doctor && !m.IsRead) ?? 0
+                // LẤY TRỰC TIẾP TỪ CỘT UNREAD CỦA MEMBER
+                UnreadCount = s.UnreadCountMember
             })
-            .OrderByDescending(x => x.LastMessageTime ?? DateTime.MinValue) // Đẩy phòng chat có tin mới nhất lên đầu
+            .OrderByDescending(x => x.LastMessageTime)
             .ToList();
 
             return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Ok(result);
         }
 
-
+        // 4. LẤY TIN NHẮN CHO BÁC SĨ (Dùng trực tiếp UnreadCountDoctor)
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByDoctorIdAsync(Guid doctorId, Guid currentUserId)
         {
-            var doctor = (await _unitOfWork.Repository<Doctors>().FindAsync(d => d.DoctorId == doctorId)).FirstOrDefault();
-            if (doctor == null || doctor.UserId != currentUserId)
-                return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Bạn không có quyền xem tin nhắn của bác sĩ này.", 403);
-
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
                 .FindAsync(s => s.DoctorId == doctorId, includeProperties: "Member,Messages");
 
             var result = sessions.Select(s => new ChatSessionSummaryResponse
             {
                 SessionId = s.ConsultanSessionId,
-                PartnerName = s.Member?.FullName ?? "Bệnh nhân ẩn danh",
+                PartnerName = s.Member?.FullName ?? "Bệnh nhân",
                 PartnerAvatar = s.Member?.AvatarUrl,
                 Status = s.Status,
-
-                // SỬA: Thay Message thành Content, CreatedAt thành SendAt
                 LastMessage = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.Content,
                 LastMessageTime = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.SendAt,
-
-                // SỬA: Đếm tin nhắn dựa trên Enum SenderType
-                UnreadCount = s.Messages?.Count(m => m.Type == SenderType.Doctor && !m.IsRead) ?? 0
+                // LẤY TRỰC TIẾP TỪ CỘT UNREAD CỦA DOCTOR
+                UnreadCount = s.UnreadCountDoctor
             })
-            .OrderByDescending(x => x.LastMessageTime ?? DateTime.MinValue)
+            .OrderByDescending(x => x.LastMessageTime)
             .ToList();
 
             return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Ok(result);

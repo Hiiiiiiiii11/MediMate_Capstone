@@ -2,6 +2,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Share.Constants;
 
 namespace MediMateService.Services.Implementations
 {
@@ -18,60 +19,76 @@ namespace MediMateService.Services.Implementations
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<RatingDto> CreateRatingAsync(Guid callerId, bool isDependent, Guid sessionId, CreateRatingDto request)
+        public async Task<RatingDto> CreateRatingAsync(Guid callerId, Guid sessionId, CreateRatingDto request)
         {
+            // 1. Kiểm tra điểm số hợp lệ
             if (request.Score is < 1 or > 5)
             {
-                throw new BadRequestException("Score phải trong khoảng từ 1 đến 5.");
+                throw new BadRequestException("Điểm đánh giá phải trong khoảng từ 1 đến 5 sao.");
             }
 
+            // 2. Lấy thông tin phiên khám
             var session = await _ratingRepository.GetSessionByIdAsync(sessionId);
             if (session == null)
             {
-                throw new NotFoundException("Không tìm thấy phiên khám.");
+                throw new NotFoundException("Không tìm thấy phiên tư vấn.");
             }
 
-            // Dependent: callerId chính là MemberId → so sánh thẳng
-            // User thường: callerId là UserId → tìm Member và so sánh member.UserId
-            bool hasAccess = isDependent
-                ? session.MemberId == callerId
-                : (await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId))?.UserId == callerId;
+            // 3. KIỂM TRA QUYỀN TRUY CẬP (Hỗ trợ cả User và Member)
+            // Lấy thông tin chi tiết của Member trong Session để biết ai là chủ sở hữu (UserId)
+            var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
+
+            if (patientMember == null)
+            {
+                throw new NotFoundException("Không tìm thấy thông tin bệnh nhân trong phiên khám.");
+            }
+
+            // Quyền đánh giá hợp lệ khi:
+            // - TH1: callerId chính là MemberId của bệnh nhân (Bệnh nhân dùng mã QR/Profile riêng để đánh giá)
+            // - TH2: callerId là UserId của người quản lý hồ sơ đó (Chủ hộ đánh giá hộ người thân)
+            bool hasAccess = session.MemberId == callerId || patientMember.UserId == callerId;
 
             if (!hasAccess)
             {
                 throw new ForbiddenException("Bạn không có quyền đánh giá phiên khám này.");
             }
 
-            if (!string.Equals(session.Status, "Ended", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(session.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+            // 4. Kiểm tra trạng thái phiên khám
+            if (!string.Equals(session.Status, ConsultationSessionConstants.ENDED, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(session.Status, AppointmentConstants.COMPLETED, StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException("Chỉ được đánh giá khi phiên khám đã hoàn tất.");
             }
 
+            // 5. Kiểm tra xem đã đánh giá chưa (Tránh spam)
             var existingRating = await _ratingRepository.GetRatingBySessionIdAsync(sessionId);
             if (existingRating != null)
             {
-                throw new ConflictException("Phiên khám này đã được đánh giá.");
+                throw new ConflictException("Phiên khám này đã được đánh giá trước đó.");
             }
 
+            // 6. Kiểm tra bác sĩ còn tồn tại không
             var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
             if (doctor == null)
             {
-                throw new NotFoundException("Không tìm thấy bác sĩ.");
+                throw new NotFoundException("Không tìm thấy thông tin bác sĩ để đánh giá.");
             }
 
-            var rating = new Ratings
+            // 7. Tạo đánh giá mới
+            var rating = new MediMateRepository.Model.Ratings
             {
                 RatingId = Guid.NewGuid(),
                 ConsultanSessionId = session.ConsultanSessionId,
                 DoctorId = session.DoctorId,
-                MemberId = session.MemberId,
+                MemberId = session.MemberId, // Luôn gắn với bệnh nhân được khám
                 Score = request.Score,
                 Comment = request.Comment?.Trim() ?? string.Empty,
                 CreatedAt = DateTime.Now
             };
 
             await _ratingRepository.AddRatingAsync(rating);
+
+            // 8. Cập nhật lại điểm trung bình của bác sĩ (Async Background)
             await UpdateDoctorAverageRatingAsync(session.DoctorId);
 
             return MapToRatingDto(rating);
@@ -101,54 +118,64 @@ namespace MediMateService.Services.Implementations
             return ratings.Select(MapToDoctorReviewDto).ToList();
         }
 
-        public async Task<RatingDto> UpdateRatingAsync(Guid callerId, bool isDependent, Guid ratingId, CreateRatingDto request)
+        public async Task<RatingDto> UpdateRatingAsync(Guid callerId, Guid ratingId, CreateRatingDto request)
         {
-            if (request.Score is < 1 or > 5)
+            // 1. Kiểm tra điểm số hợp lệ
+            if (request.Score < 1 || request.Score > 5)
             {
-                throw new BadRequestException("Score phải trong khoảng từ 1 đến 5.");
+                throw new BadRequestException("Điểm đánh giá phải nằm trong khoảng [1, 5].");
             }
 
+            // 2. Tìm bản đánh giá
             var rating = await _ratingRepository.GetRatingByIdAsync(ratingId);
             if (rating == null)
             {
                 throw new NotFoundException("Không tìm thấy đánh giá.");
             }
 
-            bool hasAccess = isDependent
-                ? rating.MemberId == callerId
-                : (await _unitOfWork.Repository<Members>().GetByIdAsync(rating.MemberId))?.UserId == callerId;
+            // 3. KIỂM TRA QUYỀN TRUY CẬP (Truy vấn DB trực tiếp)
+            var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(rating.MemberId);
+
+            // Quyền: callerId là bệnh nhân (MemberId) HOẶC callerId là chủ sở hữu (UserId) của bệnh nhân đó
+            bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
 
             if (!hasAccess)
             {
-                throw new ForbiddenException("Bạn không có quyền chỉnh sửa đánh giá này.");
+                throw new ForbiddenException("Bạn không có quyền chỉnh sửa đánh giá của người khác.");
             }
 
+            // 4. Cập nhật dữ liệu
             rating.Score = request.Score;
             rating.Comment = request.Comment?.Trim() ?? string.Empty;
 
             await _ratingRepository.UpdateRatingAsync(rating);
+
+            // 5. Đồng bộ lại điểm trung bình bác sĩ
             await UpdateDoctorAverageRatingAsync(rating.DoctorId);
 
             return MapToRatingDto(rating);
         }
 
-        public async Task DeleteRatingAsync(Guid callerId, bool isDependent, Guid ratingId)
+        public async Task DeleteRatingAsync(Guid callerId, Guid ratingId)
         {
+            // 1. Tìm bản đánh giá
             var rating = await _ratingRepository.GetRatingByIdAsync(ratingId);
             if (rating == null)
             {
                 throw new NotFoundException("Không tìm thấy đánh giá.");
             }
 
-            bool hasAccess = isDependent
-                ? rating.MemberId == callerId
-                : (await _unitOfWork.Repository<Members>().GetByIdAsync(rating.MemberId))?.UserId == callerId;
+            // 2. KIỂM TRA QUYỀN TRUY CẬP
+            var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(rating.MemberId);
+
+            bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
 
             if (!hasAccess)
             {
                 throw new ForbiddenException("Bạn không có quyền xóa đánh giá này.");
             }
 
+            // 3. Thực hiện xóa và cập nhật điểm bác sĩ
             var doctorId = rating.DoctorId;
             await _ratingRepository.DeleteRatingAsync(rating);
             await UpdateDoctorAverageRatingAsync(doctorId);

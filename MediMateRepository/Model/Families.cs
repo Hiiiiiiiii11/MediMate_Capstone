@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
@@ -20,6 +20,9 @@ namespace MediMateRepository.Model
         [ForeignKey("CreatedBy")]
         public virtual User? Creator { get; set; }
         public virtual ICollection<Members> FamilyMembers { get; set; } = new List<Members>();
+        
+        // Navigation property tới NotificationSetting
+        public virtual NotificationSetting? NotificationSetting { get; set; }
         public enum FamilyType
         {
             Personal = 0, // Chế độ cá nhân (Chỉ 1 thành viên)

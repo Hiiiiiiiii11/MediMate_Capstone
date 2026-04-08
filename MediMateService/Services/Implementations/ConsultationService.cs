@@ -1,6 +1,7 @@
-using MediMateService.DTOs;
 using MediMateRepository.Repositories;
+using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Constants;
 
 namespace MediMateService.Services.Implementations
@@ -275,18 +276,40 @@ namespace MediMateService.Services.Implementations
             {
                 appointment.Status = AppointmentConstants.COMPLETED;
                 await _appointmentRepository.UpdateAppointmentAsync(appointment);
+
+                // =========================================================
+                // [NEW] TỰ ĐỘNG TẠO PHIẾU TRẢ TIỀN (PAYOUT) CHO BÁC SĨ
+                // =========================================================
+                var activeRate = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayoutRate>().GetQueryable()
+                    .Where(r => r.IsActive)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (activeRate != null)
+                {
+                    var payout = new MediMateRepository.Model.DoctorPayout
+                    {
+                        PayoutId = Guid.NewGuid(),
+                        ConsultationId = session.ConsultanSessionId,
+                        RateId = activeRate.RateId,
+                        Amount = activeRate.AmountPerSession,
+                        Status = "Pending",
+                        CalculatedAt = DateTime.Now
+                    };
+
+                    await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().AddAsync(payout);
+                }
             }
 
             await _unitOfWork.CompleteAsync();
 
-            // Thông báo cho bác sĩ
             var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
             if (doctor != null)
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
                     title: "✅ Bệnh nhân đã kết thúc phiên",
-                    message: $"Bệnh nhân {member.FullName} đã kết thúc phiên tư vấn. Bạn vẫn có thể gửi tin nhắn cho bệnh nhân.",
+                    message: $"Bệnh nhân {member.FullName} đã kết thúc phiên tư vấn. Hệ thống đã ghi nhận doanh thu phiên khám.",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
                 );
@@ -294,7 +317,6 @@ namespace MediMateService.Services.Implementations
 
             return MapSession(session);
         }
-
         // ─────────────────────────────────────────────
         // ATTACH PRESCRIPTION (chỉ bác sĩ)
         // ─────────────────────────────────────────────

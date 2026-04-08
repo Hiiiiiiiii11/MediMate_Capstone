@@ -125,6 +125,50 @@ namespace MediMate.Controllers
                 return StatusCode(500, ApiResponse<bool>.Fail("Lỗi hệ thống: " + ex.Message, 500));
             }
         }
+
+        // ─────────────────────────────────────────────────────────
+        // [ADMIN] LẤY DANH SÁCH BÁC SĨ ĐANG CHỜ TRẢ LƯƠNG
+        // ─────────────────────────────────────────────────────────
+        [HttpGet("payouts/pending")]
+        [Authorize(Roles = "Admin,Manager")] // CHỈ ADMIN/KẾ TOÁN ĐƯỢC XEM
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<PendingPayoutDto>>), 200)]
+        public async Task<IActionResult> GetPendingPayouts(
+            [FromQuery] int pageNumber = 1, 
+            [FromQuery] int pageSize = 10, 
+            [FromQuery] string? searchTerm = null)
+        {
+            try
+            {
+                var response = await _transactionService.GetPendingPayoutsAsync(pageNumber, pageSize, searchTerm);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // [ADMIN] XÁC NHẬN ĐÃ CHUYỂN KHOẢN CHO BÁC SĨ
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("payouts/{payoutId}/approve")]
+        [Authorize(Roles = "Admin,Manager")] // CHỈ ADMIN/KẾ TOÁN ĐƯỢC DUYỆT
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> ApproveDoctorPayout(Guid payoutId, [FromBody] ApprovePayoutRequest request)
+        {
+            try
+            {
+                var response = await _transactionService.ApproveDoctorPayoutAsync(payoutId, request);
+                if (!response.Success)
+                    return StatusCode(response.Code, response);
+                    
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<bool>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
     }
 
 }

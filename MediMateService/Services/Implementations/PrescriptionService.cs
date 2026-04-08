@@ -631,6 +631,19 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
+            // ─── XÓA Reminders Pending cũ của các schedule bị ảnh hưởng ───
+            // Để tránh trùng lặp sau khi đổi số lượng/hướng dẫn thuốc
+            var staleReminders = await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId)
+                                && r.Status == "Pending"
+                                && r.ReminderDate >= now);
+            if (staleReminders.Any())
+            {
+                _unitOfWork.Repository<MedicationReminders>().RemoveRange(staleReminders);
+                await _unitOfWork.CompleteAsync();
+            }
+
+            // ─── TẠO reminders mới theo lịch mới ───
             var existingReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId) && r.ReminderDate >= now && r.ReminderDate <= endDate);
 

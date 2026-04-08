@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Share.Constants;
 
 namespace MediMateService.Services.Implementations
@@ -383,37 +384,57 @@ namespace MediMateService.Services.Implementations
 
         // ─────────────────────────────────────────────────────────────────
         // JOB: TỰ ĐỘNG KẾT THÚC SESSION SAU 65 PHÚT (T+60 PHÚT SO VỚI GIỜ HẸN)
-        //
-        // Sau khi ENDED:
-        //   - User KHÔNG thể gửi tin nhắn mới.
-        //   - Doctor VẪN có thể gửi tin nhắn (kiểm tra bên ChatDoctorService).
         // ─────────────────────────────────────────────────────────────────
         public async Task AutoEndExpiredSessionAsync(Guid sessionId)
         {
             var session = await _unitOfWork.Repository<ConsultationSessions>().GetByIdAsync(sessionId);
 
-            // Nếu đã kết thúc thủ công → bỏ qua
+            // Nếu đã kết thúc thủ công hoặc không tìm thấy → bỏ qua
             if (session == null || session.Status == ConsultationSessionConstants.ENDED) return;
-
+            // 1. Cập nhật trạng thái Session
             session.Status = ConsultationSessionConstants.ENDED;
             session.EndedAt = DateTime.Now;
+            var autoNote = "Phiên tư vấn tự động kết thúc do hết thời gian";
             session.Note = string.IsNullOrWhiteSpace(session.Note)
-                ? "Phiên tư vấn tự động kết thúc do hết thời gian"
-                : $"{session.Note}; Phiên tự động kết thúc do hết thời gian";
+                ? autoNote
+                : $"{session.Note}; {autoNote}";
 
             _unitOfWork.Repository<ConsultationSessions>().Update(session);
 
-            // Appointment → Completed (nếu chưa bị hủy)
+            // 2. Cập nhật trạng thái Appointment sang Completed (nếu chưa bị hủy)
             var appointment = await _unitOfWork.Repository<Appointments>().GetByIdAsync(session.AppointmentId);
             if (appointment != null && appointment.Status != AppointmentConstants.CANCELLED)
             {
                 appointment.Status = AppointmentConstants.COMPLETED;
                 _unitOfWork.Repository<Appointments>().Update(appointment);
+                if (session.DoctorJoined)
+                {
+                    var activeRate = await _unitOfWork.Repository<DoctorPayoutRate>().GetQueryable()
+                        .Where(r => r.IsActive)
+                        .OrderByDescending(r => r.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (activeRate != null)
+                    {
+                        var payout = new DoctorPayout
+                        {
+                            PayoutId = Guid.NewGuid(),
+                            ConsultationId = session.ConsultanSessionId,
+                            RateId = activeRate.RateId,
+                            Amount = activeRate.AmountPerSession,
+                            Status = "Pending",
+                            CalculatedAt = DateTime.Now
+                        };
+
+                        await _unitOfWork.Repository<DoctorPayout>().AddAsync(payout);
+                    }
+                }
             }
 
+            // Lưu tất cả thay đổi vào DB
             await _unitOfWork.CompleteAsync();
 
-            // Thông báo kết thúc
+            // 3. Gửi thông báo kết thúc cho cả 2 bên
             var member = await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId);
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(session.DoctorId);
 
@@ -433,7 +454,7 @@ namespace MediMateService.Services.Implementations
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
                     title: "⏱️ Phiên tư vấn đã kết thúc",
-                    message: $"Phiên tư vấn với bệnh nhân {member?.FullName} đã hết thời gian. Bạn vẫn có thể gửi tin nhắn cho bệnh nhân.",
+                    message: $"Phiên tư vấn với bệnh nhân {member?.FullName ?? "Unknown"} đã hết thời gian. Bạn vẫn có thể gửi tin nhắn bổ sung.",
                     type: ConsultationSessionActionTypes.SESSION_TIMEOUT,
                     referenceId: session.ConsultanSessionId
                 );

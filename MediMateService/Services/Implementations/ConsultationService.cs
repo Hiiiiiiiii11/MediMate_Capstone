@@ -35,11 +35,39 @@ namespace MediMateService.Services.Implementations
 
             var doctor = await _doctorRepository.GetDoctorByIdAsync(appointment.DoctorId);
             var isDoctorOwner = doctor != null && doctor.UserId == userId;
-            var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(appointment.MemberId);
-            var isUserOwner = member?.UserId == userId || member?.MemberId == userId;
 
-            if (!isDoctorOwner && !isUserOwner)
+            // 2. Lấy thông tin hồ sơ bệnh nhân (Người chủ của lịch hẹn)
+            var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(appointment.MemberId);
+
+            if (patientMember == null) throw new NotFoundException("Không tìm thấy thông tin bệnh nhân.");
+
+            // 3. Kiểm tra quyền truy cập dựa trên Gia đình
+            bool hasAccess = false;
+
+            if (isDoctorOwner)
+            {
+                hasAccess = true;
+            }
+            else if (patientMember.FamilyId.HasValue)
+            {
+                // Nếu bệnh nhân thuộc một gia đình: 
+                // Cho phép nếu người gọi (userId) là bất kỳ thành viên nào trong gia đình đó
+                hasAccess = (await _unitOfWork.Repository<MediMateRepository.Model.Members>()
+                    .FindAsync(m => m.FamilyId == patientMember.FamilyId
+                                 && (m.UserId == userId || m.MemberId == userId))).Any();
+            }
+            else
+            {
+                // Nếu bệnh nhân chưa vào gia đình (hồ sơ cá nhân):
+                // Chỉ chính họ mới được xem
+                hasAccess = patientMember.UserId == userId || patientMember.MemberId == userId;
+            }
+
+            // 4. Quyết định cuối cùng
+            if (!hasAccess)
+            {
                 throw new ForbiddenException("Bạn không có quyền xem phiên tư vấn này.");
+            }
 
             var session = await _appointmentRepository.GetSessionByAppointmentIdAsync(appointmentId);
             if (session == null)

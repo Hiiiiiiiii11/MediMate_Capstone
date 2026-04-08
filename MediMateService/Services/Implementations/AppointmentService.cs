@@ -165,7 +165,7 @@ namespace MediMateService.Services.Implementations
 
             // 11. Hẹn giờ Hangfire tự động hủy nếu không duyệt
             var appointmentFullTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
-            var autoCancelTime = appointmentFullTime.AddMinutes(-30);
+            var autoCancelTime = appointmentFullTime.AddMinutes(-20);
             if (autoCancelTime <= DateTime.Now) autoCancelTime = appointmentFullTime.AddMinutes(-5);
 
             _backgroundJobClient.Schedule<IReminderJobService>(

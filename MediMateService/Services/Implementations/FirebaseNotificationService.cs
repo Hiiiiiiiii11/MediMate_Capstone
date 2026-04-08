@@ -18,6 +18,23 @@ namespace MediMateService.Services.Implementations
                         Title = title,
                         Body = body
                     },
+                    Android = new AndroidConfig()
+                    {
+                        Priority = Priority.High,
+                        Notification = new AndroidNotification()
+                        {
+                            ChannelId = "default",
+                            Sound = "default"
+                        }
+                    },
+                    Apns = new ApnsConfig()
+                    {
+                        Aps = new Aps()
+                        {
+                            Sound = "default",
+                            ContentAvailable = true
+                        }
+                    },
                     Data = data // Dữ liệu ngầm định gửi kèm để Frontend chuyển màn hình (VD: { "type": "reminder", "id": "123" })
                 };
 

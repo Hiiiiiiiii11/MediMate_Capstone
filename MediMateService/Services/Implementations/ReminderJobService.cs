@@ -64,7 +64,15 @@ namespace MediMateService.Services.Implementations
             string title = "⚠️ Nhắc nhở uống thuốc!";
             string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
             string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
-            var data = new Dictionary<string, string> { { "reminderId", reminderId.ToString() } };
+            
+            var data = new Dictionary<string, string> 
+            { 
+                { "type", "MEDICATION_REMINDER" },
+                { "reminderId", reminderId.ToString() },
+                { "scheduleName", reminder.Schedule.ScheduleName },
+                { "memberName", targetMember.FullName },
+                { "reminderTime", reminder.ReminderTime.ToString("yyyy-MM-ddTHH:mm:ss") }
+            };
 
             if (canSendToMember && !string.IsNullOrEmpty(targetMember.FcmToken))
             {

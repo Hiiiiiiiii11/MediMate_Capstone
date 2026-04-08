@@ -34,22 +34,26 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<ChatDoctorMessageResponse>>> GetSessionMessagesAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
         {
-            var session = (await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => s.ConsultanSessionId == sessionId, "Member,Doctor")).FirstOrDefault();
+            var session = await _unitOfWork.Repository<ConsultationSessions>()
+                .GetQueryable()
+                .AsNoTracking() // <--- THÊM Ở ĐÂY
+                .Include(s => s.Member)
+                .Include(s => s.Doctor)
+                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
 
             if (session == null) return ApiResponse<IEnumerable<ChatDoctorMessageResponse>>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            // Kiểm tra quyền
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
-                return ApiResponse<IEnumerable<ChatDoctorMessageResponse>>.Fail("Bạn không có quyền xem phiên chat này.", 403);
+                return ApiResponse<IEnumerable<ChatDoctorMessageResponse>>.Fail("Access Denied", 403);
 
             var messages = await _unitOfWork.Repository<ChatDoctorMessages>()
-                .FindAsync(m => m.ConsultanSessionId == sessionId);
+                .GetQueryable()
+                .AsNoTracking() // <--- THÊM Ở ĐÂY
+                .Where(m => m.ConsultanSessionId == sessionId)
+                .OrderBy(m => m.SendAt)
+                .ToListAsync();
 
-            // Dùng hàm MapToResponse để chuyển đổi List
-            var response = messages.OrderBy(m => m.SendAt)
-                                   .Select(m => MapToResponse(m, session));
-
+            var response = messages.Select(m => MapToResponse(m, session));
             return ApiResponse<IEnumerable<ChatDoctorMessageResponse>>.Ok(response);
         }
 
@@ -61,14 +65,9 @@ namespace MediMateService.Services.Implementations
                 .Include(s => s.Member)
                 .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
 
-            if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
+            if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Không tìm thấy phiên.", 404);
 
-            if (session.Status == "Rejected")
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn đã bị từ chối.", 400);
-
-            if (session.Status == ConsultationSessionConstants.ENDED && !isDoctorRequest)
-                return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên đã kết thúc, bạn không thể gửi thêm tin nhắn.", 403);
-
+            // Truyền session vào ValidateAccess để check quyền mà không cần truy vấn lại Doctor
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
                 return ApiResponse<ChatDoctorMessageResponse>.Fail("Access Denied", 403);
 
@@ -88,14 +87,11 @@ namespace MediMateService.Services.Implementations
                 SendAt = DateTime.Now
             };
 
-            // --- CẬP NHẬT UNREAD COUNT ---
-            if (isDoctorRequest)
-                session.UnreadCountMember += 1; // Bác sĩ gửi -> Member chưa đọc
-            else
-                session.UnreadCountDoctor += 1; // Member gửi -> Bác sĩ chưa đọc
+            if (isDoctorRequest) session.UnreadCountMember += 1;
+            else session.UnreadCountDoctor += 1;
 
-            _unitOfWork.Repository<ConsultationSessions>().Update(session);
             await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(message);
+            _unitOfWork.Repository<ConsultationSessions>().Update(session);
             await _unitOfWork.CompleteAsync();
 
             // Thông báo và SignalR (Giữ nguyên logic của bạn)
@@ -191,14 +187,25 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
-            var familyMembers = await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == familyId);
-            var memberIds = familyMembers.Select(m => m.MemberId).ToList();
+            // Check access... (AsNoTracking)
+            var familyMembers = await _unitOfWork.Repository<Members>()
+                .GetQueryable()
+                .AsNoTracking()
+                .Where(m => m.FamilyId == familyId)
+                .ToListAsync();
 
             if (!familyMembers.Any(m => m.UserId == currentUserId || m.MemberId == currentUserId))
                 return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Fail("Access Denied", 403);
 
+            var memberIds = familyMembers.Select(m => m.MemberId).ToList();
+
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => memberIds.Contains(s.MemberId), includeProperties: "Doctor,Messages");
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(s => s.Doctor)
+                .Include(s => s.Messages.OrderByDescending(m => m.SendAt).Take(1)) // Chỉ lấy tin cuối
+                .Where(s => memberIds.Contains(s.MemberId))
+                .ToListAsync();
 
             var result = sessions.Select(s => new ChatSessionSummaryResponse
             {
@@ -206,13 +213,10 @@ namespace MediMateService.Services.Implementations
                 PartnerName = s.Doctor?.FullName ?? "Bác sĩ",
                 PartnerAvatar = s.Doctor?.LicenseImage,
                 Status = s.Status,
-                LastMessage = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.Content,
-                LastMessageTime = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.SendAt,
-                // LẤY TRỰC TIẾP TỪ CỘT UNREAD CỦA MEMBER
+                LastMessage = s.Messages.FirstOrDefault()?.Content,
+                LastMessageTime = s.Messages.FirstOrDefault()?.SendAt,
                 UnreadCount = s.UnreadCountMember
-            })
-            .OrderByDescending(x => x.LastMessageTime)
-            .ToList();
+            }).OrderByDescending(x => x.LastMessageTime).ToList();
 
             return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Ok(result);
         }

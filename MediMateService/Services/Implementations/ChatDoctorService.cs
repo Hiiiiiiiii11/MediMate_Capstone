@@ -60,14 +60,14 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<ChatDoctorMessageResponse>> SendMessageAsync(Guid sessionId, Guid currentUserId, SendChatDoctorRequest request, bool isDoctorRequest)
         {
             var session = await _unitOfWork.Repository<ConsultationSessions>()
-                .GetQueryable()
-                .Include(s => s.Doctor)
-                .Include(s => s.Member)
-                .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
+         .GetQueryable()
+         .Include(s => s.Doctor)
+         .Include(s => s.Member)
+         .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
 
-            if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Không tìm thấy phiên.", 404);
+            if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            // Truyền session vào ValidateAccess để check quyền mà không cần truy vấn lại Doctor
+            // Kiểm tra quyền (Hàm Validate bây giờ ko gọi DB Doctor nữa nên ko lỗi)
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
                 return ApiResponse<ChatDoctorMessageResponse>.Fail("Access Denied", 403);
 
@@ -91,7 +91,6 @@ namespace MediMateService.Services.Implementations
             else session.UnreadCountDoctor += 1;
 
             await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(message);
-            _unitOfWork.Repository<ConsultationSessions>().Update(session);
             await _unitOfWork.CompleteAsync();
 
             // Thông báo và SignalR (Giữ nguyên logic của bạn)
@@ -146,7 +145,6 @@ namespace MediMateService.Services.Implementations
                 if (isDoctorRequest) session.UnreadCountDoctor = 0;
                 else session.UnreadCountMember = 0;
 
-                _unitOfWork.Repository<ConsultationSessions>().Update(session);
                 await _unitOfWork.CompleteAsync();
 
                 // 3. SignalR thông báo cập nhật UI (badge, danh sách tin nhắn)
@@ -165,26 +163,28 @@ namespace MediMateService.Services.Implementations
 
         private async Task<bool> ValidateAccessAsync(ConsultationSessions session, Guid currentUserId, bool isDoctorRequest)
         {
-            // ── Guardian luôn được đọc chat (không cần isDoctorRequest) ─────
+            // 1. Nếu là Người giám hộ
             if (session.GuardianUserId.HasValue && session.GuardianUserId.Value == currentUserId)
                 return true;
 
             if (isDoctorRequest)
             {
-                // Tìm DoctorProfile của currentUserId đang đăng nhập
-                var doctorProfile = (await _unitOfWork.Repository<Doctors>()
-                    .FindAsync(d => d.UserId == currentUserId)).FirstOrDefault();
+                // GIẢI PHÁP: Sử dụng session.Doctor đã được Include từ hàm gọi
+                // KHÔNG dùng repository.FindAsync ở đây nữa để tránh lỗi Tracking
+                if (session.Doctor == null)
+                {
+                    // Trường hợp hy hữu nếu quên Include, ta mới dùng AsNoTracking để tìm
+                    return false;
+                }
 
-                // Bác sĩ này phải đúng là bác sĩ được phân công trong Session
-                return doctorProfile != null && doctorProfile.DoctorId == session.DoctorId;
+                return session.Doctor.UserId == currentUserId;
             }
             else
             {
-                // Kiểm tra xem User có quyền với MemberId trong Session không
+                // Kiểm tra quyền bệnh nhân/gia đình (Hàm này nên dùng AsNoTracking bên trong)
                 return await _currentUserService.CheckAccess(session.MemberId, currentUserId);
             }
         }
-
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByFamilyIdAsync(Guid familyId, Guid currentUserId)
         {
             // Check access... (AsNoTracking)

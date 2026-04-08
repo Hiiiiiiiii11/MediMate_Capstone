@@ -77,6 +77,17 @@ namespace MediMate.Controllers
             var response = data.Select(MapAppointmentResponse).ToList();
             return Ok(ApiResponse<List<AppointmentResponse>>.Ok(response, "Lấy danh sách lịch hẹn thành công."));
         }
+
+        [HttpGet("members/me")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentResponse>>), 200)]
+        public async Task<IActionResult> GetAppointmentsByCurrentMember()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _appointmentService.GetAppointmentsByMemberIdAsync(userId);
+            return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch hẹn của thành viên thành công."));
+        }
+
+
         [HttpGet("doctors/{doctorId}")]
         [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
         public async Task<IActionResult> GetAppointmentsByDoctor(Guid doctorId)

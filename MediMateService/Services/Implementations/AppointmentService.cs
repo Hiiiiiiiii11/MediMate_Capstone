@@ -617,6 +617,20 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<AppointmentDetailDto>.Ok(detail, "Lấy chi tiết lịch hẹn thành công.");
         }
 
+        public async Task<List<AppointmentDto>> GetAppointmentsByMemberIdAsync(Guid memberId)
+        {
+            // Lấy tất cả lịch hẹn mà MemberId trùng với tham số truyền vào
+            var appointments = await _unitOfWork.Repository<Appointments>()
+                .GetQueryable()
+                .Where(a => a.MemberId == memberId)
+                .OrderByDescending(a => a.AppointmentDate)
+                .ThenByDescending(a => a.AppointmentTime)
+                .ToListAsync();
+
+            // Map sang DTO để trả về
+            return appointments.Select(MapAppointment).ToList();
+        }
+
         private static AppointmentDto MapAppointment(Appointments item)
         {
             return new AppointmentDto

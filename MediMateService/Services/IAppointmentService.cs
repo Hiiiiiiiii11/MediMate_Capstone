@@ -13,5 +13,6 @@ namespace MediMateService.Services
         Task<AppointmentDto> UpdateAppointmentAsync(Guid appointmentId, Guid userId, UpdateAppointmentDto request);
         Task<List<AppointmentDto>> GetAppointmentsByDoctorIdAsync(Guid doctorId);
         Task<ApiResponse<AppointmentDetailDto>> GetAppointmentDetailAsync(Guid appointmentId);
+        Task<List<AppointmentDto>> GetAppointmentsByMemberIdAsync(Guid memberId);
     }
 }

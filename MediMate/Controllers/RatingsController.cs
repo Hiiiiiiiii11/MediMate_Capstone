@@ -25,22 +25,19 @@ namespace MediMate.Controllers
         [HttpPost("session/{sessionId}")]
         public async Task<IActionResult> CreateRating(Guid sessionId, [FromBody] CreateRatingRequest request)
         {
-            try
-            {
-                var (callerId, isDependent) = GetCallerInfo();
-                var result = await _ratingService.CreateRatingAsync(callerId, isDependent, sessionId, new CreateRatingDto
+            // Dùng trực tiếp _currentUserService.UserId
+            var result = await _ratingService.CreateRatingAsync(
+                _currentUserService.UserId,
+                sessionId,
+                new CreateRatingDto
                 {
                     Score = request.Score,
                     Comment = request.Comment
                 });
 
-                return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Đánh giá thành công."));
-            }
-            catch (Exception ex)
-            {
-                return HandleException(ex);
-            }
+            return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Đánh giá thành công."));
         }
+
 
         [HttpGet("{ratingId}")]
         [AllowAnonymous]
@@ -100,54 +97,29 @@ namespace MediMate.Controllers
                 return HandleException(ex);
             }
         }
-
         [HttpPut("{ratingId}")]
         public async Task<IActionResult> UpdateRating(Guid ratingId, [FromBody] CreateRatingRequest request)
         {
-            try
-            {
-                var (callerId, isDependent) = GetCallerInfo();
-                var result = await _ratingService.UpdateRatingAsync(callerId, isDependent, ratingId, new CreateRatingDto
+            // Không cần truyền isDependent nữa vì Service sẽ dùng hàm CheckAccess
+            var result = await _ratingService.UpdateRatingAsync(
+                _currentUserService.UserId,
+                ratingId,
+                new CreateRatingDto
                 {
                     Score = request.Score,
                     Comment = request.Comment
                 });
 
-                return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Cập nhật đánh giá thành công."));
-            }
-            catch (Exception ex)
-            {
-                return HandleException(ex);
-            }
+            return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Cập nhật thành công."));
         }
 
         [HttpDelete("{ratingId}")]
         public async Task<IActionResult> DeleteRating(Guid ratingId)
         {
-            try
-            {
-                var (callerId, isDependent) = GetCallerInfo();
-                await _ratingService.DeleteRatingAsync(callerId, isDependent, ratingId);
-                return Ok(ApiResponse<bool>.Ok(true, "Xóa đánh giá thành công."));
-            }
-            catch (Exception ex)
-            {
-                return HandleException(ex);
-            }
+            await _ratingService.DeleteRatingAsync(_currentUserService.UserId, ratingId);
+            return Ok(ApiResponse<bool>.Ok(true, "Xóa đánh giá thành công."));
         }
 
-        /// <summary>
-        /// Trả về (callerId, isDependent).
-        /// Dependent token không có "sub", CurrentUserService sẽ fallback về claim "MemberId",
-        /// nên callerId đã là MemberId — service dùng thẳng được.
-        /// </summary>
-        private (Guid callerId, bool isDependent) GetCallerInfo()
-        {
-            var role = User.FindFirst("Role")?.Value ?? string.Empty;
-            var isDependent = string.Equals(role, "Dependent", StringComparison.OrdinalIgnoreCase);
-            var callerId = _currentUserService.UserId; // MemberId nếu Dependent, UserId nếu User
-            return (callerId, isDependent);
-        }
 
         private static RatingResponse MapToResponse(RatingDto dto)
         {

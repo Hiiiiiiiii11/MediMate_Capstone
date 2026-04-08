@@ -16,6 +16,8 @@ namespace MediMateRepository.Model
         public DateTime? EndedAt { get; set; }
         public string? RecordUrl { get; set; }
         public string Status { get; set; } = "Processing";
+        public int UnreadCountDoctor { get; set; } = 0;
+        public int UnreadCountMember { get; set; } = 0;
 
         // Tracking join status (event-driven → InProgress khi cả 2 join)
         public bool UserJoined { get; set; } = false;

@@ -626,6 +626,7 @@ namespace MediMateService.Services.Implementations
                 MemberId = item.MemberId,
                 AvailabilityId = item.AvailabilityId,
                 AppointmentDate = item.AppointmentDate,
+                AppointmentTime = item.AppointmentTime,
                 Status = item.Status,
                 CancelReason = item.CancelReason,
                 CreatedAt = item.CreatedAt

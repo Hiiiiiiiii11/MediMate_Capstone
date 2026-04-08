@@ -59,6 +59,23 @@ namespace MediMate.Controllers
             }
         }
 
+        [HttpGet("session/{sessionId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRatingBySession(Guid sessionId)
+        {
+            try
+            {
+                var result = await _ratingService.GetRatingBySessionAsync(sessionId);
+                if (result == null) return NotFound(ApiResponse<string>.Fail("Phiên khám chưa được đánh giá.", 404));
+
+                return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result)));
+            }
+            catch (Exception ex)
+            {
+                return HandleException(ex);
+            }
+        }
+
         [HttpGet("doctor/{doctorId}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetDoctorReviews(Guid doctorId)

@@ -83,6 +83,12 @@ namespace MediMateService.Services.Implementations
             return rating != null ? MapToRatingDto(rating) : null;
         }
 
+        public async Task<RatingDto?> GetRatingBySessionAsync(Guid sessionId)
+        {
+            var rating = await _ratingRepository.GetRatingBySessionIdAsync(sessionId);
+            return rating != null ? MapToRatingDto(rating) : null;
+        }
+
         public async Task<List<DoctorReviewDto>> GetDoctorReviewsAsync(Guid doctorId)
         {
             var doctor = await _doctorRepository.GetDoctorByIdAsync(doctorId);

@@ -172,7 +172,7 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<PrescriptionResponse>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request)
         {
-            // 1. Lấy đơn thuốc (kèm thuốc để xử lý update list)
+            // 1. Lấy đơn thuốc kèm danh sách thuốc hiện tại
             var prescription = (await _unitOfWork.Repository<Prescriptions>()
                 .FindAsync(p => p.PrescriptionId == prescriptionId, includeProperties: "PrescriptionMedicines,PrescriptionImages"))
                 .FirstOrDefault();
@@ -182,45 +182,36 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
             }
 
-            // 2. Check quyền
+            // 2. Kiểm tra quyền truy cập (Dùng service bạn đã có)
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
             {
-                return ApiResponse<PrescriptionResponse>.Fail("Không có quyền chỉnh sửa.", 403);
+                return ApiResponse<PrescriptionResponse>.Fail("Bạn không có quyền chỉnh sửa đơn thuốc này.", 403);
             }
+
             var oldData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
             bool hasChanges = false;
 
-            // 3. Update từng trường (Giữ giá trị cũ nếu request null)
-            if (!string.IsNullOrEmpty(request.PrescriptionCode) && request.PrescriptionCode != prescription.PrescriptionCode)
-            {
-                prescription.PrescriptionCode = request.PrescriptionCode;
-                hasChanges = true;
-            }
-
+            // 3. Cập nhật thông tin cơ bản
             if (!string.IsNullOrEmpty(request.DoctorName) && request.DoctorName != prescription.DoctorName)
             {
                 prescription.DoctorName = request.DoctorName;
                 hasChanges = true;
             }
-
             if (!string.IsNullOrEmpty(request.HospitalName) && request.HospitalName != prescription.HospitalName)
             {
                 prescription.HospitalName = request.HospitalName;
                 hasChanges = true;
             }
-
             if (request.PrescriptionDate.HasValue && request.PrescriptionDate != prescription.PrescriptionDate)
             {
                 prescription.PrescriptionDate = request.PrescriptionDate.Value;
                 hasChanges = true;
             }
-
-            if (!string.IsNullOrEmpty(request.Notes) && request.Notes != prescription.Notes)
+            if (request.Notes != prescription.Notes)
             {
                 prescription.Notes = request.Notes;
                 hasChanges = true;
             }
-
             if (!string.IsNullOrEmpty(request.Status) && request.Status != prescription.Status)
             {
                 prescription.Status = request.Status;
@@ -229,55 +220,106 @@ namespace MediMateService.Services.Implementations
 
             prescription.UpdateAt = DateTime.Now;
 
-            // 4. Xử lý danh sách thuốc (Nếu có gửi list mới)
+            // 4. XỬ LÝ DANH SÁCH THUỐC (Để tránh lỗi 0 rows affected)
             if (request.Medicines != null)
             {
-                // Xóa hết thuốc cũ
-                var oldMedicines = prescription.PrescriptionMedicines.ToList();
-                foreach (var oldMed in oldMedicines)
+                // Bước A: Lấy danh sách ID thuốc từ Request gửi lên (những thuốc cũ được giữ lại)
+                var incomingMedicineIds = request.Medicines
+                    .Where(m => m.PrescriptionMedicineId.HasValue)
+                    .Select(m => m.PrescriptionMedicineId!.Value)
+                    .ToList();
+
+                // Bước B: Tìm và xóa những thuốc KHÔNG còn trong đơn thuốc mới
+                var medicinesToRemove = prescription.PrescriptionMedicines
+                    .Where(m => !incomingMedicineIds.Contains(m.PrescriptionMedicineId))
+                    .ToList();
+
+                foreach (var medToRemove in medicinesToRemove)
                 {
-                    _unitOfWork.Repository<PrescriptionMedicines>().Remove(oldMed);
+                    // Xóa chi tiết lịch (Details) liên quan đến thuốc này trước
+                    var oldDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                        .FindAsync(d => d.PrescriptionMedicineId == medToRemove.PrescriptionMedicineId);
+
+                    if (oldDetails.Any())
+                    {
+                        _unitOfWork.Repository<MedicationScheduleDetails>().RemoveRange(oldDetails);
+                    }
+
+                    // Sau đó mới xóa thuốc
+                    _unitOfWork.Repository<PrescriptionMedicines>().Remove(medToRemove);
                 }
 
-                // Thêm thuốc mới (đã chỉnh sửa từ UI)
-                foreach (var med in request.Medicines)
+                // Bước C: Cập nhật thuốc cũ hoặc Thêm thuốc mới
+                foreach (var medDto in request.Medicines)
                 {
-                    prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
+                    if (medDto.PrescriptionMedicineId.HasValue)
                     {
-                        PrescriptionMedicineId = Guid.NewGuid(),
-                        PrescriptionId = prescriptionId,
-                        MedicineName = med.MedicineName,
-                        Dosage = med.Dosage ?? "",
-                        Unit = med.Unit ?? "",
-                        Quantity = med.Quantity,
-                        Instructions = med.Instructions ?? "",
-                        CreatedAt = DateTime.Now,
-                        UpdatedAt = DateTime.Now
-                    });
+                        // CẬP NHẬT: Tìm thuốc cũ trong DB để ghi đè thông tin mới
+                        var existingMed = prescription.PrescriptionMedicines
+                            .FirstOrDefault(m => m.PrescriptionMedicineId == medDto.PrescriptionMedicineId.Value);
+
+                        if (existingMed != null)
+                        {
+                            existingMed.MedicineName = medDto.MedicineName;
+                            existingMed.Dosage = medDto.Dosage ?? "";
+                            existingMed.Unit = medDto.Unit ?? "";
+                            existingMed.Quantity = medDto.Quantity;
+                            existingMed.Instructions = medDto.Instructions ?? "";
+                            existingMed.UpdatedAt = DateTime.Now;
+                        }
+                    }
+                    else
+                    {
+                        // THÊM MỚI: Dành cho thuốc mới thêm tay hoặc từ OCR (ID là null)
+                        prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
+                        {
+                            PrescriptionMedicineId = Guid.NewGuid(),
+                            PrescriptionId = prescriptionId,
+                            MedicineName = medDto.MedicineName,
+                            Dosage = medDto.Dosage ?? "",
+                            Unit = medDto.Unit ?? "",
+                            Quantity = medDto.Quantity,
+                            Instructions = medDto.Instructions ?? "",
+                            CreatedAt = DateTime.Now,
+                            UpdatedAt = DateTime.Now
+                        });
+                    }
                 }
             }
 
+            // 5. Lưu toàn bộ thay đổi vào Database (Chỉ gọi 1 lần để tránh lỗi Concurrency)
             _unitOfWork.Repository<Prescriptions>().Update(prescription);
             await _unitOfWork.CompleteAsync();
 
-            // Phân bổ thuốc mới nếu có
+            // 6. CẬP NHẬT LẠI LỊCH (SCHEDULE) CHO TỪNG LOẠI THUỐC
             if (request.Medicines != null)
             {
                 foreach (var med in prescription.PrescriptionMedicines)
                 {
+                    // Xóa các chi tiết lịch cũ của thuốc này trong các khung giờ để tránh trùng lặp
+                    var currentDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                        .FindAsync(d => d.PrescriptionMedicineId == med.PrescriptionMedicineId);
+
+                    if (currentDetails.Any())
+                    {
+                        _unitOfWork.Repository<MedicationScheduleDetails>().RemoveRange(currentDetails);
+                        await _unitOfWork.CompleteAsync(); // Lưu để dọn sạch trước khi phân bổ lại
+                    }
+
+                    // Gọi hàm phân bổ lịch tự động dựa trên lời dặn (Instructions)
                     await AutoDistributeMedicineAsync(prescription.MemberId, med, prescription.PrescriptionDate);
                 }
             }
 
+            // 7. Ghi nhật ký hoạt động (Activity Log)
             if (hasChanges)
             {
-                var newData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
                 var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
-
-                if (targetMember != null && targetMember.FamilyId.HasValue)
+                if (targetMember?.FamilyId.HasValue == true)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
-    .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
+                        .FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId)))
+                        .FirstOrDefault();
 
                     if (doer != null)
                     {
@@ -289,13 +331,13 @@ namespace MediMateService.Services.Implementations
                             entityId: prescription.PrescriptionId,
                             description: $"Đã cập nhật đơn thuốc của '{targetMember.FullName}'.",
                             oldData: oldData,
-                            newData: newData
+                            newData: new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status }
                         );
                     }
                 }
             }
 
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc thành công.");
+            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
         }
 
         // --- HÀM 2: XÓA ĐƠN THUỐC ---
@@ -731,7 +773,7 @@ namespace MediMateService.Services.Implementations
             if (idx == -1) return defaultDosage ?? "1 Viên";
 
             string sub = lowerInst.Substring(idx);
-            
+
             int endIdx = sub.IndexOf(',');
             if (endIdx == -1) endIdx = sub.IndexOf('-');
             if (endIdx == -1) endIdx = sub.IndexOf('.');
@@ -741,6 +783,23 @@ namespace MediMateService.Services.Implementations
             string finalDosage = sessionPart.Replace(lowerSession, "").Trim();
 
             return string.IsNullOrWhiteSpace(finalDosage) ? (defaultDosage ?? "1 Viên") : finalDosage;
+        }
+        private async Task ClearMedicationSchedulesAsync(Guid medicineId)
+        {
+            // Chúng ta phải tìm trong bảng MedicationScheduleDetails 
+            // vì đây mới là nơi chứa ID của thuốc (PrescriptionMedicineId)
+            var oldDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
+                .FindAsync(d => d.PrescriptionMedicineId == medicineId);
+
+            if (oldDetails.Any())
+            {
+                // 1. Xóa các chi tiết lịch của thuốc này
+                _unitOfWork.Repository<MedicationScheduleDetails>().RemoveRange(oldDetails);
+
+                // 2. (Tùy chọn) Kiểm tra nếu MedicationSchedules (khung giờ) đó 
+                // không còn thuốc nào khác thì có thể xóa luôn khung giờ đó để sạch DB
+                // Nhưng thông thường chỉ cần xóa Detail là đủ.
+            }
         }
     }
 }

@@ -51,8 +51,6 @@ namespace MediMateService.DTOs
         public string BankTransactionCode { get; set; } = string.Empty;
         /// <summary>Ảnh màn hình chuyển khoản (file upload)</summary>
         public Microsoft.AspNetCore.Http.IFormFile? TransferImage { get; set; }
-        /// <summary>URL ảnh sau khi upload (Controller tự set, không cần client truyền)</summary>
-        public string? TransferImageUrl { get; set; }
     }
 
     public class PendingPayoutDto

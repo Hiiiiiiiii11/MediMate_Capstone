@@ -421,7 +421,7 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<PagedResult<PaidPayoutDto>>.Ok(result, "Lấy lịch sử giải ngân thành công.");
         }
 
-        public async Task<ApiResponse<bool>> ApproveDoctorPayoutAsync(Guid payoutId, ApprovePayoutRequest request)
+        public async Task<ApiResponse<bool>> ApproveDoctorPayoutAsync(Guid payoutId, ApprovePayoutRequest request, string? transferImageUrl = null)
         {
             var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
                 .Include(p => p.ConsultationSession)
@@ -440,7 +440,7 @@ namespace MediMateService.Services.Implementations
             // 1. Cập nhật Payout thành Đã Trả (Paid)
             payout.Status = "Paid";
             payout.PaidAt = DateTime.Now;
-            payout.TransferImageUrl = request.TransferImageUrl;
+            payout.TransferImageUrl = transferImageUrl;
             _unitOfWork.Repository<DoctorPayout>().Update(payout);
 
             // 2. Ghi sổ Transaction (Dòng tiền đi ra)

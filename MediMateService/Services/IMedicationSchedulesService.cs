@@ -27,6 +27,7 @@ namespace MediMateService.Services
         Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetMemberSchedulesAsync(Guid memberId, Guid currentUserId);
         Task<ApiResponse<IEnumerable<ScheduleResponse>>> GetFamilySchedulesAsync(Guid familyId, Guid currentUserId);
         Task<ApiResponse<List<ScheduleResponse>>> CreateBulkSchedulesAsync(Guid memberId, Guid currentUserId, CreateBulkScheduleRequest request);
+        Task<ApiResponse<bool>> UpdateMemberPreferredTimesAsync(Guid memberId, Guid currentUserId, UpdateMemberPreferredTimesRequest request);
 
     }
 }

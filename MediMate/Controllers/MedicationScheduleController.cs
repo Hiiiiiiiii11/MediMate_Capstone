@@ -151,6 +151,23 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+        [HttpPut("members/{memberId}/preferred-times")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> UpdateMemberPreferredTimes(Guid memberId, [FromBody] UpdateMemberPreferredTimesRequest request)
+        {
+            try
+            {
+                var callerId = _currentUserService.UserId;
+                var result = await _scheduleService.UpdateMemberPreferredTimesAsync(memberId, callerId, request);
+
+                if (!result.Success) return StatusCode(result.Code, result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+            }
+        }
 
         [HttpDelete("schedules/{scheduleId}")]
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]

@@ -172,6 +172,7 @@ namespace MediMate.Controllers
                 RatingId = dto.RatingId,
                 SessionId = dto.SessionId,
                 DoctorId = dto.DoctorId,
+                DoctorName = dto.DoctorName,
                 MemberId = dto.MemberId,
                 MemberName = dto.MemberName,
                 Score = dto.Score,

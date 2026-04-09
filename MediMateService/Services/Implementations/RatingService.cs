@@ -195,6 +195,7 @@ namespace MediMateService.Services.Implementations
 
             var query = _unitOfWork.Repository<MediMateRepository.Model.Ratings>().GetQueryable()
                 .Include(r => r.Member)
+                .Include(r => r.Doctor)
                 .AsQueryable();
 
             if (filter.DoctorId.HasValue)
@@ -254,6 +255,7 @@ namespace MediMateService.Services.Implementations
                 RatingId = rating.RatingId,
                 SessionId = rating.ConsultanSessionId,
                 DoctorId = rating.DoctorId,
+                DoctorName = rating.Doctor?.FullName,
                 MemberId = rating.MemberId,
                 MemberName = rating.Member?.FullName,
                 Score = rating.Score,

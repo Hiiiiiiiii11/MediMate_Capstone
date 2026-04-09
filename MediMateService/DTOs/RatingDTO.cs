@@ -12,6 +12,7 @@ namespace MediMateService.DTOs
         public Guid RatingId { get; set; }
         public Guid SessionId { get; set; }
         public Guid DoctorId { get; set; }
+        public string? DoctorName { get; set; }
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
         public int Score { get; set; }

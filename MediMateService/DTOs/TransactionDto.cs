@@ -48,7 +48,11 @@ namespace MediMateService.DTOs
     public class ApprovePayoutRequest
     {
         [Required(ErrorMessage = "Vui lòng nhập mã giao dịch ngân hàng")]
-        public string BankTransactionCode { get; set; } = string.Empty; 
+        public string BankTransactionCode { get; set; } = string.Empty;
+        /// <summary>Ảnh màn hình chuyển khoản (file upload)</summary>
+        public Microsoft.AspNetCore.Http.IFormFile? TransferImage { get; set; }
+        /// <summary>URL ảnh sau khi upload (Controller tự set, không cần client truyền)</summary>
+        public string? TransferImageUrl { get; set; }
     }
 
     public class PendingPayoutDto
@@ -62,5 +66,20 @@ namespace MediMateService.DTOs
         public decimal Amount { get; set; }
         public DateTime CalculatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
+    }
+
+    public class PaidPayoutDto
+    {
+        public Guid PayoutId { get; set; }
+        public Guid DoctorId { get; set; }
+        public string DoctorName { get; set; } = string.Empty;
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime CalculatedAt { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public string? TransferImageUrl { get; set; }
+        public string? BankTransactionCode { get; set; }
     }
 }

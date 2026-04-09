@@ -12,6 +12,7 @@ namespace MediMateRepository.Model
         public string Status { get; set; } = "Pending";
         public DateTime CalculatedAt { get; set; } = DateTime.Now;
         public DateTime? PaidAt { get; set; }
+        public string? TransferImageUrl { get; set; }
         public virtual ConsultationSessions ConsultationSession { get; set; } = null!;
         public virtual DoctorPayoutRate Rate { get; set; } = null!;
     }

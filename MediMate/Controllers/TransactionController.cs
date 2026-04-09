@@ -14,10 +14,12 @@ namespace MediMate.Controllers
     public class TransactionController : ControllerBase
     {
         private readonly ITransactionService _transactionService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public TransactionController(ITransactionService transactionService)
+        public TransactionController(ITransactionService transactionService, IUploadPhotoService uploadPhotoService)
         {
             _transactionService = transactionService;
+            _uploadPhotoService = uploadPhotoService;
         }
 
         [HttpGet]
@@ -149,15 +151,44 @@ namespace MediMate.Controllers
         }
 
         // ─────────────────────────────────────────────────────────
+        // [ADMIN] LẤY LỊCH SỬ ĐÃ GIẢI NGÂN (ĐÃ CHUYỂN KHOẢN)
+        // ─────────────────────────────────────────────────────────
+        [HttpGet("payouts/paid")]
+        [Authorize(Roles = "Admin,Manager")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<PaidPayoutDto>>), 200)]
+        public async Task<IActionResult> GetPaidPayouts(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? searchTerm = null)
+        {
+            try
+            {
+                var response = await _transactionService.GetPaidPayoutsAsync(pageNumber, pageSize, searchTerm);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────
         // [ADMIN] XÁC NHẬN ĐÃ CHUYỂN KHOẢN CHO BÁC SĨ
         // ─────────────────────────────────────────────────────────
         [HttpPost("payouts/{payoutId}/approve")]
         [Authorize(Roles = "Admin,Manager")] // CHỈ ADMIN/KẾ TOÁN ĐƯỢC DUYỆT
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-        public async Task<IActionResult> ApproveDoctorPayout(Guid payoutId, [FromBody] ApprovePayoutRequest request)
+        public async Task<IActionResult> ApproveDoctorPayout(Guid payoutId, [FromForm] ApprovePayoutRequest request)
         {
             try
             {
+                // Upload ảnh chứng từ nếu có
+                if (request.TransferImage != null)
+                {
+                    var uploaded = await _uploadPhotoService.UploadPhotoAsync(request.TransferImage);
+                    request.TransferImageUrl = uploaded.OriginalUrl;
+                }
+
                 var response = await _transactionService.ApproveDoctorPayoutAsync(payoutId, request);
                 if (!response.Success)
                     return StatusCode(response.Code, response);

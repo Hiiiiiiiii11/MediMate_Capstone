@@ -183,13 +183,14 @@ namespace MediMate.Controllers
             try
             {
                 // Upload ảnh chứng từ nếu có
+                string? transferImageUrl = null;
                 if (request.TransferImage != null)
                 {
                     var uploaded = await _uploadPhotoService.UploadPhotoAsync(request.TransferImage);
-                    request.TransferImageUrl = uploaded.OriginalUrl;
+                    transferImageUrl = uploaded.OriginalUrl;
                 }
 
-                var response = await _transactionService.ApproveDoctorPayoutAsync(payoutId, request);
+                var response = await _transactionService.ApproveDoctorPayoutAsync(payoutId, request, transferImageUrl);
                 if (!response.Success)
                     return StatusCode(response.Code, response);
                     

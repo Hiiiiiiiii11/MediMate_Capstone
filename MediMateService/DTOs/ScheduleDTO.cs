@@ -104,5 +104,12 @@ namespace MediMateService.DTOs
         public DateTime? EndDate { get; set; }
         public string Instructions { get; set; } = string.Empty;
     }
+    public class UpdateMemberPreferredTimesRequest
+    {
+        public TimeSpan? MorningTime { get; set; }   // Giờ buổi sáng mong muốn (06:00 - 10:59)
+        public TimeSpan? NoonTime { get; set; }      // Giờ buổi trưa mong muốn (11:00 - 14:59)
+        public TimeSpan? AfternoonTime { get; set; } // Giờ buổi chiều mong muốn (15:00 - 17:59)
+        public TimeSpan? EveningTime { get; set; }   // Giờ buổi tối mong muốn (18:00 - 23:59)
+    }
 
 }

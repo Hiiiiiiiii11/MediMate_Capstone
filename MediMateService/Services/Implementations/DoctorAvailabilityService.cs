@@ -1,6 +1,7 @@
 ﻿using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using System;
 using System.Collections.Generic;
@@ -20,18 +21,34 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<DoctorAvailabilityDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityRequest request)
         {
+            // 1. Kiểm tra bác sĩ tồn tại
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(doctorId);
             if (doctor == null)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Không tìm thấy thông tin bác sĩ.", 404);
 
-            //if (doctor.UserId != currentUserId)  //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
-            //    return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền thiết lập lịch cho bác sĩ này.", 403);
-
+            // 2. Kiểm tra logic giờ bắt đầu < giờ kết thúc
             if (request.StartTime >= request.EndTime)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
 
-            // Tùy chọn: Có thể thêm logic check trùng khung giờ (Overlap) trong cùng một ngày ở đây
+            // 3. KIỂM TRA TRÙNG LỊCH (OVERLAP CHECK)
+            // Lấy tất cả lịch làm việc hiện có của bác sĩ vào ngày đó
+            var isOverlapping = await _unitOfWork.Repository<DoctorAvailability>()
+                .GetQueryable()
+                .AsNoTracking() // Dùng AsNoTracking để tối ưu hiệu năng vì chỉ check tồn tại
+                .AnyAsync(a => a.DoctorId == doctorId
+                            && a.DayOfWeek == request.DayOfWeek
+                            && a.IsActive // Chỉ check các lịch đang hoạt động
+                            && request.StartTime < a.EndTime
+                            && a.StartTime < request.EndTime);
 
+            if (isOverlapping)
+            {
+                return ApiResponse<DoctorAvailabilityDto>.Fail(
+                    $"Bác sĩ đã có lịch làm việc trong khoảng hoặc trùng với khung giờ {request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm} vào {request.DayOfWeek}. " +
+                    "Vui lòng xóa hoặc chỉnh sửa lịch cũ trước khi tạo mới.", 409);
+            }
+
+            // 4. Tạo mới nếu không trùng
             var availability = new DoctorAvailability
             {
                 DoctorAvailabilityId = Guid.NewGuid(),

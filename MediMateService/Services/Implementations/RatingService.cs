@@ -46,13 +46,13 @@ namespace MediMateService.Services.Implementations
 
             // Quyền đánh giá hợp lệ khi:
             // - TH1: callerId chính là MemberId của bệnh nhân (Bệnh nhân dùng mã QR/Profile riêng để đánh giá)
-            // - TH2: callerId là UserId của người quản lý hồ sơ đó (Chủ hộ đánh giá hộ người thân)
-            bool hasAccess = session.MemberId == callerId || patientMember.UserId == callerId;
+            //// - TH2: callerId là UserId của người quản lý hồ sơ đó (Chủ hộ đánh giá hộ người thân)
+            //bool hasAccess = session.MemberId == callerId || patientMember.UserId == callerId;
 
-            if (!hasAccess)
-            {
-                throw new ForbiddenException("Bạn không có quyền đánh giá phiên khám này.");
-            }
+            //if (!hasAccess)
+            //{
+            //    throw new ForbiddenException("Bạn không có quyền đánh giá phiên khám này.");
+            //}
 
             // 4. Kiểm tra trạng thái phiên khám
             if (!string.Equals(session.Status, ConsultationSessionConstants.ENDED, StringComparison.OrdinalIgnoreCase)
@@ -139,12 +139,12 @@ namespace MediMateService.Services.Implementations
             var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(rating.MemberId);
 
             // Quyền: callerId là bệnh nhân (MemberId) HOẶC callerId là chủ sở hữu (UserId) của bệnh nhân đó
-            bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
+            //bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
 
-            if (!hasAccess)
-            {
-                throw new ForbiddenException("Bạn không có quyền chỉnh sửa đánh giá của người khác.");
-            }
+            //if (!hasAccess)
+            //{
+            //    throw new ForbiddenException("Bạn không có quyền chỉnh sửa đánh giá của người khác.");
+            //}
 
             // 4. Cập nhật dữ liệu
             rating.Score = request.Score;
@@ -174,12 +174,12 @@ namespace MediMateService.Services.Implementations
             // 2. KIỂM TRA QUYỀN TRUY CẬP
             var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(rating.MemberId);
 
-            bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
+            //bool hasAccess = rating.MemberId == callerId || (member != null && member.UserId == callerId);
 
-            if (!hasAccess)
-            {
-                throw new ForbiddenException("Bạn không có quyền xóa đánh giá này.");
-            }
+            //if (!hasAccess)
+            //{
+            //    throw new ForbiddenException("Bạn không có quyền xóa đánh giá này.");
+            //}
 
             // 3. Thực hiện xóa và cập nhật điểm bác sĩ
             var doctorId = rating.DoctorId;

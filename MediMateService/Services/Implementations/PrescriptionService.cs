@@ -597,84 +597,76 @@ namespace MediMateService.Services.Implementations
         private async Task AutoDistributeMedicineAsync(Guid memberId, PrescriptionMedicines med, DateTime prescriptionDate)
         {
             var now = DateTime.Now.Date; // Lấy ngày thực tế lúc tạo/sửa trên app thay vì ngày ghi trên đơn thuốc
-
             var lowerInst = (med.Instructions ?? "").ToLower();
-            int totalSessions = 0;
+
+            // 1. Nhận diện các buổi cần uống
             bool hasMorning = lowerInst.Contains("sáng");
             bool hasNoon = lowerInst.Contains("trưa");
             bool hasAfternoon = lowerInst.Contains("chiều");
             bool hasEvening = lowerInst.Contains("tối");
+            bool has3Times = lowerInst.Contains("3 lần") || lowerInst.Contains("ba lần");
 
-            if (!hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
+            // Nếu ghi "3 lần" mà không rõ buổi -> Mặc định Sáng, Trưa, Tối
+            if (has3Times && !hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
+            {
+                hasMorning = hasNoon = hasEvening = true;
+            }
+            // Trường hợp mặc định nếu không bắt được từ khóa nào
+            else if (!hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
             {
                 hasMorning = true;
                 if (med.Quantity > 1) hasEvening = true;
             }
 
-            if (hasMorning) totalSessions++;
-            if (hasNoon) totalSessions++;
-            if (hasAfternoon) totalSessions++;
-            if (hasEvening) totalSessions++;
-
-            double days = totalSessions > 0 ? (double)med.Quantity / totalSessions : 1;
+            // 2. Tính toán ngày kết thúc
+            int totalSessionsPerDay = (hasMorning ? 1 : 0) + (hasNoon ? 1 : 0) + (hasAfternoon ? 1 : 0) + (hasEvening ? 1 : 0);
+            double days = totalSessionsPerDay > 0 ? (double)med.Quantity / totalSessionsPerDay : 1;
             if (days < 1) days = 1;
 
             DateTime endDate = now.AddDays(Math.Ceiling(days) - 1);
             if (endDate < now) endDate = now;
 
+            // 3. Lấy các lịch hiện có của Member
             var existingSchedules = (await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId)).ToList();
+                .FindAsync(s => s.MemberId == memberId && s.IsActive)).ToList();
 
             var modifiedScheduleIds = new List<Guid>();
 
-            if (hasMorning)
+            // 4. HÀM CỤC BỘ: Xử lý tìm hoặc tạo lịch thông minh
+            async Task ProcessSession(bool isRequired, string sessionName, TimeSpan defaultTime, int startH, int endH)
             {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("sáng"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi sáng", new TimeSpan(8, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "sáng", med.Dosage);
+                if (!isRequired) return;
+
+                // Tìm lịch có TÊN chứa chữ Sáng/Trưa... HOẶC GIỜ nằm trong khung quy định
+                var schedule = existingSchedules.FirstOrDefault(s =>
+                    (s.ScheduleName ?? "").ToLower().Contains(sessionName.ToLower()) ||
+                    (s.TimeOfDay.Hours >= startH && s.TimeOfDay.Hours < endH));
+
+                // Nếu không tìm thấy, hệ thống tự tạo lịch mặc định (8h, 12h, 16h, 20h)
+                if (schedule == null)
+                {
+                    schedule = await CreateDefaultSchedule(memberId, $"Buổi {sessionName.ToLower()}", defaultTime);
+                    existingSchedules.Add(schedule);
+                }
+
+                string specificDosage = ExtractDosageForSession(med.Instructions, sessionName.ToLower(), med.Dosage);
                 await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+
+                if (!modifiedScheduleIds.Contains(schedule.ScheduleId))
+                {
+                    modifiedScheduleIds.Add(schedule.ScheduleId);
+                }
             }
 
-            if (hasNoon)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("trưa"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi trưa", new TimeSpan(12, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "trưa", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
-
-            if (hasAfternoon)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("chiều"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi chiều", new TimeSpan(14, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "chiều", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
-
-            if (hasEvening)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("tối"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi tối", new TimeSpan(20, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "tối", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
+            // 5. Áp dụng cho từng buổi với khung giờ tương ứng
+            await ProcessSession(hasMorning, "sáng", new TimeSpan(8, 0, 0), 6, 11);
+            await ProcessSession(hasNoon, "trưa", new TimeSpan(12, 0, 0), 11, 15);
+            await ProcessSession(hasAfternoon, "chiều", new TimeSpan(16, 0, 0), 15, 18);
+            await ProcessSession(hasEvening, "tối", new TimeSpan(20, 0, 0), 18, 24);
 
             await _unitOfWork.CompleteAsync();
 
-            // ─── XÓA Reminders Pending cũ của các schedule bị ảnh hưởng ───
-            // Để tránh trùng lặp sau khi đổi số lượng/hướng dẫn thuốc
+            // 6. ─── XÓA Reminders Pending cũ của các schedule bị ảnh hưởng ───
             var staleReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId)
                                 && r.Status == "Pending"
@@ -685,7 +677,7 @@ namespace MediMateService.Services.Implementations
                 await _unitOfWork.CompleteAsync();
             }
 
-            // ─── TẠO reminders mới theo lịch mới ───
+            // 7. ─── TẠO reminders mới theo lịch mới ───
             var existingReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId) && r.ReminderDate >= now && r.ReminderDate <= endDate);
 
@@ -694,7 +686,7 @@ namespace MediMateService.Services.Implementations
             foreach (var sId in modifiedScheduleIds)
             {
                 var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(sId);
-                
+
                 for (var date = now.Date; date <= endDate.Date; date = date.AddDays(1))
                 {
                     var reminderTime = date.Add(schedule.TimeOfDay);
@@ -722,10 +714,31 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
+            // 8. ─── LÊN LỊCH HANGFIRE CHO NHẮC NHỞ MỚI ───
+            // Lấy setting để biết cần báo trước bao nhiêu phút
+            int advanceMinutes = 15;
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+                if (familySetting != null) advanceMinutes = familySetting.ReminderAdvanceMinutes;
+            }
+
             foreach (var reminder in newReminders)
             {
+                // Job 1: Báo trước AdvanceMinutes (ví dụ trước 15 phút)
+                var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+                if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                    new DateTimeOffset(pushTime)
+                );
+
+                // Job 2: Đánh dấu Missed và báo cho gia đình tại EndTime (hết hạn 2 tiếng)
+                _backgroundJobClient.Schedule<IReminderJobService>(
+                    job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
                     new DateTimeOffset(reminder.EndTime)
                 );
             }

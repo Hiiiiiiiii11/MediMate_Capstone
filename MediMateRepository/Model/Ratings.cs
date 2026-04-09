@@ -11,6 +11,7 @@ namespace MediMateRepository.Model
         public Guid MemberId { get; set; }
         public int Score { get; set; }
         public string Comment { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
         public virtual ConsultationSessions ConsultationSession { get; set; }
         public virtual Doctors Doctor { get; set; }
         public virtual Members Member { get; set; }

@@ -15,16 +15,49 @@ namespace MediMate.Controllers
     {
         private readonly IRatingService _ratingService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public RatingsController(IRatingService ratingService, ICurrentUserService currentUserService)
+        public RatingsController(IRatingService ratingService, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService)
         {
             _ratingService = ratingService;
             _currentUserService = currentUserService;
+            _uploadPhotoService = uploadPhotoService;
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRatings([FromQuery] RatingFilter filter)
+        {
+            try
+            {
+                var result = await _ratingService.GetRatingsAsync(filter);
+                
+                var response = new PagedResult<RatingResponse>
+                {
+                    TotalCount = result.TotalCount,
+                    PageNumber = result.PageNumber,
+                    PageSize = result.PageSize,
+                    Items = result.Items.Select(MapToResponse).ToList()
+                };
+
+                return Ok(ApiResponse<PagedResult<RatingResponse>>.Ok(response, "Lấy danh sách đánh giá thành công."));
+            }
+            catch (Exception ex)
+            {
+                return HandleException(ex);
+            }
         }
 
         [HttpPost("session/{sessionId}")]
-        public async Task<IActionResult> CreateRating(Guid sessionId, [FromBody] CreateRatingRequest request)
+        public async Task<IActionResult> CreateRating(Guid sessionId, [FromForm] CreateRatingRequest request)
         {
+            string? imageUrl = null;
+            if (request.Image != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.Image);
+                imageUrl = uploadResult.OriginalUrl;
+            }
+
             // Dùng trực tiếp _currentUserService.UserId
             var result = await _ratingService.CreateRatingAsync(
                 _currentUserService.UserId,
@@ -32,7 +65,8 @@ namespace MediMate.Controllers
                 new CreateRatingDto
                 {
                     Score = request.Score,
-                    Comment = request.Comment
+                    Comment = request.Comment,
+                    ImageUrl = imageUrl
                 });
 
             return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Đánh giá thành công."));
@@ -85,8 +119,10 @@ namespace MediMate.Controllers
                     RatingId = r.RatingId,
                     SessionId = r.SessionId,
                     MemberId = r.MemberId,
+                    MemberName = r.MemberName,
                     Score = r.Score,
                     Comment = r.Comment,
+                    ImageUrl = r.ImageUrl,
                     CreatedAt = r.CreatedAt
                 }).ToList();
 
@@ -98,8 +134,15 @@ namespace MediMate.Controllers
             }
         }
         [HttpPut("{ratingId}")]
-        public async Task<IActionResult> UpdateRating(Guid ratingId, [FromBody] CreateRatingRequest request)
+        public async Task<IActionResult> UpdateRating(Guid ratingId, [FromForm] CreateRatingRequest request)
         {
+            string? imageUrl = null;
+            if (request.Image != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.Image);
+                imageUrl = uploadResult.OriginalUrl;
+            }
+
             // Không cần truyền isDependent nữa vì Service sẽ dùng hàm CheckAccess
             var result = await _ratingService.UpdateRatingAsync(
                 _currentUserService.UserId,
@@ -107,7 +150,8 @@ namespace MediMate.Controllers
                 new CreateRatingDto
                 {
                     Score = request.Score,
-                    Comment = request.Comment
+                    Comment = request.Comment,
+                    ImageUrl = imageUrl
                 });
 
             return Ok(ApiResponse<RatingResponse>.Ok(MapToResponse(result), "Cập nhật thành công."));
@@ -129,8 +173,10 @@ namespace MediMate.Controllers
                 SessionId = dto.SessionId,
                 DoctorId = dto.DoctorId,
                 MemberId = dto.MemberId,
+                MemberName = dto.MemberName,
                 Score = dto.Score,
                 Comment = dto.Comment,
+                ImageUrl = dto.ImageUrl,
                 CreatedAt = dto.CreatedAt
             };
         }

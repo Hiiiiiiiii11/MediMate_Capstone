@@ -10,5 +10,6 @@ namespace MediMateService.Services
         Task<RatingDto> CreateRatingAsync(Guid callerId, Guid sessionId, CreateRatingDto request);
         Task<RatingDto> UpdateRatingAsync(Guid callerId, Guid ratingId, CreateRatingDto request);
         Task DeleteRatingAsync(Guid callerId, Guid ratingId);
+        Task<PagedResult<RatingDto>> GetRatingsAsync(RatingFilter filter);
     }
 }

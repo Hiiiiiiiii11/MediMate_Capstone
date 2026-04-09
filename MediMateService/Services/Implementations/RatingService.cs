@@ -3,6 +3,7 @@ using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
 using Share.Constants;
+using Microsoft.EntityFrameworkCore;
 
 namespace MediMateService.Services.Implementations
 {
@@ -83,6 +84,7 @@ namespace MediMateService.Services.Implementations
                 MemberId = session.MemberId, // Luôn gắn với bệnh nhân được khám
                 Score = request.Score,
                 Comment = request.Comment?.Trim() ?? string.Empty,
+                ImageUrl = request.ImageUrl,
                 CreatedAt = DateTime.Now
             };
 
@@ -147,6 +149,10 @@ namespace MediMateService.Services.Implementations
             // 4. Cập nhật dữ liệu
             rating.Score = request.Score;
             rating.Comment = request.Comment?.Trim() ?? string.Empty;
+            if (request.ImageUrl != null)
+            {
+                rating.ImageUrl = request.ImageUrl;
+            }
 
             await _ratingRepository.UpdateRatingAsync(rating);
 
@@ -181,6 +187,55 @@ namespace MediMateService.Services.Implementations
             await UpdateDoctorAverageRatingAsync(doctorId);
         }
 
+        public async Task<PagedResult<RatingDto>> GetRatingsAsync(RatingFilter filter)
+        {
+            filter ??= new RatingFilter();
+            if (filter.PageNumber <= 0) filter.PageNumber = 1;
+            if (filter.PageSize <= 0) filter.PageSize = 10;
+
+            var query = _unitOfWork.Repository<MediMateRepository.Model.Ratings>().GetQueryable()
+                .Include(r => r.Member)
+                .AsQueryable();
+
+            if (filter.DoctorId.HasValue)
+                query = query.Where(r => r.DoctorId == filter.DoctorId.Value);
+
+            if (filter.MemberId.HasValue)
+                query = query.Where(r => r.MemberId == filter.MemberId.Value);
+
+            if (filter.Score.HasValue)
+                query = query.Where(r => r.Score == filter.Score.Value);
+
+            if (filter.MinScore.HasValue)
+                query = query.Where(r => r.Score >= filter.MinScore.Value);
+
+            if (filter.MaxScore.HasValue)
+                query = query.Where(r => r.Score <= filter.MaxScore.Value);
+
+            var totalCount = query.Count();
+
+            query = (filter.SortBy ?? string.Empty).ToLower() switch
+            {
+                "score" => filter.IsDescending ? query.OrderByDescending(r => r.Score) : query.OrderBy(r => r.Score),
+                _ => filter.IsDescending ? query.OrderByDescending(r => r.CreatedAt) : query.OrderBy(r => r.CreatedAt)
+            };
+
+            var items = query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToList();
+
+            var result = new PagedResult<RatingDto>
+            {
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                Items = items.Select(MapToRatingDto).ToList()
+            };
+
+            return await Task.FromResult(result);
+        }
+
         private async Task UpdateDoctorAverageRatingAsync(Guid doctorId)
         {
             var doctor = await _doctorRepository.GetDoctorByIdAsync(doctorId);
@@ -200,8 +255,10 @@ namespace MediMateService.Services.Implementations
                 SessionId = rating.ConsultanSessionId,
                 DoctorId = rating.DoctorId,
                 MemberId = rating.MemberId,
+                MemberName = rating.Member?.FullName,
                 Score = rating.Score,
                 Comment = rating.Comment,
+                ImageUrl = rating.ImageUrl,
                 CreatedAt = rating.CreatedAt
             };
         }
@@ -213,8 +270,10 @@ namespace MediMateService.Services.Implementations
                 RatingId = rating.RatingId,
                 SessionId = rating.ConsultanSessionId,
                 MemberId = rating.MemberId,
+                MemberName = rating.Member?.FullName,
                 Score = rating.Score,
                 Comment = rating.Comment,
+                ImageUrl = rating.ImageUrl,
                 CreatedAt = rating.CreatedAt
             };
         }

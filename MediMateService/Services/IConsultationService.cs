@@ -1,10 +1,14 @@
 using MediMateService.DTOs;
+using System.Collections.Generic;
 
 namespace MediMateService.Services
 {
     public interface IConsultationService
     {
         Task<ConsultationSessionDto> GetByAppointmentIdAsync(Guid appointmentId, Guid userId);
+
+        /// <summary>Tất cả phiên tư vấn của bác sĩ đang đăng nhập (theo UserId → Doctor).</summary>
+        Task<IReadOnlyList<ConsultationSessionDto>> GetSessionsForCurrentDoctorAsync(Guid userId);
 
         /// <summary>User hoặc Doctor join session. Khi cả 2 join → tự động chuyển sang InProgress.</summary>
         Task<ConsultationSessionDto> JoinSessionAsync(Guid sessionId, Guid userId, string role);
@@ -16,7 +20,7 @@ namespace MediMateService.Services
         Task<ConsultationSessionDto> CancelNoShowAsync(Guid sessionId, Guid userId);
 
         /// <summary>Chỉ User (Member) mới được kết thúc phiên meet.</summary>
-        Task<ConsultationSessionDto> EndSessionByUserAsync(Guid sessionId, Guid userId);
+        Task<ConsultationSessionDto> EndSessionByUserAsync(Guid sessionId, Guid callerMemberId);
 
         Task<ConsultationSessionDto> AttachPrescriptionAsync(Guid sessionId, Guid userId, AttachPrescriptionDto request);
     }

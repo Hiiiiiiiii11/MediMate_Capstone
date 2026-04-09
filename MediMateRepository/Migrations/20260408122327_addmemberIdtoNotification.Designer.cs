@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408122327_addmemberIdtoNotification")]
+    partial class addmemberIdtoNotification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -246,12 +249,6 @@ namespace MediMateRepository.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<int>("UnreadCountDoctor")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UnreadCountMember")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("UserJoined")
                         .HasColumnType("boolean");
@@ -488,9 +485,6 @@ namespace MediMateRepository.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("DoctorBankAccountBankAccountId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -523,8 +517,6 @@ namespace MediMateRepository.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("DoctorId");
-
-                    b.HasIndex("DoctorBankAccountBankAccountId");
 
                     b.HasIndex("UserId");
 
@@ -1720,17 +1712,11 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.DoctorBankAccount", "DoctorBankAccount")
-                        .WithMany()
-                        .HasForeignKey("DoctorBankAccountBankAccountId");
-
                     b.HasOne("MediMateRepository.Model.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("DoctorBankAccount");
 
                     b.Navigation("User");
                 });

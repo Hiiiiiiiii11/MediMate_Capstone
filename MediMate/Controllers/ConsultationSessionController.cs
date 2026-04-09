@@ -28,6 +28,18 @@ namespace MediMate.Controllers
         }
 
         // ─────────────────────────────────────────────────────────
+        // GET: Tất cả phiên tư vấn của bác sĩ đang đăng nhập (JWT → Doctor)
+        // ─────────────────────────────────────────────────────────
+        [HttpGet("me")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<ConsultationSessionDto>>), 200)]
+        public async Task<IActionResult> GetMySessionsAsDoctor()
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _consultationService.GetSessionsForCurrentDoctorAsync(userId);
+            return Ok(ApiResponse<IEnumerable<ConsultationSessionDto>>.Ok(result, "Lấy danh sách phiên tư vấn thành công."));
+        }
+
+        // ─────────────────────────────────────────────────────────
         // GET: Lấy session theo appointmentId
         // ─────────────────────────────────────────────────────────
         [HttpGet("by-appointment/{appointmentId}")]

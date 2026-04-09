@@ -114,6 +114,7 @@ namespace MediMate
             builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddScoped<IAgoraService, AgoraService>();
             builder.Services.AddScoped<IMedicationLogService, MedicationLogService>();
+            builder.Services.AddScoped<IPrescriptionByDoctorService, PrescriptionByDoctorService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();
 

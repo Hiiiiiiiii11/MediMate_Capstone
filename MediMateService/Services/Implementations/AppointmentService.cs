@@ -150,6 +150,16 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+            // 9.1. GỬI THÔNG BÁO CHO MEMBER QUA MEMBER ID
+            await _notificationService.SendNotificationAsync(
+                userId: null,
+                title: "📅 Lịch khám mới cho bạn!",
+                message: $"{placerName} đã đặt lịch khám cho bạn với bác sĩ {doctorName} vào lúc {timeStr} ngày {dateStr}.",
+                type: AppointmentActionTypes.NEW_APPOINTMENT,
+                referenceId: appointment.AppointmentId,
+                memberId: member.MemberId
+            );
+
             // 10. GHI NHẬT KÝ HOẠT ĐỘNG (Activity Log)
             await _activityLogService.LogActivityAsync(
                 familyId: member.FamilyId.Value,

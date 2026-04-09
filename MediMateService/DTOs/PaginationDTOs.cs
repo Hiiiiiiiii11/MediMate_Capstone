@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -49,5 +49,18 @@ namespace MediMateService.DTOs
         public string OcrRawData { get; set; } = string.Empty;
         public bool IsProcessed { get; set; }
         public DateTime UploadedAt { get; set; }
+    }
+
+    public class RatingFilter
+    {
+        public Guid? DoctorId { get; set; }
+        public Guid? MemberId { get; set; }
+        public int? Score { get; set; }
+        public int? MinScore { get; set; }
+        public int? MaxScore { get; set; }
+        public string? SortBy { get; set; }
+        public bool IsDescending { get; set; } = true;
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
     }
 }

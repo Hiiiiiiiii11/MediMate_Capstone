@@ -82,7 +82,7 @@ namespace MediMateService.Services.Implementations
                 }
                 if (memberId.HasValue)
                 {
-                    await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
+                    await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
                 }
 
                 return ApiResponse<bool>.Ok(true, "Gửi thông báo thành công.");
@@ -139,7 +139,7 @@ namespace MediMateService.Services.Implementations
 
                 // SignalR Push Update
                 if (userId.HasValue) await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotificationUpdate");
-                if (memberId.HasValue) await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
+                if (memberId.HasValue) await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc.");
@@ -165,7 +165,7 @@ namespace MediMateService.Services.Implementations
 
                 // SignalR Push Update
                 if (userId.HasValue) await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotificationUpdate");
-                if (memberId.HasValue) await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
+                if (memberId.HasValue) await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc tất cả.");

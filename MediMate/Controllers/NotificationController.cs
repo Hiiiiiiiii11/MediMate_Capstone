@@ -35,6 +35,8 @@ namespace MediMate.Controllers
             return Ok(result);
         }
 
+
+
         // 2. Đánh dấu 1 thông báo là đã đọc
         [HttpPut("{notificationId}/read")]
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
@@ -55,6 +57,33 @@ namespace MediMate.Controllers
             var userId = _currentUserService.UserId;
             var result = await _notificationService.MarkAllAsReadAsync(userId);
 
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+
+        [HttpGet("member/{memberId}")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<NotificationDto>>), 200)]
+        public async Task<IActionResult> GetMemberNotifications(Guid memberId)
+        {
+            // Ép cứng truyền vào tham số memberId, tham số userId = null
+            var result = await _notificationService.GetUserNotificationsAsync(userId: null, memberId: memberId);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+        [HttpPut("member/{memberId}/{notificationId}/read")]
+        public async Task<IActionResult> MarkMemberAsRead(Guid memberId, Guid notificationId)
+        {
+            var result = await _notificationService.MarkAsReadAsync(notificationId, userId: null, memberId: memberId);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+
+        [HttpPut("member/{memberId}/read-all")]
+        public async Task<IActionResult> MarkAllMemberAsRead(Guid memberId)
+        {
+            var result = await _notificationService.MarkAllAsReadAsync(userId: null, memberId: memberId);
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
         }

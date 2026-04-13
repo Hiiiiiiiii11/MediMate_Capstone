@@ -60,14 +60,26 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<ChatDoctorMessageResponse>> SendMessageAsync(Guid sessionId, Guid currentUserId, SendChatDoctorRequest request, bool isDoctorRequest)
         {
             var session = await _unitOfWork.Repository<ConsultationSessions>()
-         .GetQueryable()
-         .Include(s => s.Doctor)
-         .Include(s => s.Member)
-         .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
+                 .GetQueryable()
+                 .Include(s => s.Doctor)
+                 .Include(s => s.Member)
+                 .FirstOrDefaultAsync(s => s.ConsultanSessionId == sessionId);
 
             if (session == null) return ApiResponse<ChatDoctorMessageResponse>.Fail("Phiên tư vấn không tồn tại.", 404);
 
-            // Kiểm tra quyền (Hàm Validate bây giờ ko gọi DB Doctor nữa nên ko lỗi)
+
+            var chatEndTime = session.StartedAt.AddMinutes(125);
+
+            // Tùy chọn: Nếu bạn muốn chặn không cho chat TRƯỚC giờ bắt đầu, có thể mở comment dòng dưới:
+            // if (DateTime.Now < session.StartedAt) 
+            //     return ApiResponse<ChatDoctorMessageResponse>.Fail($"Phòng chat chưa mở. Bạn có thể nhắn tin từ {session.StartedAt:HH:mm}.", 403);
+
+            if (DateTime.Now > chatEndTime)
+            {
+                return ApiResponse<ChatDoctorMessageResponse>.Fail($"Phòng chat đã đóng. Thời gian cho phép nhắn tin đã kết thúc vào lúc {chatEndTime:HH:mm}.", 403);
+            }
+
+            // Kiểm tra quyền 
             if (!await ValidateAccessAsync(session, currentUserId, isDoctorRequest))
                 return ApiResponse<ChatDoctorMessageResponse>.Fail("Access Denied", 403);
 
@@ -87,18 +99,18 @@ namespace MediMateService.Services.Implementations
                 SendAt = DateTime.Now
             };
 
+            // Cập nhật bộ đếm
             if (isDoctorRequest) session.UnreadCountMember += 1;
             else session.UnreadCountDoctor += 1;
 
             await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(message);
             await _unitOfWork.CompleteAsync();
 
-            // Thông báo và SignalR (Giữ nguyên logic của bạn)
+            // Thông báo và SignalR
             Guid receiverUserId = isDoctorRequest ? (session.Member?.UserId ?? Guid.Empty) : session.Doctor.UserId;
             string senderName = isDoctorRequest ? (session.Doctor?.FullName ?? "Bác sĩ") : (session.Member?.FullName ?? "Bệnh nhân");
 
             await _notificationService.SendNotificationAsync(receiverUserId, $"💬 {senderName}", request.Content ?? "[Hình ảnh]", ChatActionTypes.NEW_CHAT_MESSAGE, sessionId);
-
 
             var responseData = MapToResponse(message, session);
             await _hubContext.Clients.Group($"User_{receiverUserId}").SendAsync("ReceiveMessage", responseData);

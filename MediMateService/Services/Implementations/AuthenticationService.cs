@@ -1,6 +1,8 @@
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using MediMateService.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -18,20 +20,20 @@ namespace MediMateService.Services.Implementations
         private readonly IAuthenticationRepository _authRepo;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly IMemoryCache _memoryCache;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
         private static readonly HashSet<string> RemainingRoles = new(StringComparer.OrdinalIgnoreCase)
         {
             "Admin", "Doctor", "Staff", "DoctorManager"
         };
 
-        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService,IMemoryCache memoryCache)
+        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _authRepo = authRepo;
             _configuration = configuration;
             _emailService = emailService;
-            _memoryCache = memoryCache;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request)
@@ -171,6 +173,8 @@ namespace MediMateService.Services.Implementations
             if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.Now)
                 return ApiResponse<AutheticationResponse>.Fail("Mã QR đã hết hạn.", 401);
 
+            await _hubContext.Clients.Group($"User_{member.MemberId}").SendAsync("ForceLogout", new { message = "Tài khoản của bạn đã được đăng nhập trên một thiết bị khác." });
+
             // 3. Xóa SyncToken, cập nhật FcmToken
             member.SyncToken = null;
             member.SyncTokenExpireAt = null;
@@ -236,6 +240,8 @@ namespace MediMateService.Services.Implementations
 
             if (!string.Equals(user.Role, "User", StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
+
+            await _hubContext.Clients.Group($"User_{user.UserId}").SendAsync("ForceLogout", new { message = "Tài khoản của bạn đã được đăng nhập trên một thiết bị khác." });
 
             // 1. Tạo JWT Token MỚI
             var token = GenerateJwtToken(user, "user");

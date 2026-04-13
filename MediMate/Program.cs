@@ -356,7 +356,7 @@ namespace MediMate
                 });
             var app = builder.Build();
             app.UseMiddleware<GlobalExceptionMiddleware>();
-            app.UseMiddleware<SessionMiddleware>();
+
             app.UseHangfireDashboard("/hangfire");
             app.UseForwardedHeaders();
 
@@ -367,6 +367,7 @@ namespace MediMate
             app.UseHttpsRedirection();
             app.UseCors("MediMatePolicy");
             app.UseAuthentication();
+            app.UseMiddleware<SessionMiddleware>();
             app.UseAuthorization();
 
             app.MapHub<MediMateHub>("/hub/medimate");

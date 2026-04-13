@@ -248,7 +248,8 @@ namespace MediMateService.Services.Implementations
                 LastMessage = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.Content,
                 LastMessageTime = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.SendAt,
                 // LẤY TRỰC TIẾP TỪ CỘT UNREAD CỦA DOCTOR
-                UnreadCount = s.UnreadCountDoctor
+                UnreadCount = s.UnreadCountDoctor,
+                ExpiredAt = s.EndedAt.HasValue ? s.EndedAt.Value.AddHours(1) : null              
             })
             .OrderByDescending(x => x.LastMessageTime)
             .ToList();

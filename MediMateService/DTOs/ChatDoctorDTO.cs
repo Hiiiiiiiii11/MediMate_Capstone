@@ -43,6 +43,7 @@ namespace MediMateService.DTOs
         // Nội dung tin nhắn cuối cùng (để hiển thị rút gọn ở danh sách)
         public string? LastMessage { get; set; }
         public DateTime? LastMessageTime { get; set; }
+        public DateTime? ExpiredAt { get; set; }
 
         // Số tin nhắn chưa đọc trong cái phòng chat này
         public int UnreadCount { get; set; }

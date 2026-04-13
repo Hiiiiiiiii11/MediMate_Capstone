@@ -29,6 +29,7 @@ namespace MediMateRepository.Model
         public string? Role { get; set; } = Roles.User;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public string? FcmToken { get; set; } = string.Empty;
+        public string? CurrentSessionToken { get; set; }
         public int? VerifyCode { get; set; }
         public DateTime? ExpiriedAt { get; set; }
         public DateTime? LastSeenAt { get; set; }

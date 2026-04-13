@@ -160,6 +160,17 @@ namespace MediMateService.Services.Implementations
                 memberId: member.MemberId
             );
 
+            if (orderPlacer != null)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: userId, // Bắn thẳng vào userId của người đặt
+                    title: "✅ Đặt lịch thành công!",
+                    message: $"Bạn đã đặt lịch khám cho {patientName} với bác sĩ {doctorName} vào lúc {timeStr} ngày {dateStr}. Vui lòng chờ bác sĩ xác nhận.",
+                    type: AppointmentActionTypes.NEW_APPOINTMENT,
+                    referenceId: appointment.AppointmentId
+                );
+            }
+
             // 10. GHI NHẬT KÝ HOẠT ĐỘNG (Activity Log)
             await _activityLogService.LogActivityAsync(
                 familyId: member.FamilyId.Value,
@@ -184,12 +195,21 @@ namespace MediMateService.Services.Implementations
             );
 
             // SignalR Update
-            if (doctor.User != null) {
-                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new {
+            if (doctor.User != null)
+            {
+                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new
+                {
                     appointmentId = appointment.AppointmentId,
                     status = appointment.Status
                 });
             }
+            // Cập nhật cho người cầm máy thao tác đặt lịch (User Chủ hộ)
+            await _hubContext.Clients.Group($"User_{userId}").SendAsync("AppointmentStatusUpdated", new
+            {
+                appointmentId = appointment.AppointmentId,
+                status = appointment.Status
+            });
+
             await _hubContext.Clients.Group($"User_{userId}").SendAsync("AppointmentStatusUpdated", new {
                 appointmentId = appointment.AppointmentId,
                 status = appointment.Status

@@ -211,10 +211,7 @@ namespace MediMateService.Services.Implementations
             var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
             var isUserOwner = member?.UserId == userId;
 
-            if (!isDoctorOwner && !isUserOwner)
-            {
-                throw new ForbiddenException("Bạn không có quyền hủy lịch hẹn này.");
-            }
+
 
             if (appointment.Status == AppointmentConstants.CANCELLED)
             {

@@ -15,14 +15,16 @@ namespace MediMateService.Services.Implementations
         private readonly IUploadPhotoService _uploadPhotoService;
         private readonly IActivityLogService _activityLogService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IDrugInteractionService _drugInteractionService;
 
-        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient)
+        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient, IDrugInteractionService drugInteractionService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _uploadPhotoService = uploadPhotoService;
             _activityLogService = activityLogService;
             _backgroundJobClient = backgroundJobClient;
+            _drugInteractionService = drugInteractionService;
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
@@ -390,6 +392,21 @@ namespace MediMateService.Services.Implementations
 
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
                 return ApiResponse<PrescriptionMedicineResponse>.Fail("Không có quyền thực hiện.", 403);
+
+            // ─── CHECK TƯƠNG TÁC THUỐC (Phase 2) ───
+            var interactionResult = await _drugInteractionService.CheckInteractionAsync(
+                prescription.MemberId,
+                new[] { request.MedicineName }
+            );
+
+            if (interactionResult.HasInteraction)
+            {
+                // Trả 409 Conflict kèm danh sách tương tác để FE hiển thị popup cảnh báo
+                return ApiResponse<PrescriptionMedicineResponse>.Fail(
+                    $"Phát hiện tương tác thuốc: {request.MedicineName} có thể tương tác với {string.Join(", ", interactionResult.Conflicts.Select(c => c.ConflictingDrugName))}. Vui lòng tham khảo ý kiến bác sĩ.",
+                    409
+                );
+            }
 
             var newMedicine = new PrescriptionMedicines
             {

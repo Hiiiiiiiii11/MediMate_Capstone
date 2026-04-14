@@ -49,6 +49,7 @@ namespace MediMateRepository.Data
         public DbSet<RagBaseDocument> RagBaseDocuments { get; set; }     // THÊM MỚI
         public DbSet<RagBaseEmbedding> RagBaseEmbeddings { get; set; }
         public DbSet<Notifications> Notifications { get; set; }
+        public DbSet<Versions> Versions { get; set; }
 
 
 
@@ -98,6 +99,7 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<RagBaseDocument>().HasKey(rd => rd.RagDocumentId);
             modelBuilder.Entity<RagBaseEmbedding>().HasKey(re => re.EmbeddingId);
             modelBuilder.Entity<Notifications>().HasKey(re => re.NotificationId);
+            modelBuilder.Entity<Versions>().HasKey(v => v.VersionId);
 
 
 

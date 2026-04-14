@@ -117,6 +117,7 @@ namespace MediMate
             builder.Services.AddScoped<IPrescriptionByDoctorService, PrescriptionByDoctorService>();
             builder.Services.AddScoped<IDrugDataService, DrugDataService>();
             builder.Services.AddScoped<IDrugInteractionService, DrugInteractionService>();
+            builder.Services.AddScoped<IMedicationStatusJobService, MedicationStatusJobService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();
 
@@ -372,6 +373,13 @@ namespace MediMate
 
             app.MapHub<MediMateHub>("/hub/medimate");
             app.MapControllers();
+
+            // ─── Hangfire Recurring Jobs ───
+            RecurringJob.AddOrUpdate<IMedicationStatusJobService>(
+                "check-expired-medication-status",
+                job => job.CheckAndUpdateExpiredStatusAsync(),
+                Cron.Daily(0, 0) // Chạy lúc 00:00 (nửa đêm) mỗi ngày
+            );
             using (var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<MediMateDbContext>();

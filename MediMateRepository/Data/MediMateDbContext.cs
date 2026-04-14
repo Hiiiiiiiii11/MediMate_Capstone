@@ -50,6 +50,8 @@ namespace MediMateRepository.Data
         public DbSet<RagBaseEmbedding> RagBaseEmbeddings { get; set; }
         public DbSet<Notifications> Notifications { get; set; }
 
+        public DbSet<Drug> Drugs { get; set; }
+        public DbSet<DrugInteraction> DrugInteractions { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -99,7 +101,8 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<RagBaseEmbedding>().HasKey(re => re.EmbeddingId);
             modelBuilder.Entity<Notifications>().HasKey(re => re.NotificationId);
 
-
+            modelBuilder.Entity<Drug>().HasKey(d => d.DrugId);
+            modelBuilder.Entity<DrugInteraction>().HasKey(di => di.InteractionId);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
@@ -438,6 +441,13 @@ namespace MediMateRepository.Data
                 .HasOne(re => re.RagBaseDocument)
                 .WithMany() // Tương tự, nếu Document có list Embeddings thì map vào
                 .HasForeignKey(re => re.RagDocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Drug - DrugInteractions
+            modelBuilder.Entity<DrugInteraction>()
+                .HasOne(di => di.Drug)
+                .WithMany(d => d.DrugInteractions)
+                .HasForeignKey(di => di.DrugId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
 

@@ -267,6 +267,16 @@ namespace MediMateService.Services.Implementations
                 );
             }
 
+            // Bắn trực tiếp cho thiết bị của chính bệnh nhân
+            await _notificationService.SendNotificationAsync(
+                userId: null,
+                title: "⏰ Sắp đến giờ khám!",
+                message: $"Bạn có lịch khám online với Bác sĩ {doctor.FullName} vào lúc {timeString} (15 phút nữa). Vui lòng chuẩn bị!",
+                type: "UPCOMING_APPOINTMENT",
+                referenceId: appointment.AppointmentId,
+                memberId: member.MemberId
+            );
+
             await _notificationService.SendNotificationAsync(
                 userId: doctor.UserId,
                 title: "⏰ Sắp đến giờ làm việc!",
@@ -351,6 +361,16 @@ namespace MediMateService.Services.Implementations
                     referenceId: session.ConsultanSessionId
                 );
             }
+
+            // Gửi trực tiếp cho thiết bị của Bệnh nhân (đề phòng app bệnh nhân ở máy khác)
+            await _notificationService.SendNotificationAsync(
+                userId: null,
+                title: "🔔 Phòng khám đã mở!",
+                message: $"Phiên tư vấn với Bác sĩ {doctor.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
+                type: ConsultationSessionActionTypes.SESSION_STARTED,
+                referenceId: session.ConsultanSessionId,
+                memberId: member.MemberId
+            );
 
             // ── Thông báo Guardian ─────────────────────────────────────────
             if (guardianUserId.HasValue)
@@ -520,15 +540,27 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
-            // 5. Gửi thông báo cho Bệnh nhân
+            // 5. Gửi thông báo cho Bệnh nhân và Chủ hộ
             if (member != null)
             {
+                if (member.UserId.HasValue)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: member.UserId.Value,
+                        title: "⏳ Lịch khám đã bị hủy tự động",
+                        message: $"Bác sĩ hiện không có mặt để phản hồi lịch khám lúc {appointment.AppointmentTime:hh\\:mm}. Lượt khám đã được hoàn trả, bạn vui lòng đặt bác sĩ khác nhé.",
+                        type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                        referenceId: appointment.AppointmentId
+                    );
+                }
+
                 await _notificationService.SendNotificationAsync(
-                    userId: member.UserId ?? Guid.Empty,
+                    userId: null,
                     title: "⏳ Lịch khám đã bị hủy tự động",
-                    message: $"Bác sĩ hiện không có mặt để phản hồi lịch khám lúc {appointment.AppointmentTime:hh\\:mm}. Lượt khám đã được hoàn trả, bạn vui lòng đặt bác sĩ khác nhé.",
+                    message: $"Bác sĩ hiện không có mặt để phản hồi lịch khám lúc {appointment.AppointmentTime:hh\\:mm}. Lịch này đã tự động hủy.",
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
-                    referenceId: appointment.AppointmentId
+                    referenceId: appointment.AppointmentId,
+                    memberId: member.MemberId
                 );
             }
 

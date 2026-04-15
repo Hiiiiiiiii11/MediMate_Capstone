@@ -119,6 +119,33 @@ namespace MediMateService.Services.Implementations
                 if (doctor == null || doctor.UserId != userId)
                     throw new ForbiddenException("Bạn không phải bác sĩ phụ trách phiên này.");
 
+                // Nếu là lần đầu tiên bác sĩ join, và bệnh nhân chưa có trong đó -> gửi thông báo
+                if (!session.DoctorJoined && !session.UserJoined)
+                {
+                    var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
+                    if (member != null)
+                    {
+                        if (member.UserId.HasValue)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId: member.UserId.Value,
+                                title: "👨‍⚕️ Bác sĩ đã vào phòng!",
+                                message: "Bác sĩ đang đợi tư vấn trực tuyến cho bạn. Hãy tham gia ngay nhé!",
+                                type: ConsultationSessionActionTypes.SESSION_STARTED,
+                                referenceId: session.ConsultanSessionId
+                            );
+                        }
+                        await _notificationService.SendNotificationAsync(
+                            userId: null,
+                            title: "👨‍⚕️ Bác sĩ đã vào phòng!",
+                            message: "Bác sĩ đang đợi tư vấn trực tuyến cho bạn. Hãy tham gia ngay nhé!",
+                            type: ConsultationSessionActionTypes.SESSION_STARTED,
+                            referenceId: session.ConsultanSessionId,
+                            memberId: member.MemberId
+                        );
+                    }
+                }
+
                 session.DoctorJoined = true;
             }
             else if (normalizedRole == "user")
@@ -126,6 +153,22 @@ namespace MediMateService.Services.Implementations
                 var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
                 if (member == null || member.UserId != userId)
                     throw new ForbiddenException("Bạn không phải bệnh nhân của phiên này.");
+
+                // Nếu là lần đầu tiên bệnh nhân join, và bác sĩ chưa có trong đó -> gửi thông báo
+                if (!session.UserJoined && !session.DoctorJoined)
+                {
+                    var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+                    if (doctor != null)
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            userId: doctor.UserId,
+                            title: "🙋‍♂️ Bệnh nhân đã có mặt!",
+                            message: $"Bệnh nhân {member.FullName} đã tham gia phòng chờ tư vấn. Vui lòng tham gia để bắt đầu.",
+                            type: ConsultationSessionActionTypes.SESSION_STARTED,
+                            referenceId: session.ConsultanSessionId
+                        );
+                    }
+                }
 
                 session.UserJoined = true;
             }
@@ -135,7 +178,7 @@ namespace MediMateService.Services.Implementations
             }
 
             // Event-driven: Tự động chuyển sang InProgress khi cả 2 bên đã join
-            if (session.UserJoined && session.DoctorJoined)
+            if (session.UserJoined && session.DoctorJoined && session.Status != ConsultationSessionConstants.IN_PROGRESS)
             {
                 session.Status = ConsultationSessionConstants.IN_PROGRESS;
 
@@ -143,14 +186,26 @@ namespace MediMateService.Services.Implementations
                 var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
                 var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
 
-                if (member?.UserId != null)
+                if (member != null)
                 {
+                    if (member.UserId.HasValue)
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            userId: member.UserId.Value,
+                            title: "📞 Phiên tư vấn đã bắt đầu!",
+                            message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
+                            type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
+                            referenceId: session.ConsultanSessionId
+                        );
+                    }
+
                     await _notificationService.SendNotificationAsync(
-                        userId: member.UserId.Value,
+                        userId: null,
                         title: "📞 Phiên tư vấn đã bắt đầu!",
-                        message: "Bác sĩ đã tham gia. Cuộc tư vấn đang diễn ra.",
+                        message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                         type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
-                        referenceId: session.ConsultanSessionId
+                        referenceId: session.ConsultanSessionId,
+                        memberId: member.MemberId
                     );
                 }
 
@@ -159,7 +214,7 @@ namespace MediMateService.Services.Implementations
                     await _notificationService.SendNotificationAsync(
                         userId: doctor.UserId,
                         title: "📞 Phiên tư vấn đã bắt đầu!",
-                        message: "Bệnh nhân đã tham gia. Cuộc tư vấn đang diễn ra.",
+                        message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                         type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
                         referenceId: session.ConsultanSessionId
                     );

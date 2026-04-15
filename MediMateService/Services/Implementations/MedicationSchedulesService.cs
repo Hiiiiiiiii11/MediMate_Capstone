@@ -146,7 +146,7 @@ namespace MediMateService.Services.Implementations
 
             // Re-schedule Hangfire Job để đẩy thông báo tiếp theo
             _backgroundJobClient.Schedule<IReminderJobService>(
-                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                 new DateTimeOffset(nextPushTime)
             );
 
@@ -223,7 +223,7 @@ namespace MediMateService.Services.Implementations
 
                     // Re-schedule jobs mới. 
                     _backgroundJobClient.Schedule<IReminderJobService>(
-                        job => job.NotifyReminderTimeAsync(r.ReminderId),
+                        job => job.NotifyReminderTimeAsync(r.ReminderId, 1),
                         new DateTimeOffset(pushTime)
                     );
                     _backgroundJobClient.Schedule<IReminderJobService>(
@@ -303,7 +303,7 @@ namespace MediMateService.Services.Implementations
                             if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
 
                             _backgroundJobClient.Schedule<IReminderJobService>(
-                                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                                job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                                 new DateTimeOffset(pushTime) // Báo trước AdvanceMinutes
                             );
                             _backgroundJobClient.Schedule<IReminderJobService>(
@@ -604,7 +604,7 @@ namespace MediMateService.Services.Implementations
                 if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
 
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                     new DateTimeOffset(pushTime) // Báo trước Advance Minutes
                 );
 
@@ -677,7 +677,7 @@ namespace MediMateService.Services.Implementations
 
                     // Re-schedule Hangfire
                     _backgroundJobClient.Schedule<IReminderJobService>(
-                        job => job.NotifyReminderTimeAsync(r.ReminderId),
+                        job => job.NotifyReminderTimeAsync(r.ReminderId, 1),
                         new DateTimeOffset(pushTime)
                     );
                     _backgroundJobClient.Schedule<IReminderJobService>(

@@ -90,8 +90,15 @@ namespace MediMateService.Services.Implementations
                     ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
                     : "Thuốc theo lịch";
 
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
+
                 // Đã sửa cách gọi hàm Map (gọi như hàm bình thường)
-                var responseDto = MapToResponse(log, medicineName);
+                var responseDto = MapToResponse(log, medicineName, member.FullName, medicinesList);
 
                 // SignalR Update: Broadcast cho toàn gia đình
                 if (member.FamilyId.HasValue) 
@@ -147,8 +154,15 @@ namespace MediMateService.Services.Implementations
                     ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
                     : "Không xác định";
 
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
+
                 // Đã sửa cách gọi hàm Map
-                responseList.Add(MapToResponse(log, medicineName));
+                responseList.Add(MapToResponse(log, medicineName, "", medicinesList));
             }
 
             return ApiResponse<IEnumerable<MedicationLogResponse>>.Ok(responseList);
@@ -230,18 +244,25 @@ namespace MediMateService.Services.Implementations
                     ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
                     : "Không xác định";
 
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
+
                 // Lấy tên thành viên từ Dictionary đã tạo ở trên
                 string memberName = memberDict.ContainsKey(log.MemberId) ? memberDict[log.MemberId] : "Không xác định";
 
                 // Sử dụng hàm Map đã cập nhật
-                responseList.Add(MapToResponse(log, medicineName, memberName));
+                responseList.Add(MapToResponse(log, medicineName, memberName, medicinesList));
             }
 
             return ApiResponse<IEnumerable<MedicationLogResponse>>.Ok(responseList, "Lấy danh sách thành công.");
         }
 
         // --- 4. HÀM MAP NỘI BỘ (Đã bỏ chữ "this") ---
-        private MedicationLogResponse MapToResponse(MedicationLogs log, string medicineName,string memberName = "")
+        private MedicationLogResponse MapToResponse(MedicationLogs log, string medicineName, string memberName = "", List<LogMedicineDetail> medicines = null)
         {
             if (log == null) return null;
 
@@ -253,6 +274,7 @@ namespace MediMateService.Services.Implementations
                 ReminderId = log.ReminderId,
                 MedicineName = medicineName,
                 MemberName = memberName,
+                Medicines = medicines ?? new List<LogMedicineDetail>(),
                 LogDate = log.LogDate,
                 ScheduledTime = log.ScheduledTime,
                 ActualTime = log.ActualTime,

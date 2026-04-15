@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -21,6 +21,13 @@ namespace MediMateService.DTOs
         public string? Notes { get; set; } // VD: "Uống thuốc hơi buồn nôn", "Quên mang thuốc đi làm"
     }
 
+    public class LogMedicineDetail
+    {
+        public string MedicineName { get; set; } = string.Empty;
+        public string Dosage { get; set; } = string.Empty;
+        public string Instructions { get; set; } = string.Empty;
+    }
+
     public class MedicationLogResponse
     {
         public Guid LogId { get; set; }
@@ -28,6 +35,8 @@ namespace MediMateService.DTOs
         public Guid ScheduleId { get; set; }
         public Guid ReminderId { get; set; }
         public string MedicineName { get; set; } = string.Empty;
+        
+        public List<LogMedicineDetail> Medicines { get; set; } = new();
 
         // MỚI: Thêm trường này để hiển thị tên người uống trên UI
         public string MemberName { get; set; } = string.Empty;

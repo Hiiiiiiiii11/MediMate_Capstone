@@ -22,10 +22,10 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<HealthProfileResponse>> GetHealthProfileAsync(Guid memberId, Guid userId)
         {
             // 1. Validate quyền truy cập (Check xem User có quyền xem Member này không)
-            if (!await _currentUserService.CheckAccess(memberId, userId))
-            {
-                return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
-            }
+            //if (!await _currentUserService.CheckAccess(memberId, userId))
+            //{
+            //    return ApiResponse<HealthProfileResponse>.Fail("Không có quyền truy cập.", 403);
+            //}
 
             // 2. Lấy Profile (Include Conditions)
             // Lưu ý: GenericRepository cần hỗ trợ Include. Nếu chưa, dùng code thuần hoặc thêm param include

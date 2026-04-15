@@ -764,7 +764,7 @@ namespace MediMateService.Services.Implementations
                 if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
 
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                     new DateTimeOffset(pushTime)
                 );
 

@@ -33,7 +33,7 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────────────────────────
         // CHECK & NOTIFY: TỚI GIỜ UỐNG THUỐC
         // ─────────────────────────────────────────────────────────────────
-        public async Task NotifyReminderTimeAsync(Guid reminderId)
+        public async Task NotifyReminderTimeAsync(Guid reminderId, int attempt = 1)
         {
             var reminder = (await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.ReminderId == reminderId,
@@ -69,17 +69,40 @@ namespace MediMateService.Services.Implementations
                 ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc"))
                 : "Thuốc theo lịch";
 
-            string title = "⚠️ Nhắc nhở uống thuốc!";
-            string bodyMember = $"Đã đến giờ uống {medicineNames} (Lịch: {reminder.Schedule.ScheduleName}). Hãy uống thuốc và xác nhận trên app nhé!";
-            string bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
+            // LOGIC TEXT DỰA TRÊN ATTEMPT VÀ THỜI GIAN
+            string title;
+            string bodyMember;
+            string bodyFamily;
+
+            var nextPushTime = DateTime.Now.AddMinutes(15);
+            bool isLastWarning = nextPushTime >= reminder.EndTime || attempt >= 3;
+
+            if (attempt == 1 && DateTime.Now < reminder.ReminderTime.AddMinutes(-2))
+            {
+                title = "⏰ Sắp đến giờ uống thuốc!";
+                bodyMember = $"Sắp tới bạn có lịch uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}. Hãy chuẩn bị nhé!";
+                bodyFamily = $"{targetMember.FullName} sắp có lịch uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}.";
+            }
+            else if (isLastWarning)
+            {
+                title = "🚨 CẢNH BÁO TRỄ GIỜ UỐNG THUỐC!";
+                bodyMember = $"Bạn đã trễ giờ uống {medicineNames} (lịch {reminder.ReminderTime:HH\\:mm}). Nhắc nhở lần cuối, hãy uống uống thuốc để đảm bảo sức khỏe!";
+                bodyFamily = $"CẢNH BÁO: {targetMember.FullName} chưa uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}! Nhắc nhở lần cuối!";
+            }
+            else
+            {
+                title = "⚠️ Đã đến giờ uống thuốc!";
+                bodyMember = $"Đã đến giờ uống {medicineNames}. Hãy uống thuốc và xác nhận trên app nhé!";
+                bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
+            }
             
-            // Lấy AutoSnooze từ cấu hình
-            bool isAutoSnooze = false;
+            // Lấy AutoSnooze từ cấu hình (MẶC ĐỊNH TRUE THEO YÊU CẦU)
+            bool isAutoSnooze = true;
             try {
                 if (!string.IsNullOrEmpty(familySetting?.CustomSetting)) {
                     var customObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(familySetting.CustomSetting);
                     if (customObj != null && customObj.ContainsKey("autoSnooze")) {
-                        isAutoSnooze = customObj["autoSnooze"]?.GetValue<bool>() ?? false;
+                        isAutoSnooze = customObj["autoSnooze"]?.GetValue<bool>() ?? true;
                     }
                 }
             } catch (Exception) { }
@@ -126,14 +149,13 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<MedicationReminders>().Update(reminder);
             await _unitOfWork.CompleteAsync();
 
-            // Lặp lại chu kỳ báo thức (Auto-Snooze) 15 phút một lần cho đến khi đạt EndTime
-            if (isAutoSnooze)
+            // Lặp lại chu kỳ báo thức (Auto-Snooze) 15 phút một lần cho đến khi đạt EndTime (Hoặc quá số lần)
+            if (isAutoSnooze && !isLastWarning)
             {
-                var nextPushTime = DateTime.Now.AddMinutes(15);
                 if (nextPushTime < reminder.EndTime)
                 {
                     _backgroundJobClient.Schedule<IReminderJobService>(
-                        job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                        job => job.NotifyReminderTimeAsync(reminder.ReminderId, attempt + 1),
                         new DateTimeOffset(nextPushTime)
                     );
                 }

@@ -284,6 +284,40 @@ namespace MediMateService.Services.Implementations
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId
                 );
+
+                // 2. Bệnh nhân hủy -> Thông báo lại cho chính họ (tài khoản Member - Patient) để đồng bộ app
+                await _notificationService.SendNotificationAsync(
+                    userId: null,
+                    title: "❌ Lịch khám đã bị hủy",
+                    message: $"Lịch khám của bạn với bác sĩ {doctor.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy thành công.",
+                    type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                    referenceId: appointment.AppointmentId,
+                    memberId: appointment.MemberId
+                );
+            }
+            else if (isDoctorOwner && member != null)
+            {
+                // 1. Bác sĩ tự hủy -> Gửi cho User đặt
+                if (member.UserId.HasValue)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: member.UserId.Value,
+                        title: "❌ Bác sĩ đã hủy lịch khám",
+                        message: $"Bác sĩ {doctor?.User?.FullName ?? "vô danh"} đã hủy lịch khám của bệnh nhân {member.FullName} lúc {timeString} ngày {dateString}. Lý do: {reasonStr}.",
+                        type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                        referenceId: appointment.AppointmentId
+                    );
+                }
+
+                // 2. Bác sĩ tự hủy -> Gửi cho Bệnh nhân
+                await _notificationService.SendNotificationAsync(
+                    userId: null,
+                    title: "❌ Bác sĩ đã hủy lịch khám",
+                    message: $"Lịch khám của bạn với bác sĩ {doctor?.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy. Lý do: {reasonStr}.",
+                    type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                    referenceId: appointment.AppointmentId,
+                    memberId: appointment.MemberId
+                );
             }
 
             // SignalR Update
@@ -569,12 +603,26 @@ namespace MediMateService.Services.Implementations
 
                 if (!string.IsNullOrEmpty(title))
                 {
+                    // 1. Gửi cho User quản lý (chủ hộ)
+                    if (member.UserId.HasValue)
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            userId: member.UserId.Value,
+                            title: title,
+                            message: message,
+                            type: AppointmentActionTypes.APPOINTMENT_UPDATED,
+                            referenceId: appointment.AppointmentId
+                        );
+                    }
+
+                    // 2. Gửi cho Bệnh nhân (người được khám)
                     await _notificationService.SendNotificationAsync(
-                        userId: member.UserId ?? Guid.Empty, // Bắn cho tài khoản Chủ hộ của Member này
+                        userId: null,
                         title: title,
                         message: message,
                         type: AppointmentActionTypes.APPOINTMENT_UPDATED,
-                        referenceId: appointment.AppointmentId
+                        referenceId: appointment.AppointmentId,
+                        memberId: member.MemberId
                     );
                 }
 

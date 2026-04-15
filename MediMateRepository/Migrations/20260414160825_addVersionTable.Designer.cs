@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414160825_addVersionTable")]
+    partial class addVersionTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -532,57 +535,6 @@ namespace MediMateRepository.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Doctors");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Drug", b =>
-                {
-                    b.Property<Guid>("DrugId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("DrugBankId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("DrugId");
-
-                    b.ToTable("Drugs");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.DrugInteraction", b =>
-                {
-                    b.Property<Guid>("InteractionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("DrugId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("InteractingDrugBankId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("InteractingDrugName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("InteractionId");
-
-                    b.HasIndex("DrugId");
-
-                    b.ToTable("DrugInteractions");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
@@ -1202,9 +1154,6 @@ namespace MediMateRepository.Migrations
 
                     b.Property<DateTime>("CreateAt")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Diagnosis")
-                        .HasColumnType("text");
 
                     b.Property<string>("DoctorName")
                         .IsRequired()
@@ -1845,17 +1794,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.DrugInteraction", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.Drug", "Drug")
-                        .WithMany("DrugInteractions")
-                        .HasForeignKey("DrugId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Drug");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>
                 {
                     b.HasOne("MediMateRepository.Model.User", "Creator")
@@ -2208,11 +2146,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Availabilities");
 
                     b.Navigation("DoctorDocuments");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Drug", b =>
-                {
-                    b.Navigation("DrugInteractions");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Families", b =>

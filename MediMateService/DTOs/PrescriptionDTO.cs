@@ -1,4 +1,4 @@
-﻿namespace MediMateService.DTOs
+namespace MediMateService.DTOs
 {
     // Request tạo đơn thuốc (Dữ liệu đã được UI/AI xử lý)
     public class CreatePrescriptionRequest
@@ -8,11 +8,9 @@
         public string? HospitalName { get; set; }
         public DateTime PrescriptionDate { get; set; }
         public string? Notes { get; set; }
+        public string? Diagnosis { get; set; } // Chẩn đoán bệnh
 
-        // Danh sách ảnh (Link ảnh đã upload + Raw text OCR nếu cần lưu lại)
         public List<PrescriptionImageDto> Images { get; set; } = new List<PrescriptionImageDto>();
-
-        // Danh sách thuốc (Đã được UI bóc tách thành text)
         public List<PrescriptionMedicineResponse> Medicines { get; set; } = new List<PrescriptionMedicineResponse>();
     }
 
@@ -44,10 +42,9 @@
         public string? HospitalName { get; set; }
         public DateTime? PrescriptionDate { get; set; }
         public string? Notes { get; set; }
-        public string? Status { get; set; } // Active, Cancelled
+        public string? Diagnosis { get; set; }
+        public string? Status { get; set; }
 
-        // Nếu gửi null: Giữ nguyên danh sách thuốc cũ
-        // Nếu gửi list (kể cả rỗng): Xóa thuốc cũ, thay bằng thuốc mới
         public List<PrescriptionMedicineResponse>? Medicines { get; set; }
     }
 
@@ -61,6 +58,7 @@
         public DateTime PrescriptionDate { get; set; }
         public string Status { get; set; }
         public string Notes { get; set; }
+        public string? Diagnosis { get; set; }
 
         public List<PrescriptionImageDto> Images { get; set; }
         public List<PrescriptionMedicineResponse> Medicines { get; set; }
@@ -81,8 +79,9 @@
         public string? DoctorName { get; set; }
         public string? HospitalName { get; set; }
         public string? PrescriptionCode { get; set; }
-        public string? PrescriptionDate { get; set; }  
+        public string? PrescriptionDate { get; set; }
         public string? Notes { get; set; }
+        public string? Diagnosis { get; set; } // Chẩn đoán bệnh (từ OCR)
         public List<PrescriptionMedicineResponse> Medicines { get; set; } = new();
     }
 }

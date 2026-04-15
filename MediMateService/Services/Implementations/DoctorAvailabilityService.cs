@@ -121,7 +121,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<bool>.Fail("Không tìm thấy lịch làm việc.", 404);
 
             var appointments = await _unitOfWork.Repository<Appointments>()
-                .FindAsync(ap => ap.DoctorId == availability.DoctorId && ap.AppointmentDate.Date >= DateTime.UtcNow.Date);
+                .FindAsync(ap => ap.DoctorId == availability.DoctorId && ap.AppointmentDate.Date >= DateTime.Now.Date);
             if (appointments.Any())
                 return ApiResponse<bool>.Fail("Không thể xóa khung giờ này vì đã có lịch hẹn trong tương lai.", 400);
 

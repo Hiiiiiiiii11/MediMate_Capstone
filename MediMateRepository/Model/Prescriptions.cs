@@ -17,6 +17,7 @@ namespace MediMateRepository.Model
         public DateTime ExpiryDate { get; set; }
         public string Status { get; set; }
         public string Notes { get; set; }
+        public string? Diagnosis { get; set; } // Chẩn đoán bệnh
         public DateTime CreateAt { get; set; }
         public DateTime UpdateAt { get; set; }
         public virtual Members Member { get; set; }

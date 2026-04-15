@@ -117,6 +117,7 @@ namespace MediMate
             builder.Services.AddScoped<IPrescriptionByDoctorService, PrescriptionByDoctorService>();
             builder.Services.AddScoped<IDrugDataService, DrugDataService>();
             builder.Services.AddScoped<IDrugInteractionService, DrugInteractionService>();
+            builder.Services.AddScoped<IDrugInteractionAIService, DrugInteractionAIService>();
             builder.Services.AddScoped<IMedicationStatusJobService, MedicationStatusJobService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();

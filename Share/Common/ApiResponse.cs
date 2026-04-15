@@ -44,7 +44,23 @@ namespace Share.Common
             };
         }
 
+        public static ApiResponse<T> FailWithData(
+            string message,
+            T data,
+            int httpStatus = 400)
+        {
+            return new ApiResponse<T>
+            {
+                Success = false,
+                Code = httpStatus,
+                Error = null,
+                Message = message,
+                Data = data
+            };
+        }
+
         public static ApiResponse<T> ServerError(string message = "Internal Server Error")
+
         {
             return new ApiResponse<T>
             {

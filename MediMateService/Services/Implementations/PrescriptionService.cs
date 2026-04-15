@@ -45,6 +45,7 @@ namespace MediMateService.Services.Implementations
                 HospitalName = request.HospitalName,
                 PrescriptionDate = request.PrescriptionDate,
                 Notes = request.Notes,
+                Diagnosis = request.Diagnosis,
                 Status = "Active",
                 CreateAt = DateTime.Now,
                 UpdateAt = DateTime.Now
@@ -212,6 +213,11 @@ namespace MediMateService.Services.Implementations
             if (request.Notes != prescription.Notes)
             {
                 prescription.Notes = request.Notes;
+                hasChanges = true;
+            }
+            if (request.Diagnosis != null && request.Diagnosis != prescription.Diagnosis)
+            {
+                prescription.Diagnosis = request.Diagnosis;
                 hasChanges = true;
             }
             if (!string.IsNullOrEmpty(request.Status) && request.Status != prescription.Status)
@@ -385,13 +391,13 @@ namespace MediMateService.Services.Implementations
         }
 
 
-        public async Task<ApiResponse<PrescriptionMedicineResponse>> AddMedicineAsync(Guid prescriptionId, Guid userId, AddMedicineRequest request)
+        public async Task<ApiResponse<object>> AddMedicineAsync(Guid prescriptionId, Guid userId, AddMedicineRequest request)
         {
             var prescription = await _unitOfWork.Repository<Prescriptions>().GetByIdAsync(prescriptionId);
-            if (prescription == null) return ApiResponse<PrescriptionMedicineResponse>.Fail("Không tìm thấy đơn thuốc.", 404);
+            if (prescription == null) return ApiResponse<object>.Fail("Không tìm thấy đơn thuốc.", 404);
 
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
-                return ApiResponse<PrescriptionMedicineResponse>.Fail("Không có quyền thực hiện.", 403);
+                return ApiResponse<object>.Fail("Không có quyền thực hiện.", 403);
 
             // ─── CHECK TƯƠNG TÁC THUỐC (Phase 2) ───
             var interactionResult = await _drugInteractionService.CheckInteractionAsync(
@@ -401,9 +407,17 @@ namespace MediMateService.Services.Implementations
 
             if (interactionResult.HasInteraction)
             {
-                // Trả 409 Conflict kèm danh sách tương tác để FE hiển thị popup cảnh báo
-                return ApiResponse<PrescriptionMedicineResponse>.Fail(
-                    $"Phát hiện tương tác thuốc: {request.MedicineName} có thể tương tác với {string.Join(", ", interactionResult.Conflicts.Select(c => c.ConflictingDrugName))}. Vui lòng tham khảo ý kiến bác sĩ.",
+                // Trả 409 kèm DrugInteractionPayload để FE gọi thẳng /drug-interactions/explain
+                var payload = new DrugInteractionPayload
+                {
+                    PrescriptionId = prescriptionId.ToString(),
+                    NewDrugName = request.MedicineName,
+                    Conflicts = interactionResult.Conflicts
+                };
+
+                return ApiResponse<object>.FailWithData(
+                    $"Phát hiện tương tác thuốc: {request.MedicineName} có thể tương tác với {string.Join(", ", interactionResult.Conflicts.Select(c => c.ConflictingDrugName))}. Nhấn \"Giải thích\" để hiểu rõ hơn.",
+                    payload,
                     409
                 );
             }
@@ -436,7 +450,7 @@ namespace MediMateService.Services.Implementations
                 Instructions = newMedicine.Instructions
             };
 
-            return ApiResponse<PrescriptionMedicineResponse>.Ok(responseDto, "Thêm thuốc thành công.");
+            return ApiResponse<object>.Ok(responseDto, "Thêm thuốc thành công.");
         }
 
         // =======================================================
@@ -598,6 +612,7 @@ namespace MediMateService.Services.Implementations
                 PrescriptionDate = p.PrescriptionDate,
                 Status = p.Status,
                 Notes = p.Notes,
+                Diagnosis = p.Diagnosis,
                 Images = p.PrescriptionImages.Select(i => new PrescriptionImageDto { ImageUrl = i.ImageUrl, OcrRawData = i.OcrRawData }).ToList(),
                 Medicines = p.PrescriptionMedicines.Select(m => new PrescriptionMedicineResponse
                 {

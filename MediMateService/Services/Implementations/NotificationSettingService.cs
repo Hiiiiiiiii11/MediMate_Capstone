@@ -40,6 +40,7 @@ namespace MediMateService.Services.Implementations
                     EnablePushNotification = true,
                     EnableFamilyAlert = true,
                     ReminderAdvanceMinutes = 15,
+                    CustomSetting = "{\"autoSnooze\":true}",
                     UpdateAt = DateTime.Now
                 };
                 await _unitOfWork.Repository<NotificationSetting>().AddAsync(setting);

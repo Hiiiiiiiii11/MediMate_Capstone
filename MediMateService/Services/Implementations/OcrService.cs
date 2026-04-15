@@ -231,6 +231,7 @@ namespace MediMateService.Services.Implementations
                   "PrescriptionCode": "...",
                   "PrescriptionDate": "DD/MM/YYYY",
                   "Notes": "...",
+                  "Diagnosis": "...",
                   "Medicines": [
                     {
                       "MedicineName": "...",
@@ -245,7 +246,8 @@ namespace MediMateService.Services.Implementations
                 - Nếu không tìm thấy thông tin → để null (string) hoặc 0 (số) hoặc [] (mảng).
                 - Dosage: liều lượng vd "500mg". Unit: đơn vị vd "Viên", "Gói". Instructions: hướng dẫn uống vd "Sáng 1 viên, Tối 1 viên".
                 - Quantity: số lượng tổng cộng (số nguyên).
-                - CHỈ trả về JSON thuần, KHÔNG giải thích, KHÔNG markdown code block.
+                - Diagnosis: chẩn đoán bệnh (thường sau chữ "Chẩn đoán:"), vd "Tiểu đường típ 2, Tăng huyết áp".
+                - CHR trả về JSON thuần, KHÔNG giải thích, KHÔNG markdown code block.
 
                 TEXT:
                 {{rawText}}

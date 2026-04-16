@@ -7,19 +7,24 @@ namespace MediMateService.DTOs
         public Guid DoctorId { get; set; }
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
+        public string? MemberAvatar { get; set; } // Bổ sung thêm avatar bệnh nhân
+
+        // --- THÔNG TIN BỔ SUNG TỪ APPOINTMENT ---
+        public DateTime AppointmentDate { get; set; }
+        public string? AppointmentTime { get; set; }
+        public string? AppointmentStatus { get; set; }
+
+        // --- THÔNG TIN BÁC SĨ (Cho trường hợp User xem) ---
+        public string? DoctorName { get; set; }
+        public string? DoctorAvatar { get; set; }
+
         public DateTime StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
         public string Status { get; set; } = string.Empty;
 
-        // Join tracking
         public bool UserJoined { get; set; }
         public bool DoctorJoined { get; set; }
 
-        // Guardian
-        public Guid? GuardianUserId { get; set; }
-        public bool GuardianJoined { get; set; }
-
-        // Notes
         public string? Note { get; set; }
         public string? DoctorNote { get; set; }
     }

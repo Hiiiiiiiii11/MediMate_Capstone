@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.SignalR;
 using MediMateService.Hubs;
+using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace MediMateService.Services.Implementations
 {
@@ -52,6 +54,7 @@ namespace MediMateService.Services.Implementations
                 // 2. BẮN PUSH NOTIFICATION XUỐNG THIẾT BỊ QUA FIREBASE
                 // ==========================================
                 string? targetFcmToken = null;
+                Guid? signalRTargetUserId = userId;
 
                 if (userId.HasValue)
                 {
@@ -62,6 +65,20 @@ namespace MediMateService.Services.Implementations
                 {
                     var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId.Value);
                     targetFcmToken = targetMember?.FcmToken;
+
+                    // [LỖI FIX]: Nếu Member không có FcmToken (thành viên phụ, không có dt riêng), tìm Token của chủ hộ
+                    if (string.IsNullOrEmpty(targetFcmToken) && targetMember?.FamilyId != null)
+                    {
+                        var headMember = await _unitOfWork.Repository<Members>().GetQueryable()
+                            .Include(m => m.User) 
+                            .FirstOrDefaultAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                        
+                        targetFcmToken = headMember?.User?.FcmToken;
+                        if (headMember?.UserId != null)
+                        {
+                            signalRTargetUserId = headMember.UserId.Value;
+                        }
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(targetFcmToken))
@@ -76,10 +93,12 @@ namespace MediMateService.Services.Implementations
                 }
 
                 // SignalR Push Update
-                if (userId.HasValue)
+                if (signalRTargetUserId.HasValue)
                 {
-                    await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
+                    await _hubContext.Clients.Group($"User_{signalRTargetUserId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
                 }
+                
+                // Vẫn push event vào phòng của memberId nhánh phụ mặc dù member ko có thiết bị riêng, phòng khi login ở đâu đó
                 if (memberId.HasValue)
                 {
                     await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });

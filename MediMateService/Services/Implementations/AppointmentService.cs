@@ -210,10 +210,14 @@ namespace MediMateService.Services.Implementations
                 status = appointment.Status
             });
 
-            await _hubContext.Clients.Group($"User_{userId}").SendAsync("AppointmentStatusUpdated", new {
-                appointmentId = appointment.AppointmentId,
-                status = appointment.Status
-            });
+            // Cập nhật cho user của bệnh nhân (nếu bệnh nhân có tài khoản riêng và khác người đặt)
+            if (member.UserId.HasValue && member.UserId.Value != userId)
+            {
+                await _hubContext.Clients.Group($"User_{member.UserId.Value}").SendAsync("AppointmentStatusUpdated", new {
+                    appointmentId = appointment.AppointmentId,
+                    status = appointment.Status
+                });
+            }
 
             return MapAppointment(appointment);
         }
@@ -274,6 +278,16 @@ namespace MediMateService.Services.Implementations
             string dateString = appointment.AppointmentDate.ToString("dd/MM/yyyy");
             string reasonStr = string.IsNullOrWhiteSpace(request.Reason) ? "Không có lý do cụ thể" : request.Reason;
 
+            // [QUAN TRỌNG]: Tìm chủ hộ (Family Head) để gửi Notification và SignalR
+            Guid? headUserIdCancel = member?.UserId;
+            if (!headUserIdCancel.HasValue && member?.FamilyId != null)
+            {
+                var familyManager = await _unitOfWork.Repository<Members>().GetQueryable()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
+                headUserIdCancel = familyManager?.UserId;
+            }
+
             if (isUserOwner && doctor != null)
             {
                 // 1. Bệnh nhân hủy -> Gửi thông báo cho Bác sĩ
@@ -294,14 +308,26 @@ namespace MediMateService.Services.Implementations
                     referenceId: appointment.AppointmentId,
                     memberId: appointment.MemberId
                 );
+
+                // 3. Nếu là thành viên phụ, gửi thêm bản sao Db cho Chủ Hộ để họ thấy trong tab Thông Báo
+                if (headUserIdCancel.HasValue && !member!.UserId.HasValue)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: headUserIdCancel.Value,
+                        title: "❌ Lịch khám đã bị hủy",
+                        message: $"Lịch khám của {member?.FullName} với bác sĩ {doctor.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy.",
+                        type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
+                        referenceId: appointment.AppointmentId
+                    );
+                }
             }
             else if (isDoctorOwner && member != null)
             {
-                // 1. Bác sĩ tự hủy -> Gửi cho User đặt
-                if (member.UserId.HasValue)
+                // 1. Bác sĩ tự hủy -> Gửi cho User đặt (Chủ hộ / Quản lý gia đình)
+                if (headUserIdCancel.HasValue)
                 {
                     await _notificationService.SendNotificationAsync(
-                        userId: member.UserId.Value,
+                        userId: headUserIdCancel.Value,
                         title: "❌ Bác sĩ đã hủy lịch khám",
                         message: $"Bác sĩ {doctor?.User?.FullName ?? "vô danh"} đã hủy lịch khám của bệnh nhân {member.FullName} lúc {timeString} ngày {dateString}. Lý do: {reasonStr}.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
@@ -309,7 +335,7 @@ namespace MediMateService.Services.Implementations
                     );
                 }
 
-                // 2. Bác sĩ tự hủy -> Gửi cho Bệnh nhân
+                // 2. Bác sĩ tự hủy -> Gửi cho Bệnh nhân (để push Firebase tự auto route về chủ hộ + lưu DB cho member)
                 await _notificationService.SendNotificationAsync(
                     userId: null,
                     title: "❌ Bác sĩ đã hủy lịch khám",
@@ -327,8 +353,10 @@ namespace MediMateService.Services.Implementations
                     status = appointment.Status
                 });
             }
-            if (member?.UserId != null) {
-                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("AppointmentStatusUpdated", new {
+            
+            // (Logic tìm headUserIdCancel đã di chuyển lên phía trên)
+            if (headUserIdCancel.HasValue) {
+                await _hubContext.Clients.Group($"User_{headUserIdCancel.Value}").SendAsync("AppointmentStatusUpdated", new {
                     appointmentId = appointment.AppointmentId,
                     status = appointment.Status
                 });
@@ -600,14 +628,23 @@ namespace MediMateService.Services.Implementations
                     message = $"Rất tiếc, bác sĩ không thể tiếp nhận lịch khám của {member.FullName}. Lượt khám đã được hoàn trả lại cho bạn.";
                 }
 
+                // [QUAN TRỌNG]: Tìm chủ hộ (Family Head) để SignalR
+                Guid? headUserId = member.UserId;
+                if (!headUserId.HasValue && member.FamilyId != null)
+                {
+                    var familyManager = await _unitOfWork.Repository<Members>().GetQueryable()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
+                    headUserId = familyManager?.UserId;
+                }
 
                 if (!string.IsNullOrEmpty(title))
                 {
                     // 1. Gửi cho User quản lý (chủ hộ)
-                    if (member.UserId.HasValue)
+                    if (headUserId.HasValue)
                     {
                         await _notificationService.SendNotificationAsync(
-                            userId: member.UserId.Value,
+                            userId: headUserId.Value,
                             title: title,
                             message: message,
                             type: AppointmentActionTypes.APPOINTMENT_UPDATED,
@@ -626,11 +663,14 @@ namespace MediMateService.Services.Implementations
                     );
                 }
 
-                // SignalR Update
-                await _hubContext.Clients.Group($"User_{member.UserId}").SendAsync("AppointmentStatusUpdated", new { 
-                    appointmentId = appointment.AppointmentId, 
-                    status = request.Status 
-                });
+                // SignalR Update (Gửi event refresh giao diện về cho app của Chủ hộ / Bệnh nhân trực tiếp)
+                if (headUserId.HasValue)
+                {
+                    await _hubContext.Clients.Group($"User_{headUserId.Value}").SendAsync("AppointmentStatusUpdated", new { 
+                        appointmentId = appointment.AppointmentId, 
+                        status = request.Status 
+                    });
+                }
             }
             if (doctor != null) {
                 await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new { 

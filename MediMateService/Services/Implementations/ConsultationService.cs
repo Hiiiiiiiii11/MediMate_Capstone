@@ -71,7 +71,12 @@ namespace MediMateService.Services.Implementations
                 throw new ForbiddenException("Bạn không có quyền xem phiên tư vấn này.");
             }
 
-            var session = await _appointmentRepository.GetSessionByAppointmentIdAsync(appointmentId);
+            var session = await _unitOfWork.Repository<ConsultationSessions>()
+        .GetQueryable()
+        .Include(c => c.Member)
+        .Include(c => c.Appointment)
+        .Include(c => c.Doctor).ThenInclude(d => d.User)
+        .FirstOrDefaultAsync(s => s.AppointmentId == appointmentId);
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
 
@@ -91,6 +96,8 @@ namespace MediMateService.Services.Implementations
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
                 .GetQueryable()
                 .Include(c => c.Member)
+                .Include(c => c.Appointment) // Quan trọng: Load lịch hẹn
+                .Include(c => c.Doctor).ThenInclude(d => d.User) // Load thông tin bác sĩ
                 .AsNoTracking()
                 .Where(s => s.DoctorId == doctor.DoctorId)
                 .OrderByDescending(s => s.StartedAt)
@@ -428,6 +435,17 @@ namespace MediMateService.Services.Implementations
                 DoctorId = item.DoctorId,
                 MemberId = item.MemberId,
                 MemberName = item.Member?.FullName,
+                MemberAvatar = item.Member?.AvatarUrl,
+
+                // Map thông tin từ Appointment
+                AppointmentDate = item.Appointment?.AppointmentDate ?? DateTime.MinValue,
+                AppointmentTime = item.Appointment?.AppointmentTime.ToString(@"hh\:mm"),
+                AppointmentStatus = item.Appointment?.Status,
+
+                // Map thông tin bác sĩ (thông qua bảng Doctor -> User)
+                DoctorName = item.Doctor?.User?.FullName,
+                DoctorAvatar = item.Doctor?.User?.AvatarUrl,
+
                 StartedAt = item.StartedAt,
                 EndedAt = item.EndedAt,
                 Status = item.Status,

@@ -240,8 +240,8 @@ namespace MediMateService.Services.Implementations
                                      && d.StartDate.Date <= log.LogDate.Date
                                      && d.EndDate.Date >= log.LogDate.Date,
                            includeProperties: "PrescriptionMedicine");
-                string medicineName = scheduleDetails.Any() 
-                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                string medicineName = scheduleDetails.Any()
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc"))
                     : "Không xác định";
 
                 var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
@@ -259,6 +259,69 @@ namespace MediMateService.Services.Implementations
             }
 
             return ApiResponse<IEnumerable<MedicationLogResponse>>.Ok(responseList, "Lấy danh sách thành công.");
+        }
+
+        public async Task<ApiResponse<FamilyAdherenceDashboard>> GetFamilyAdherenceDashboardAsync(Guid familyId, Guid currentUserId, DateTime? startDate, DateTime? endDate)
+        {
+            // 1. Kiểm tra quyền truy cập gia đình
+            var requester = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).FirstOrDefault();
+
+            if (requester == null)
+            {
+                return ApiResponse<FamilyAdherenceDashboard>.Fail("Bạn không có quyền xem dữ liệu của gia đình này.", 403);
+            }
+
+            // 2. Lấy toàn bộ thành viên trong gia đình
+            var familyMembers = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId)).ToList();
+
+            var memberIds = familyMembers.Select(m => m.MemberId).ToList();
+
+            // 3. Lấy Logs trong khoảng thời gian (Mặc định 30 ngày gần nhất nếu không truyền)
+            var start = startDate?.Date ?? DateTime.Now.AddDays(-30).Date;
+            var end = endDate?.Date ?? DateTime.Now.Date;
+
+            var allLogs = (await _unitOfWork.Repository<MedicationLogs>()
+                .FindAsync(l => memberIds.Contains(l.MemberId) && l.LogDate >= start && l.LogDate <= end)).ToList();
+
+            // 4. Khởi tạo Dashboard
+            var dashboard = new FamilyAdherenceDashboard
+            {
+                FamilyId = familyId,
+                TotalScheduled = allLogs.Count
+            };
+
+            // 5. Tính toán cho từng thành viên
+            foreach (var member in familyMembers)
+            {
+                var memberLogs = allLogs.Where(l => l.MemberId == member.MemberId).ToList();
+                int total = memberLogs.Count;
+                int taken = memberLogs.Count(l => l.Status == "Taken");
+                int skipped = memberLogs.Count(l => l.Status == "Skipped");
+                int missed = memberLogs.Count(l => l.Status == "Missed");
+
+                dashboard.MemberStats.Add(new MemberAdherenceStats
+                {
+                    MemberId = member.MemberId,
+                    MemberName = member.FullName,
+                    AvatarUrl = member.AvatarUrl ?? "",
+                    Taken = taken,
+                    Missed = missed,
+                    Skipped = skipped,
+                    AdherenceRate = total > 0 ? Math.Round((double)taken / total * 100, 2) : 0
+                });
+            }
+
+            // 6. Tính toán tổng quan cả gia đình
+            dashboard.TotalTaken = allLogs.Count(l => l.Status == "Taken");
+            dashboard.TotalSkipped = allLogs.Count(l => l.Status == "Skipped");
+            dashboard.TotalMissed = allLogs.Count(l => l.Status == "Missed");
+            dashboard.OverallAdherenceRate = dashboard.TotalScheduled > 0
+                ? Math.Round((double)dashboard.TotalTaken / dashboard.TotalScheduled * 100, 2)
+                : 0;
+
+            return ApiResponse<FamilyAdherenceDashboard>.Ok(dashboard, "Lấy dashboard thành công.");
         }
 
         // --- 4. HÀM MAP NỘI BỘ (Đã bỏ chữ "this") ---

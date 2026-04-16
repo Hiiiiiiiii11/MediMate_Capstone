@@ -35,7 +35,7 @@ namespace MediMateService.DTOs
         public Guid ScheduleId { get; set; }
         public Guid ReminderId { get; set; }
         public string MedicineName { get; set; } = string.Empty;
-        
+
         public List<LogMedicineDetail> Medicines { get; set; } = new();
 
         // MỚI: Thêm trường này để hiển thị tên người uống trên UI
@@ -46,5 +46,27 @@ namespace MediMateService.DTOs
         public DateTime ActualTime { get; set; }
         public string Status { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
+    }
+
+    public class FamilyAdherenceDashboard
+    {
+        public Guid FamilyId { get; set; }
+        public int TotalScheduled { get; set; } // Tổng số lần cần uống
+        public int TotalTaken { get; set; }      // Tổng số lần đã uống
+        public int TotalSkipped { get; set; }    // Tổng số lần bỏ qua
+        public int TotalMissed { get; set; }     // Tổng số lần quên (hệ thống tự đánh dấu)
+        public double OverallAdherenceRate { get; set; } // Tỷ lệ % chung của cả nhà
+        public List<MemberAdherenceStats> MemberStats { get; set; } = new();
+    }
+
+    public class MemberAdherenceStats
+    {
+        public Guid MemberId { get; set; }
+        public string MemberName { get; set; } = string.Empty;
+        public string AvatarUrl { get; set; } = string.Empty;
+        public int Taken { get; set; }
+        public int Missed { get; set; }
+        public int Skipped { get; set; }
+        public double AdherenceRate { get; set; } // Tỷ lệ % của riêng người này
     }
 }

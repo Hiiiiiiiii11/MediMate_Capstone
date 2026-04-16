@@ -20,5 +20,6 @@ namespace MediMateService.Services
         Task<ApiResponse<object>> GetAdherenceStatsAsync(Guid scheduleId, Guid currentUserId);
         // Lấy lịch sử uống thuốc của cả gia đình (có lọc theo ngày)
         Task<ApiResponse<IEnumerable<MedicationLogResponse>>> GetFamilyLogsAsync(Guid familyId, Guid currentUserId, DateTime? startDate, DateTime? endDate);
+        Task<ApiResponse<FamilyAdherenceDashboard>> GetFamilyAdherenceDashboardAsync(Guid familyId, Guid currentUserId, DateTime? startDate, DateTime? endDate);
     }
 }

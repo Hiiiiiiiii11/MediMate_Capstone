@@ -132,10 +132,20 @@ namespace MediMateService.Services.Implementations
                     var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
                     if (member != null)
                     {
-                        if (member.UserId.HasValue)
+                        // [QUAN TRỌNG]: Tìm chủ hộ (Family Head) để lưu Notification
+                        Guid? headUserId = member.UserId;
+                        if (!headUserId.HasValue && member.FamilyId != null)
+                        {
+                            var familyManager = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetQueryable()
+                                .AsNoTracking()
+                                .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
+                            headUserId = familyManager?.UserId;
+                        }
+
+                        if (headUserId.HasValue)
                         {
                             await _notificationService.SendNotificationAsync(
-                                userId: member.UserId.Value,
+                                userId: headUserId.Value,
                                 title: "👨‍⚕️ Bác sĩ đã vào phòng!",
                                 message: "Bác sĩ đang đợi tư vấn trực tuyến cho bạn. Hãy tham gia ngay nhé!",
                                 type: ConsultationSessionActionTypes.SESSION_STARTED,
@@ -195,10 +205,20 @@ namespace MediMateService.Services.Implementations
 
                 if (member != null)
                 {
-                    if (member.UserId.HasValue)
+                    // [QUAN TRỌNG]: Tìm chủ hộ (Family Head) để lưu Notification
+                    Guid? headUserId = member.UserId;
+                    if (!headUserId.HasValue && member.FamilyId != null)
+                    {
+                        var familyManager = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetQueryable()
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
+                        headUserId = familyManager?.UserId;
+                    }
+
+                    if (headUserId.HasValue)
                     {
                         await _notificationService.SendNotificationAsync(
-                            userId: member.UserId.Value,
+                            userId: headUserId.Value,
                             title: "📞 Phiên tư vấn đã bắt đầu!",
                             message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                             type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,

@@ -70,12 +70,12 @@ namespace MediMateService.Services.Implementations
                     if (string.IsNullOrEmpty(targetFcmToken) && targetMember?.FamilyId != null)
                     {
                         var headMember = await _unitOfWork.Repository<Members>().GetQueryable()
-                            .Include(m => m.User) 
                             .FirstOrDefaultAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
                         
-                        targetFcmToken = headMember?.User?.FcmToken;
                         if (headMember?.UserId != null)
                         {
+                            var headUser = await _unitOfWork.Repository<User>().GetByIdAsync(headMember.UserId.Value);
+                            targetFcmToken = headUser?.FcmToken;
                             signalRTargetUserId = headMember.UserId.Value;
                         }
                     }

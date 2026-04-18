@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -116,18 +116,27 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<bool>> DeleteAsync(Guid availabilityId, Guid currentUserId)
         {
             var availability = (await _unitOfWork.Repository<DoctorAvailability>()
-                .FindAsync(a => a.DoctorAvailabilityId == availabilityId, "Doctor")).FirstOrDefault();
+                .FindAsync(a => a.DoctorAvailabilityId == availabilityId)).FirstOrDefault();
+            
             if (availability == null)
                 return ApiResponse<bool>.Fail("Không tìm thấy lịch làm việc.", 404);
 
+            // Kiểm tra xem khung giờ này ĐÃ TỪNG có người đặt chưa (dù quá khứ hay tương lai)
             var appointments = await _unitOfWork.Repository<Appointments>()
-                .FindAsync(ap => ap.DoctorId == availability.DoctorId && ap.AppointmentDate.Date >= DateTime.Now.Date);
+                .FindAsync(ap => ap.AvailabilityId == availabilityId);
+            
             if (appointments.Any())
-                return ApiResponse<bool>.Fail("Không thể xóa khung giờ này vì đã có lịch hẹn trong tương lai.", 400);
+            {
+                // Nếu đã có người đặt, xóa cứng sẽ vi phạm Foreign Key của Database.
+                // Giải pháp: Khóa cờ IsActive để hệ thống không cho đặt lịch vào khung giờ này nữa.
+                availability.IsActive = false;
+                _unitOfWork.Repository<DoctorAvailability>().Update(availability);
+                await _unitOfWork.CompleteAsync();
 
-            //if (availability.Doctor.UserId != currentUserId) //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
-            //    return ApiResponse<bool>.Fail("Bạn không có quyền xóa lịch này.", 403);
+                return ApiResponse<bool>.Ok(true, "Lịch đã từng có người đặt, hệ thống đã chuyển sang trạng thái ngừng hoạt động thay vì xóa vĩnh viễn.");
+            }
 
+            // Nếu chưa từng có ai đặt lịch vào khung giờ này -> Xóa cứng an toàn
             _unitOfWork.Repository<DoctorAvailability>().Remove(availability);
             await _unitOfWork.CompleteAsync();
 

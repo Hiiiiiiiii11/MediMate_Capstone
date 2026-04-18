@@ -227,7 +227,9 @@ namespace MediMateService.Services.Implementations
                     if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken))
                     {
                         string urgentTitle = "🚨 CẢNH BÁO KHẨN CẤP: BỎ THUỐC";
-                        string urgentBody = $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
+                        string urgentBody = targetMember.UserId == family.CreateBy
+                            ? $"Bạn đã bỏ thuốc {threshold} lần liên tiếp! Việc dùng thuốc không đều đặn sẽ ảnh hưởng xấu đến kết quả điều trị. Hãy chú ý nhé!"
+                            : $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
                         var data = new Dictionary<string, string> { { "alertType", "Urgent" } };
 
                         await _firebaseService.SendNotificationAsync(creatorUser.FcmToken, urgentTitle, urgentBody, data);

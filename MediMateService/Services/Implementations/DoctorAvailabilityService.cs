@@ -133,7 +133,7 @@ namespace MediMateService.Services.Implementations
                 _unitOfWork.Repository<DoctorAvailability>().Update(availability);
                 await _unitOfWork.CompleteAsync();
 
-                return ApiResponse<bool>.Ok(true, "Lịch đã từng có người đặt, hệ thống đã chuyển sang trạng thái ngừng hoạt động thay vì xóa vĩnh viễn.");
+                return ApiResponse<bool>.Ok(true, "Xóa khung giờ làm việc thành công.");
             }
 
             // Nếu chưa từng có ai đặt lịch vào khung giờ này -> Xóa cứng an toàn

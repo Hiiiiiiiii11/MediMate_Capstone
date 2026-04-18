@@ -31,6 +31,65 @@ namespace MediMateService.Services.Implementations
         }
 
         // ─────────────────────────────────────────────────────────────────
+        // SWEEP: COMPENSATE MISSED REMINDERS & AUTO-SNOOZE
+        // ─────────────────────────────────────────────────────────────────
+        public async Task CompensateMissedRemindersAsync()
+        {
+            var now = DateTime.Now;
+
+            // Tìm tất cả các Lời nhắc đang chờ, thuộc về Lịch đang Active
+            var pendingReminders = await _unitOfWork.Repository<MedicationReminders>()
+                .FindAsync(r => r.Status == "Pending" && r.Schedule.IsActive, 
+                includeProperties: "Schedule,Schedule.Member");
+
+            foreach (var reminder in pendingReminders)
+            {
+                var targetMember = reminder.Schedule.Member;
+                if (targetMember == null || !targetMember.FamilyId.HasValue) continue;
+
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+
+                int advanceMinutes = familySetting?.ReminderAdvanceMinutes ?? 15;
+                var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+
+                // Chưa đến giờ gửi thông báo
+                if (now < pushTime) continue;
+
+                // Nếu đã tới/vượt quá EndTime -> Nhường chỗ cho CheckMissedReminderAndAlertFamilyAsync xử lý trễ hạn
+                if (now >= reminder.EndTime) continue;
+
+                bool isSent = reminder.SentAt != default(DateTime);
+
+                // 1. Trường hợp: Chưa từng gửi gì cả (Bị rớt do server restart ngay lúc giờ vàng)
+                if (!isSent)
+                {
+                    await NotifyReminderTimeAsync(reminder.ReminderId, 1);
+                    continue;
+                }
+
+                // 2. Trường hợp: Đã gửi rồi, kiểm tra xem Auto-snooze có đang bật không
+                bool isAutoSnooze = true;
+                try {
+                    if (!string.IsNullOrEmpty(familySetting?.CustomSetting)) {
+                        var customObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(familySetting.CustomSetting);
+                        if (customObj != null && customObj.ContainsKey("autoSnooze")) {
+                            isAutoSnooze = customObj["autoSnooze"]?.GetValue<bool>() ?? true;
+                        }
+                    }
+                } catch (Exception) { }
+
+                if (!isAutoSnooze) continue;
+
+                // Kiểm tra xem đã trôi qua 15 phút kể từ lần nhắc gần nhất chưa (Chu kỳ Snooze)
+                if ((now - reminder.SentAt).TotalMinutes >= 15)
+                {
+                    await NotifyReminderTimeAsync(reminder.ReminderId, 2); // attempt 2: báo lặp lại
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────
         // CHECK & NOTIFY: TỚI GIỜ UỐNG THUỐC
         // ─────────────────────────────────────────────────────────────────
         public async Task NotifyReminderTimeAsync(Guid reminderId, int attempt = 1)
@@ -227,7 +286,9 @@ namespace MediMateService.Services.Implementations
                     if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken))
                     {
                         string urgentTitle = "🚨 CẢNH BÁO KHẨN CẤP: BỎ THUỐC";
-                        string urgentBody = $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
+                        string urgentBody = targetMember.UserId == family.CreateBy
+                            ? $"Bạn đã bỏ thuốc {threshold} lần liên tiếp! Việc dùng thuốc không đều đặn sẽ ảnh hưởng xấu đến kết quả điều trị. Hãy chú ý nhé!"
+                            : $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
                         var data = new Dictionary<string, string> { { "alertType", "Urgent" } };
 
                         await _firebaseService.SendNotificationAsync(creatorUser.FcmToken, urgentTitle, urgentBody, data);

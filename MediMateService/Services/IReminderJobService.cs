@@ -3,6 +3,7 @@ namespace MediMateService.Services
     public interface IReminderJobService
     {
         Task NotifyReminderTimeAsync(Guid reminderId, int attempt = 1);
+        Task CompensateMissedRemindersAsync();
         Task CheckAndNotifyOverdueReminder(Guid reminderId);
         Task CheckMissedReminderAndAlertFamilyAsync(Guid reminderId);
         Task NotifyUpcomingAppointmentAsync(Guid appointmentId);

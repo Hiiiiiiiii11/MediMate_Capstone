@@ -41,6 +41,10 @@ namespace MediMateService.Services.Implementations
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // Đưa thêm các thuốc mới vào mảng để check tương tác chéo (chính các thuốc mới mâu thuẫn với nhau)
+            currentDrugNames.AddRange(newDrugList);
+            currentDrugNames = currentDrugNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
             if (!currentDrugNames.Any())
                 return result;
 

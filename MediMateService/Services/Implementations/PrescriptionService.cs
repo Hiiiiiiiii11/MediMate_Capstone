@@ -35,6 +35,27 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
             }
 
+            // ─── CHECK TƯƠNG TÁC THUỐC ───
+            if (request.Medicines != null && request.Medicines.Any())
+            {
+                var drugNames = request.Medicines.Select(m => m.MedicineName).ToArray();
+                var interactionResult = await _drugInteractionService.CheckInteractionAsync(memberId, drugNames);
+                if (interactionResult.HasInteraction)
+                {
+                    var payload = new DrugInteractionPayload
+                    {
+                        PrescriptionId = "", // Chưa có ID vì là Create
+                        NewDrugName = string.Join(", ", drugNames),
+                        Conflicts = interactionResult.Conflicts
+                    };
+                    return ApiResponse<PrescriptionResponse>.FailWithData(
+                        $"Phát hiện tương tác thuốc giữa các thuốc trong đơn hoặc với thuốc đang sử dụng. Nhấn \"Giải thích\" để hiểu rõ hơn.",
+                        payload,
+                        409
+                    );
+                }
+            }
+
             // 2. Map dữ liệu Header (Bảng Prescriptions)
             var prescription = new Prescriptions
             {
@@ -189,6 +210,27 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
             {
                 return ApiResponse<PrescriptionResponse>.Fail("Bạn không có quyền chỉnh sửa đơn thuốc này.", 403);
+            }
+
+            // ─── CHECK TƯƠNG TÁC THUỐC ───
+            if (request.Medicines != null && request.Medicines.Any())
+            {
+                var drugNames = request.Medicines.Select(m => m.MedicineName).ToArray();
+                var interactionResult = await _drugInteractionService.CheckInteractionAsync(prescription.MemberId, drugNames);
+                if (interactionResult.HasInteraction)
+                {
+                    var payload = new DrugInteractionPayload
+                    {
+                        PrescriptionId = prescriptionId.ToString(),
+                        NewDrugName = string.Join(", ", drugNames),
+                        Conflicts = interactionResult.Conflicts
+                    };
+                    return ApiResponse<PrescriptionResponse>.FailWithData(
+                        $"Phát hiện tương tác thuốc giữa các thuốc trong đơn hoặc với thuốc đang sử dụng. Nhấn \"Giải thích\" để hiểu rõ hơn.",
+                        payload,
+                        409
+                    );
+                }
             }
 
             var oldData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };

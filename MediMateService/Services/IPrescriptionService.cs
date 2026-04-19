@@ -7,7 +7,7 @@ namespace MediMateService.Services
     public interface IPrescriptionService
     {
         // Tạo đơn thuốc mới (Import từ kết quả quét của UI)
-        Task<ApiResponse<object>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request);
+        Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request);
 
         // Lấy danh sách đơn thuốc của 1 thành viên
         Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId);
@@ -19,7 +19,7 @@ namespace MediMateService.Services
         // 3. Upload thêm ảnh vào đơn thuốc đã có
         Task<ApiResponse<string>> AddImageToPrescriptionAsync(Guid prescriptionId, Guid userId, IFormFile file);
         // 1. Cập nhật đơn thuốc
-        Task<ApiResponse<object>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request);
+        Task<ApiResponse<PrescriptionResponse>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request);
         Task<ApiResponse<object>> AddMedicineAsync(Guid prescriptionId, Guid userId, AddMedicineRequest request);
         Task<ApiResponse<PrescriptionMedicineResponse>> UpdateMedicineAsync(Guid medicineId, Guid userId, UpdateMedicineRequest request);
         Task<ApiResponse<bool>> DeleteMedicineAsync(Guid medicineId, Guid userId);

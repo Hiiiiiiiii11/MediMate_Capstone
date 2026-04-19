@@ -255,6 +255,16 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<PrescriptionMedicines>().Remove(medToRemove);
                 }
 
+                // Flush tất cả xóa trước để tránh lỗi Optimistic Concurrency khi thêm mới
+                if (medicinesToRemove.Any())
+                {
+                    await _unitOfWork.CompleteAsync();
+                    // Reload lại prescription sau khi xóa để EF Core không bị stale state
+                    prescription = (await _unitOfWork.Repository<Prescriptions>()
+                        .FindAsync(p => p.PrescriptionId == prescriptionId, includeProperties: "PrescriptionMedicines,PrescriptionImages"))
+                        .FirstOrDefault()!;
+                }
+
                 // Bước C: Cập nhật thuốc cũ hoặc Thêm thuốc mới
                 foreach (var medDto in request.Medicines)
                 {
@@ -277,7 +287,7 @@ namespace MediMateService.Services.Implementations
                     else
                     {
                         // THÊM MỚI: Dành cho thuốc mới thêm tay hoặc từ OCR (ID là null)
-                        prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
+                        var newMed = new PrescriptionMedicines
                         {
                             PrescriptionMedicineId = Guid.NewGuid(),
                             PrescriptionId = prescriptionId,
@@ -288,7 +298,9 @@ namespace MediMateService.Services.Implementations
                             Instructions = medDto.Instructions ?? "",
                             CreatedAt = DateTime.Now,
                             UpdatedAt = DateTime.Now
-                        });
+                        };
+                        // Thêm trực tiếp vào repository thay vì collection để tránh lỗi ownership
+                        await _unitOfWork.Repository<PrescriptionMedicines>().AddAsync(newMed);
                     }
                 }
             }

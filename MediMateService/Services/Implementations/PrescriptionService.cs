@@ -187,7 +187,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
             }
 
-           
+
 
             var oldData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
             bool hasChanges = false;
@@ -344,6 +344,61 @@ namespace MediMateService.Services.Implementations
             }
 
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
+        }
+
+
+        public async Task<ApiResponse<PrescriptionResponse>> CreateEmptyPrescriptionAsync(Guid memberId, Guid userId, CreateEmptyPrescriptionRequest request)
+        {
+            // 1. Kiểm tra quyền truy cập Member
+            if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
+                return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
+            }
+
+            // 2. Tạo thực thể Prescription mới (không có thuốc và ảnh)
+            var prescription = new Prescriptions
+            {
+                PrescriptionId = Guid.NewGuid(),
+                MemberId = memberId,
+                PrescriptionCode = $"PRE-{DateTime.Now:yyyyMMddHHmm}", // Tạo mã code tạm thời
+                DoctorName = request.DoctorName ?? "Bác sĩ chưa xác định",
+                HospitalName = request.HospitalName ?? "Bệnh viện/Phòng khám",
+                PrescriptionDate = request.PrescriptionDate ?? DateTime.Now,
+                Diagnosis = request.Diagnosis,
+                Notes = request.Notes,
+                Status = "Active",
+                CreateAt = DateTime.Now,
+                UpdateAt = DateTime.Now
+            };
+
+            // 3. Lưu vào Database
+            await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
+            await _unitOfWork.CompleteAsync();
+
+            // 4. Ghi Activity Log
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                // Tìm MemberId của người thực hiện thao tác (UserId -> MemberId)
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId))
+                    .FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.PRESCIPTION,
+                        entityId: prescription.PrescriptionId,
+                        description: $"Đã khởi tạo một đơn thuốc trống cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+
+            // 5. Trả về kết quả (Sử dụng hàm MapToResponse đã có của bạn)
+            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Đã khởi tạo đơn thuốc.");
         }
 
         // --- HÀM 2: XÓA ĐƠN THUỐC ---

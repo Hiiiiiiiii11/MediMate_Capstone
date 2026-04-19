@@ -70,10 +70,10 @@ namespace MediMateService.DTOs
         public string ImageUrl { get; set; } = string.Empty;       
         public string ThumbnailUrl { get; set; } = string.Empty;   
         public string RawText { get; set; } = string.Empty;        
-        public ExtractedPrescriptionData ExtractedData { get; set; } = new(); 
+        public ExtractedPrescriptionData ExtractedData { get; set; } = new();
     }
 
-   
+
     public class ExtractedPrescriptionData
     {
         public string? DoctorName { get; set; }
@@ -83,5 +83,13 @@ namespace MediMateService.DTOs
         public string? Notes { get; set; }
         public string? Diagnosis { get; set; } // Chẩn đoán bệnh (từ OCR)
         public List<PrescriptionMedicineResponse> Medicines { get; set; } = new();
+    }
+    public class CreateEmptyPrescriptionRequest
+    {
+        public string? HospitalName { get; set; }
+        public string? DoctorName { get; set; }
+        public DateTime? PrescriptionDate { get; set; }
+        public string? Diagnosis { get; set; }
+        public string? Notes { get; set; }
     }
 }

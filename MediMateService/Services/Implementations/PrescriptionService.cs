@@ -367,17 +367,22 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
             }
 
-            // 2. Tạo thực thể Prescription mới (không có thuốc và ảnh)
+            // --- BỔ SUNG: Làm sạch dữ liệu đầu vào ---
+            // Loại bỏ khoảng trắng thừa và xử lý ký tự xuống dòng nếu cần
+            var cleanDiagnosis = request.Diagnosis?.Trim().Replace("\r", "").Replace("\n", " ");
+            var cleanNotes = request.Notes?.Trim();
+
+            // 2. Tạo thực thể Prescription mới
             var prescription = new Prescriptions
             {
                 PrescriptionId = Guid.NewGuid(),
                 MemberId = memberId,
-                PrescriptionCode = $"PRE-{DateTime.Now:yyyyMMddHHmm}", // Tạo mã code tạm thời
-                DoctorName = request.DoctorName ?? "Đơn ngoài",
-                HospitalName = request.HospitalName ?? "Đơn ngoài",
+                PrescriptionCode = $"PRE-{DateTime.Now:yyyyMMddHHmm}",
+                DoctorName = request.DoctorName?.Trim() ?? "Đơn ngoài",
+                HospitalName = request.HospitalName?.Trim() ?? "Đơn ngoài",
                 PrescriptionDate = request.PrescriptionDate ?? DateTime.Now,
-                Diagnosis = request.Diagnosis,
-                Notes = request.Notes,
+                Diagnosis = cleanDiagnosis ?? "", // Dữ liệu sạch
+                Notes = cleanNotes ?? "",
                 Status = "Active",
                 CreateAt = DateTime.Now,
                 UpdateAt = DateTime.Now
@@ -387,11 +392,10 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
             await _unitOfWork.CompleteAsync();
 
-            // 4. Ghi Activity Log
+            // 4. Ghi Activity Log (Giữ nguyên logic tìm doer của bạn - rất tốt)
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
             if (targetMember?.FamilyId.HasValue == true)
             {
-                // Tìm MemberId của người thực hiện thao tác (UserId -> MemberId)
                 var doer = (await _unitOfWork.Repository<Members>()
                     .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId))
                     .FirstOrDefault();
@@ -409,7 +413,6 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            // 5. Trả về kết quả (Sử dụng hàm MapToResponse đã có của bạn)
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Đã khởi tạo đơn thuốc.");
         }
 

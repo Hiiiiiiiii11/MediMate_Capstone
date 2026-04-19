@@ -373,8 +373,8 @@ namespace MediMateService.Services.Implementations
                 PrescriptionId = Guid.NewGuid(),
                 MemberId = memberId,
                 PrescriptionCode = $"PRE-{DateTime.Now:yyyyMMddHHmm}", // Tạo mã code tạm thời
-                DoctorName = request.DoctorName ?? "Bác sĩ chưa xác định",
-                HospitalName = request.HospitalName ?? "Bệnh viện/Phòng khám",
+                DoctorName = request.DoctorName ?? "Đơn ngoài",
+                HospitalName = request.HospitalName ?? "Đơn ngoài",
                 PrescriptionDate = request.PrescriptionDate ?? DateTime.Now,
                 Diagnosis = request.Diagnosis,
                 Notes = request.Notes,

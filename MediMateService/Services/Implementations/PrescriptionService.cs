@@ -27,12 +27,12 @@ namespace MediMateService.Services.Implementations
             _drugInteractionService = drugInteractionService;
         }
 
-        public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
+        public async Task<ApiResponse<object>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
         {
             // 1. Check quyền truy cập Member
             if (!await _currentUserService.CheckAccess(memberId, userId))
             {
-                return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
+                return ApiResponse<object>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
             }
 
             // ─── CHECK TƯƠNG TÁC THUỐC ───
@@ -48,7 +48,7 @@ namespace MediMateService.Services.Implementations
                         NewDrugName = string.Join(", ", drugNames),
                         Conflicts = interactionResult.Conflicts
                     };
-                    return ApiResponse<PrescriptionResponse>.FailWithData(
+                    return ApiResponse<object>.FailWithData(
                         $"Phát hiện tương tác thuốc giữa các thuốc trong đơn hoặc với thuốc đang sử dụng. Nhấn \"Giải thích\" để hiểu rõ hơn.",
                         payload,
                         409
@@ -158,7 +158,7 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc thành công.");
+            return ApiResponse<object>.Ok(MapToResponse(prescription), "Lưu đơn thuốc thành công.");
         }
 
         public async Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId)
@@ -194,7 +194,7 @@ namespace MediMateService.Services.Implementations
                 : ApiResponse<PrescriptionResponse>.Ok(MapToResponse(p));
         }
 
-        public async Task<ApiResponse<PrescriptionResponse>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request)
+        public async Task<ApiResponse<object>> UpdatePrescriptionAsync(Guid prescriptionId, Guid userId, UpdatePrescriptionRequest request)
         {
             // 1. Lấy đơn thuốc kèm danh sách thuốc hiện tại
             var prescription = (await _unitOfWork.Repository<Prescriptions>()
@@ -203,13 +203,13 @@ namespace MediMateService.Services.Implementations
 
             if (prescription == null)
             {
-                return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
+                return ApiResponse<object>.Fail("Đơn thuốc không tồn tại.", 404);
             }
 
             // 2. Kiểm tra quyền truy cập (Dùng service bạn đã có)
             if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
             {
-                return ApiResponse<PrescriptionResponse>.Fail("Bạn không có quyền chỉnh sửa đơn thuốc này.", 403);
+                return ApiResponse<object>.Fail("Bạn không có quyền chỉnh sửa đơn thuốc này.", 403);
             }
 
             // ─── CHECK TƯƠNG TÁC THUỐC ───
@@ -225,7 +225,7 @@ namespace MediMateService.Services.Implementations
                         NewDrugName = string.Join(", ", drugNames),
                         Conflicts = interactionResult.Conflicts
                     };
-                    return ApiResponse<PrescriptionResponse>.FailWithData(
+                    return ApiResponse<object>.FailWithData(
                         $"Phát hiện tương tác thuốc giữa các thuốc trong đơn hoặc với thuốc đang sử dụng. Nhấn \"Giải thích\" để hiểu rõ hơn.",
                         payload,
                         409
@@ -387,7 +387,7 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
+            return ApiResponse<object>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
         }
 
         // --- HÀM 2: XÓA ĐƠN THUỐC ---

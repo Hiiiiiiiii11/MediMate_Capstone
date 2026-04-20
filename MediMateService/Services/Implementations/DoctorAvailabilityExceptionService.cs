@@ -132,19 +132,23 @@ namespace MediMateService.Services.Implementations
             if (exception == null)
                 return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không tìm thấy ngoại lệ lịch.", 404);
 
-            //if (exception.Doctor.UserId != currentUserId)
-            //    return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền sửa ngoại lệ này.", 403);
-
             if (request.StartTime.HasValue && request.EndTime.HasValue && request.StartTime >= request.EndTime)
             {
                 return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
             }
 
+            // --- CẬP NHẬT CÁC TRƯỜNG DỮ LIỆU ---
             exception.Date = request.Date.Date;
             exception.StartTime = request.StartTime;
             exception.EndTime = request.EndTime;
             exception.Reason = request.Reason;
             exception.IsAvailableOverride = request.IsAvailableOverride;
+
+            // ✅ BỔ SUNG DÒNG NÀY ĐỂ CẬP NHẬT STATUS
+            if (!string.IsNullOrEmpty(request.Status))
+            {
+                exception.Status = request.Status;
+            }
 
             _unitOfWork.Repository<DoctorAvailabilityExceptions>().Update(exception);
             await _unitOfWork.CompleteAsync();

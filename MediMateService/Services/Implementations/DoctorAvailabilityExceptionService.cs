@@ -33,6 +33,15 @@ namespace MediMateService.Services.Implementations
             {
                 return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
             }
+            var isOverlap = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+        .GetQueryable()
+        .AnyAsync(e => e.DoctorId == doctorId
+                    && e.Date.Date == request.Date.Date
+                    && request.StartTime < e.EndTime
+                    && e.StartTime < request.EndTime);
+
+            if (isOverlap)
+                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Khung giờ nghỉ này đã tồn tại.", 409);
 
             var exception = new DoctorAvailabilityExceptions
             {

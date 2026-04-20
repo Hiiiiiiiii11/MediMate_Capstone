@@ -424,71 +424,47 @@ namespace MediMateService.Services.Implementations
         {
             var result = new List<AvailableSlotDto>();
             DateTime targetDate = date.Date;
-            DateTime today = DateTime.Now.Date;
 
-            if (targetDate < today)
-            {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Không thể tra cứu lịch trong quá khứ.");
-            }
-
-            // 1. Lấy TẤT CẢ các Exception của bác sĩ trong ngày này
+            // 1. Lấy tất cả các ngoại lệ (Exceptions) trong ngày này
             var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
                 .FindAsync(e => e.DoctorId == doctorId && e.Date.Date == targetDate);
 
-            // 2. Kiểm tra nếu có Exception nghỉ nguyên ngày (IsAvailableOverride = false và không có giờ cụ thể)
-            if (exceptions.Any(e => !e.IsAvailableOverride && !e.StartTime.HasValue))
+            // 2. Kiểm tra nếu có lệnh nghỉ nguyên ngày (IsAvailableOverride = false và không có giờ cụ thể)
+            if (exceptions.Any(e => e.IsAvailableOverride == false && !e.StartTime.HasValue))
             {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ xin nghỉ phép cả ngày này.");
+                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ nghỉ cả ngày.");
             }
 
-            // 3. Lấy danh sách ca làm việc định kỳ (Weekly Schedule)
+            // 3. Lấy lịch làm việc định kỳ (Weekly Schedule)
             string dayOfWeekString = date.DayOfWeek.ToString();
             var availabilities = await _unitOfWork.Repository<DoctorAvailability>()
                 .FindAsync(a => a.DoctorId == doctorId && a.DayOfWeek == dayOfWeekString && a.IsActive);
 
-            if (!availabilities.Any())
-            {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ không có ca làm việc vào ngày này.");
-            }
-
             // 4. Lấy các lịch đã bị đặt (Booked)
             var bookedAppointments = await _unitOfWork.Repository<Appointments>()
-                .FindAsync(a => a.DoctorId == doctorId
-                                && a.AppointmentDate.Date == targetDate
-                                && a.Status != AppointmentConstants.CANCELLED
-                                && a.Status != AppointmentConstants.REJECTED);
-
+                .FindAsync(a => a.DoctorId == doctorId && a.AppointmentDate.Date == targetDate
+                                && a.Status != AppointmentConstants.CANCELLED);
             var bookedTimes = bookedAppointments.Select(a => a.AppointmentTime).ToList();
+
             TimeSpan slotDuration = TimeSpan.FromMinutes(60);
-            bool isToday = targetDate == today;
-            TimeSpan currentTime = DateTime.Now.TimeOfDay;
-            TimeSpan bufferTime = TimeSpan.FromMinutes(30);
 
             foreach (var shift in availabilities)
             {
                 TimeSpan currentSlotTime = shift.StartTime;
-                TimeSpan adjustedEndTime = shift.EndTime;
-
-                while (currentSlotTime + slotDuration <= adjustedEndTime)
+                while (currentSlotTime + slotDuration <= shift.EndTime)
                 {
-                    // A. Check quá khứ (Buffer 30p)
-                    if (isToday && currentSlotTime <= currentTime.Add(bufferTime))
-                    {
-                        currentSlotTime = currentSlotTime.Add(slotDuration);
-                        continue;
-                    }
-
-                    // [QUAN TRỌNG] B. Check xem slot này có nằm trong khoảng thời gian nghỉ (Exception) không
-                    // Nếu IsAvailableOverride = false có nghĩa là bác sĩ KHÔNG rảnh trong khoảng đó.
-                    bool isBusyByException = exceptions.Any(e =>
-                        !e.IsAvailableOverride &&
+                    // --- LOGIC QUAN TRỌNG TẠI ĐÂY ---
+                    // Kiểm tra xem slot này có nằm trong bất kỳ khung giờ NGHỈ nào không
+                    // Chúng ta coi IsAvailableOverride = false là "Lịch nghỉ"
+                    bool isInOffPeriod = exceptions.Any(e =>
+                        e.IsAvailableOverride == false && // Đây là lịch nghỉ
                         e.StartTime.HasValue && e.EndTime.HasValue &&
                         currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
 
-                    if (isBusyByException)
+                    if (isInOffPeriod)
                     {
                         currentSlotTime = currentSlotTime.Add(slotDuration);
-                        continue; // Bỏ qua slot này, không add vào danh sách rảnh
+                        continue; // Bỏ qua slot này, không hiện lên App
                     }
 
                     result.Add(new AvailableSlotDto
@@ -503,8 +479,7 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            result = result.OrderBy(x => x.Time).ToList();
-            return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Lấy danh sách giờ khám thành công.");
+            return ApiResponse<List<AvailableSlotDto>>.Ok(result.OrderBy(x => x.Time).ToList());
         }
 
         public async Task<AppointmentDto> UpdateAppointmentAsync(Guid appointmentId, Guid userId, UpdateAppointmentDto request)

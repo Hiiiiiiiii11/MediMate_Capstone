@@ -70,9 +70,10 @@ namespace MediMateService.Services.Implementations
             {
                 query = query.Where(e => e.DoctorId == filter.DoctorId.Value);
             }
-            if (filter.IsAvailableOverride.HasValue)
+            if (!string.IsNullOrEmpty(filter.Status))
             {
-                query = query.Where(e => e.IsAvailableOverride == filter.IsAvailableOverride.Value);
+                // So sánh chuỗi (có thể dùng ToLower để an toàn hơn)
+                query = query.Where(e => e.Status == filter.Status);
             }
             if (filter.DateFrom.HasValue)
             {

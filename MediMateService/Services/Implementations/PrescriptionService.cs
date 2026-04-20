@@ -35,14 +35,15 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
             }
 
-            // ─── CHECK TƯƠNG TÁC THUỐC ───
+            // Khởi tạo ID trước để gán cho các bảng con một cách tường minh (tốt cho tracking)
+            var prescriptionId = Guid.NewGuid();
 
-            // 2. Map dữ liệu Header (Bảng Prescriptions)
+            // 2. Khởi tạo đối tượng Prescription (Header)
             var prescription = new Prescriptions
             {
-                PrescriptionId = Guid.NewGuid(),
+                PrescriptionId = prescriptionId,
                 MemberId = memberId,
-                PrescriptionCode = request.PrescriptionCode,
+                PrescriptionCode = request.PrescriptionCode ?? $"PRE-{DateTime.Now:yyyyMMddHHmm}",
                 DoctorName = request.DoctorName,
                 HospitalName = request.HospitalName,
                 PrescriptionDate = request.PrescriptionDate,
@@ -50,39 +51,24 @@ namespace MediMateService.Services.Implementations
                 Diagnosis = request.Diagnosis,
                 Status = "Active",
                 CreateAt = DateTime.Now,
-                UpdateAt = DateTime.Now
+                UpdateAt = DateTime.Now,
+                // Đảm bảo các Collection không bị null (Mặc dù Model đã khởi tạo nhưng gán mới cho chắc chắn)
+                PrescriptionImages = new List<PrescriptionImages>(),
+                PrescriptionMedicines = new List<PrescriptionMedicines>()
             };
 
-            // 3. Map dữ liệu Images (Bảng PrescriptionImages)
-            //if (request.Images != null)
-            //{
-            //    foreach (var img in request.Images)
-            //    {
-            //        prescription.PrescriptionImages.Add(new PrescriptionImages
-            //        {
-            //            ImageId = Guid.NewGuid(),
-            //            PrescriptionId = prescription.PrescriptionId,
-            //            ImageUrl = img.ImageUrl,
-            //            OcrRawData = img.OcrRawData ?? "",
-            //            UploadedAt = DateTime.Now,
-            //            IsProcessed = true // Vì UI đã xử lý rồi mới gửi xuống
-            //        });
-            //    }
-            //}
-            if (request.Images != null)
+            // 3. Map dữ liệu Images vào Collection của đối tượng cha
+            if (request.Images != null && request.Images.Any())
             {
                 foreach (var img in request.Images)
                 {
                     prescription.PrescriptionImages.Add(new PrescriptionImages
                     {
                         ImageId = Guid.NewGuid(),
-                        PrescriptionId = prescription.PrescriptionId,
+                        PrescriptionId = prescriptionId, // Khóa ngoại liên kết
                         ImageUrl = img.ImageUrl,
-
-                        // Lấy Thumbnail từ Request (FE gửi xuống)
-                        // Nếu FE không gửi thì fallback bằng cách dùng ImageUrl
+                        // Logic Thumbnail: dùng thumbnail từ FE, nếu không có dùng Original
                         ThumbnailUrl = !string.IsNullOrEmpty(img.ThumbnailUrl) ? img.ThumbnailUrl : img.ImageUrl,
-
                         OcrRawData = img.OcrRawData ?? "",
                         UploadedAt = DateTime.Now,
                         IsProcessed = true
@@ -90,15 +76,15 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            // 4. Map dữ liệu Medicines (Bảng PrescriptionMedicines)
-            if (request.Medicines != null)
+            // 4. Map dữ liệu Medicines vào Collection của đối tượng cha
+            if (request.Medicines != null && request.Medicines.Any())
             {
                 foreach (var med in request.Medicines)
                 {
                     prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
                     {
                         PrescriptionMedicineId = Guid.NewGuid(),
-                        PrescriptionId = prescription.PrescriptionId,
+                        PrescriptionId = prescriptionId, // Khóa ngoại liên kết
                         MedicineName = med.MedicineName,
                         Dosage = med.Dosage ?? "",
                         Unit = med.Unit ?? "",
@@ -110,21 +96,24 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            // 5. Lưu vào DB (EF Core tự xử lý Transaction lưu cả 3 bảng)
+            // 5. Lưu vào Database (Chỉ cần Add đối tượng cha)
+            // EF Core sẽ tự động duyệt qua PrescriptionImages và PrescriptionMedicines để lưu
             await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
             await _unitOfWork.CompleteAsync();
 
-            // 6. Phân bổ thuốc vào các khung thời gian
+            // 6. Phân bổ thuốc vào các khung thời gian (Job Hangfire)
             foreach (var med in prescription.PrescriptionMedicines)
             {
                 await AutoDistributeMedicineAsync(memberId, med, prescription.PrescriptionDate);
             }
 
+            // 7. Ghi Log Activity
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-            if (targetMember != null && targetMember.FamilyId.HasValue)
+            if (targetMember?.FamilyId.HasValue == true)
             {
                 var doer = (await _unitOfWork.Repository<Members>()
-.FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId))
+                    .FirstOrDefault();
 
                 if (doer != null)
                 {
@@ -134,12 +123,12 @@ namespace MediMateService.Services.Implementations
                         actionType: ActivityActionTypes.CREATE,
                         entityName: ActivityEntityNames.PRESCIPTION,
                         entityId: prescription.PrescriptionId,
-                        description: $"Đã thêm đơn thuốc mới của Bác sĩ '{prescription.DoctorName}' cho '{targetMember.FullName}'."
+                        description: $"Đã thêm đơn thuốc mới kèm {prescription.PrescriptionImages.Count} ảnh cho '{targetMember.FullName}'."
                     );
                 }
             }
 
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc thành công.");
+            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc và hình ảnh thành công.");
         }
 
         public async Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId)

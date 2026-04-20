@@ -53,6 +53,7 @@ namespace MediMateRepository.Data
 
         public DbSet<Drug> Drugs { get; set; }
         public DbSet<DrugInteraction> DrugInteractions { get; set; }
+        public DbSet<DoctorContract> DoctorContracts { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -105,6 +106,7 @@ namespace MediMateRepository.Data
 
             modelBuilder.Entity<Drug>().HasKey(d => d.DrugId);
             modelBuilder.Entity<DrugInteraction>().HasKey(di => di.InteractionId);
+            modelBuilder.Entity<DoctorContract>().HasKey(dc => dc.ContractId);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()

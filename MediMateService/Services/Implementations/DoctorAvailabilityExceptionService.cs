@@ -3,6 +3,7 @@ using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Share.Common;
+using Share.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,33 +23,37 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<DoctorAvailabilityExceptionDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityExceptionRequest request)
         {
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(doctorId);
-            if (doctor == null)
-                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không tìm thấy thông tin bác sĩ.", 404);
+            if (doctor == null) return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không tìm thấy bác sĩ.", 404);
 
             if (doctor.UserId != currentUserId)
-                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Bạn không có quyền thiết lập ngoại lệ lịch cho bác sĩ này.", 403);
+                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Không có quyền.", 403);
 
-            // Validate logic giờ
-            if (request.StartTime.HasValue && request.EndTime.HasValue && request.StartTime >= request.EndTime)
-            {
-                return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
-            }
+            // Chống trùng lặp
+            var isOverlap = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .GetQueryable()
+                .AnyAsync(e => e.DoctorId == doctorId
+                            && e.Date.Date == request.Date.Date
+                            && request.StartTime < e.EndTime
+                            && e.StartTime < request.EndTime);
+
+            if (isOverlap) return ApiResponse<DoctorAvailabilityExceptionDto>.Fail("Khung giờ này đã tồn tại.", 409);
 
             var exception = new DoctorAvailabilityExceptions
             {
                 ExceptionId = Guid.NewGuid(),
                 DoctorId = doctorId,
-                Date = request.Date.Date, // Chỉ lấy ngày, bỏ giờ phút giây
+                Date = request.Date.Date,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
                 Reason = request.Reason,
-                IsAvailableOverride = request.IsAvailableOverride
+                IsAvailableOverride = request.IsAvailableOverride, // false = Nghỉ, true = Tăng ca
+                Status = DoctorExceptionStatuses.PENDING // Luôn là Pending khi mới tạo
             };
 
             await _unitOfWork.Repository<DoctorAvailabilityExceptions>().AddAsync(exception);
             await _unitOfWork.CompleteAsync();
 
-            return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Thêm ngoại lệ lịch làm việc thành công.");
+            return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Gửi yêu cầu thành công.");
         }
 
         public async Task<ApiResponse<PagedResult<DoctorAvailabilityExceptionDto>>> GetAllAsync(DoctorAvailabilityExceptionFilter filter)
@@ -172,6 +177,7 @@ namespace MediMateService.Services.Implementations
                 DoctorId = e.DoctorId,
                 DoctorName = e.Doctor?.FullName ?? "Unknown",
                 Date = e.Date,
+                Status = e.Status,
                 // Kiểm tra HasValue, nếu có thì format, không thì gán null
                 StartTime = e.StartTime.HasValue ? e.StartTime.Value.ToString(@"hh\:mm") : null,
                 EndTime = e.EndTime.HasValue ? e.EndTime.Value.ToString(@"hh\:mm") : null,

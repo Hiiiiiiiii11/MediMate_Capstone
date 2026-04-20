@@ -167,6 +167,7 @@ namespace MediMateService.DTOs
         // Sửa TimeSpan? thành string?
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
+        public string Status { get; set; } = string.Empty;
 
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }

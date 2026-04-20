@@ -188,7 +188,7 @@ namespace MediMateService.DTOs
         public TimeSpan? StartTime { get; set; }
         public TimeSpan? EndTime { get; set; }
         public string Status { get; set; } = string.Empty; // Chỉ nhận "Pending", "Approved", "Rejected"
-        public string Reason { get; set; } = string.Empty;
+        public string? Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
     }
 

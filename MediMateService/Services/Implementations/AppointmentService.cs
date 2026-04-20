@@ -423,78 +423,72 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<List<AvailableSlotDto>>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)
         {
             var result = new List<AvailableSlotDto>();
-
-            // 1. ÉP CHUẨN NGÀY: Chuyển mọi thứ về múi giờ Local và chỉ lấy phần Ngày (Date)
-            DateTime targetDate = date.ToLocalTime().Date;
+            DateTime targetDate = date.Date;
             DateTime today = DateTime.Now.Date;
 
-            // Nếu tra cứu ngày trong quá khứ -> Cứ im lặng trả về mảng rỗng []
             if (targetDate < today)
             {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ không có ca làm việc hiện tại");
+                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Không thể tra cứu lịch trong quá khứ.");
             }
 
-            // 1. Chặn ngay từ vòng gửi xe nếu user cố tình xem ngày hôm qua
-            if (date.Date < DateTime.Now.Date)
+            // 1. Lấy TẤT CẢ các Exception của bác sĩ trong ngày này
+            var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .FindAsync(e => e.DoctorId == doctorId && e.Date.Date == targetDate);
+
+            // 2. Kiểm tra nếu có Exception nghỉ nguyên ngày (IsAvailableOverride = false và không có giờ cụ thể)
+            if (exceptions.Any(e => !e.IsAvailableOverride && !e.StartTime.HasValue))
             {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Không thể tra cứu lịch của ngày trong quá khứ.");
+                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ xin nghỉ phép cả ngày này.");
             }
 
-            // 2. Kiểm tra bác sĩ có xin nghỉ nguyên ngày không
-            var isDayOff = (await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
-                .FindAsync(e => e.DoctorId == doctorId
-                                 && e.Date.Date == date.Date
-                                 && !e.IsAvailableOverride)).Any();
-
-            if (isDayOff)
-            {
-                return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ xin nghỉ phép ngày này.");
-            }
-
-            // 3. Lấy danh sách ca làm việc (Đã bao gồm check a.IsActive == true)
+            // 3. Lấy danh sách ca làm việc định kỳ (Weekly Schedule)
             string dayOfWeekString = date.DayOfWeek.ToString();
             var availabilities = await _unitOfWork.Repository<DoctorAvailability>()
-                .FindAsync(a => a.DoctorId == doctorId
-                                 && a.DayOfWeek == dayOfWeekString
-                                 && a.IsActive);
+                .FindAsync(a => a.DoctorId == doctorId && a.DayOfWeek == dayOfWeekString && a.IsActive);
 
             if (!availabilities.Any())
             {
                 return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ không có ca làm việc vào ngày này.");
             }
 
-            // 4. Lấy các lịch đã bị người khác đặt mất
+            // 4. Lấy các lịch đã bị đặt (Booked)
             var bookedAppointments = await _unitOfWork.Repository<Appointments>()
                 .FindAsync(a => a.DoctorId == doctorId
-                                 && a.AppointmentDate.Date == date.Date
-                                 && a.Status != AppointmentConstants.CANCELLED
-                                 && a.Status != AppointmentConstants.REJECTED);
+                                && a.AppointmentDate.Date == targetDate
+                                && a.Status != AppointmentConstants.CANCELLED
+                                && a.Status != AppointmentConstants.REJECTED);
 
             var bookedTimes = bookedAppointments.Select(a => a.AppointmentTime).ToList();
-
-            // 5. CHIA SLOT THỜI GIAN (60 phút/slot)
             TimeSpan slotDuration = TimeSpan.FromMinutes(60);
-
-            // LOGIC MỚI: Xử lý triệt để thời gian quá khứ
-            bool isToday = date.Date == DateTime.Now.Date;
+            bool isToday = targetDate == today;
             TimeSpan currentTime = DateTime.Now.TimeOfDay;
-            // Buffer: Ví dụ bây giờ là 10h15, thì slot 10h-11h sẽ bị ẩn luôn, chỉ hiện từ slot 11h trở đi
             TimeSpan bufferTime = TimeSpan.FromMinutes(30);
 
             foreach (var shift in availabilities)
             {
                 TimeSpan currentSlotTime = shift.StartTime;
-
-                // FIX BUGS: Bù thêm 1 phút vào EndTime để xử lý ca 23:59 vs 24:00
-                TimeSpan adjustedEndTime = shift.EndTime.Add(TimeSpan.FromMinutes(1));
+                TimeSpan adjustedEndTime = shift.EndTime;
 
                 while (currentSlotTime + slotDuration <= adjustedEndTime)
                 {
-                    // NẾU LÀ HÔM NAY: Ẩn các slot có giờ bắt đầu <= Giờ hiện tại + 30 phút
+                    // A. Check quá khứ (Buffer 30p)
                     if (isToday && currentSlotTime <= currentTime.Add(bufferTime))
                     {
                         currentSlotTime = currentSlotTime.Add(slotDuration);
                         continue;
+                    }
+
+                    // [QUAN TRỌNG] B. Check xem slot này có nằm trong khoảng thời gian nghỉ (Exception) không
+                    // Nếu IsAvailableOverride = false có nghĩa là bác sĩ KHÔNG rảnh trong khoảng đó.
+                    bool isBusyByException = exceptions.Any(e =>
+                        !e.IsAvailableOverride &&
+                        e.StartTime.HasValue && e.EndTime.HasValue &&
+                        currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
+
+                    if (isBusyByException)
+                    {
+                        currentSlotTime = currentSlotTime.Add(slotDuration);
+                        continue; // Bỏ qua slot này, không add vào danh sách rảnh
                     }
 
                     result.Add(new AvailableSlotDto

@@ -134,7 +134,8 @@ namespace MediMateService.Services.Implementations
             string bodyFamily;
 
             var nextPushTime = DateTime.Now.AddMinutes(15);
-            bool isLastWarning = nextPushTime >= reminder.EndTime || attempt >= 3;
+            // Chỉ cảnh báo đỏ khi hiện tại cách EndTime <= 15 phút (không giới hạn số lần nhắc attempt)
+            bool isLastWarning = DateTime.Now >= reminder.EndTime.AddMinutes(-15);
 
             if (attempt == 1 && DateTime.Now < reminder.ReminderTime.AddMinutes(-2))
             {
@@ -145,12 +146,12 @@ namespace MediMateService.Services.Implementations
             else if (isLastWarning)
             {
                 title = "🚨 CẢNH BÁO TRỄ GIỜ UỐNG THUỐC!";
-                bodyMember = $"Bạn đã trễ giờ uống {medicineNames} (lịch {reminder.ReminderTime:HH\\:mm}). Nhắc nhở lần cuối, hãy uống uống thuốc để đảm bảo sức khỏe!";
+                bodyMember = $"Bạn sắp trễ giờ uống {medicineNames} (lịch {reminder.ReminderTime:HH\\:mm}). Nhắc nhở lần cuối, hãy uống uống thuốc để đảm bảo sức khỏe!";
                 bodyFamily = $"CẢNH BÁO: {targetMember.FullName} chưa uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}! Nhắc nhở lần cuối!";
             }
             else
             {
-                title = "⚠️ Đã đến giờ uống thuốc!";
+                title = "⚠️ Bạn có thuốc cần uống!";
                 bodyMember = $"Đã đến giờ uống {medicineNames}. Hãy uống thuốc và xác nhận trên app nhé!";
                 bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
             }

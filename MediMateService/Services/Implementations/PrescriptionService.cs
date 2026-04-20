@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Share.Common;
 using Share.Constants;
 using Hangfire;
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
 
 namespace MediMateService.Services.Implementations
 {
@@ -16,8 +18,9 @@ namespace MediMateService.Services.Implementations
         private readonly IActivityLogService _activityLogService;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IDrugInteractionService _drugInteractionService;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient, IDrugInteractionService drugInteractionService)
+        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient, IDrugInteractionService drugInteractionService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
@@ -25,6 +28,7 @@ namespace MediMateService.Services.Implementations
             _activityLogService = activityLogService;
             _backgroundJobClient = backgroundJobClient;
             _drugInteractionService = drugInteractionService;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
@@ -107,7 +111,7 @@ namespace MediMateService.Services.Implementations
                 await AutoDistributeMedicineAsync(memberId, med, prescription.PrescriptionDate);
             }
 
-            // 7. Ghi Log Activity
+            // 7. Ghi Log Activity & Phát SignalR
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
             if (targetMember?.FamilyId.HasValue == true)
             {
@@ -126,6 +130,17 @@ namespace MediMateService.Services.Implementations
                         description: $"Đã thêm đơn thuốc mới kèm {prescription.PrescriptionImages.Count} ảnh cho '{targetMember.FullName}'."
                     );
                 }
+                
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
             }
 
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc và hình ảnh thành công.");
@@ -319,9 +334,9 @@ namespace MediMateService.Services.Implementations
             }
 
             // 7. Ghi nhật ký hoạt động (Activity Log)
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
             if (hasChanges)
             {
-                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
                 if (targetMember?.FamilyId.HasValue == true)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
@@ -342,6 +357,21 @@ namespace MediMateService.Services.Implementations
                         );
                     }
                 }
+            }
+
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "UPDATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "UPDATED" });
             }
 
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
@@ -401,6 +431,21 @@ namespace MediMateService.Services.Implementations
                     );
                 }
             }
+            
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+            }
 
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Đã khởi tạo đơn thuốc.");
         }
@@ -442,6 +487,21 @@ namespace MediMateService.Services.Implementations
                         description: $"Đã xóa đơn thuốc của bác sĩ '{doctorName}' cấp cho '{targetMember.FullName}'."
                     );
                 }
+            }
+            
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "DELETED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "DELETED" });
             }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa đơn thuốc.");

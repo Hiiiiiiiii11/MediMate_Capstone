@@ -425,11 +425,12 @@ namespace MediMateService.Services.Implementations
             var result = new List<AvailableSlotDto>();
             DateTime targetDate = date.Date;
 
-            // 1. Lấy tất cả các ngoại lệ (Exceptions) trong ngày này
             var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
-                .FindAsync(e => e.DoctorId == doctorId && e.Date.Date == targetDate);
+        .FindAsync(e => e.DoctorId == doctorId
+                        && e.Date.Date == targetDate
+                        && e.Status == DoctorExceptionStatuses.APPROVED); // CHỈ LẤY LỊCH ĐÃ DUYỆT
 
-            // 2. Kiểm tra nếu có lệnh nghỉ nguyên ngày (IsAvailableOverride = false và không có giờ cụ thể)
+            // 2. Nếu nghỉ nguyên ngày (IsAvailableOverride = false)
             if (exceptions.Any(e => e.IsAvailableOverride == false && !e.StartTime.HasValue))
             {
                 return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ nghỉ cả ngày.");
@@ -456,15 +457,15 @@ namespace MediMateService.Services.Implementations
                     // --- LOGIC QUAN TRỌNG TẠI ĐÂY ---
                     // Kiểm tra xem slot này có nằm trong bất kỳ khung giờ NGHỈ nào không
                     // Chúng ta coi IsAvailableOverride = false là "Lịch nghỉ"
-                    bool isInOffPeriod = exceptions.Any(e =>
-                        e.IsAvailableOverride == false && // Đây là lịch nghỉ
-                        e.StartTime.HasValue && e.EndTime.HasValue &&
-                        currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
+                    bool isLeaveSlot = exceptions.Any(e =>
+                e.IsAvailableOverride == false &&
+                e.StartTime.HasValue &&
+                currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
 
-                    if (isInOffPeriod)
+                    if (isLeaveSlot)
                     {
-                        currentSlotTime = currentSlotTime.Add(slotDuration);
-                        continue; // Bỏ qua slot này, không hiện lên App
+                        currentSlotTime = currentSlotTime.Add(TimeSpan.FromMinutes(60));
+                        continue;
                     }
 
                     result.Add(new AvailableSlotDto

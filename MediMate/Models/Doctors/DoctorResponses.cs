@@ -34,6 +34,7 @@ namespace MediMate.Models.Doctors
         public DateTime Date { get; set; }
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
+        public string Status { get; set; } = "Pending";
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
     }

@@ -9,6 +9,7 @@
         public TimeSpan? EndTime { get; set; }
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; } = false;
+        public string Status { get; set; } = "Pending";
         public virtual Doctors Doctor { get; set; } = null!;
     }
 }

@@ -198,6 +198,7 @@ namespace MediMateService.DTOs
         public bool? IsAvailableOverride { get; set; }
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
+        public string? Status { get; set; }
         public bool IsDescending { get; set; } = true;
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;

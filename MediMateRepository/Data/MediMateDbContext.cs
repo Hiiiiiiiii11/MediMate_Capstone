@@ -453,6 +453,10 @@ namespace MediMateRepository.Data
                 .WithMany(d => d.DrugInteractions)
                 .HasForeignKey(di => di.DrugId)
                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Doctors>()
+        .HasOne(d => d.DoctorBankAccount)
+        .WithOne(b => b.Doctor)
+        .HasForeignKey<DoctorBankAccount>(b => b.DoctorId);
         }
 
     }

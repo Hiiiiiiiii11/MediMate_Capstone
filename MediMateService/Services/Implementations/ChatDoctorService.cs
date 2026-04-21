@@ -212,12 +212,12 @@ namespace MediMateService.Services.Implementations
             var memberIds = familyMembers.Select(m => m.MemberId).ToList();
 
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
-                .GetQueryable()
-                .AsNoTracking()
-                .Include(s => s.Doctor)
-                .Include(s => s.Messages.OrderByDescending(m => m.SendAt).Take(1)) // Chỉ lấy tin cuối
-                .Where(s => memberIds.Contains(s.MemberId))
-                .ToListAsync();
+        .GetQueryable()
+        .AsNoTracking()
+        .Include(s => s.Doctor)
+        .Include(s => s.Messages.OrderByDescending(m => m.SendAt).Take(1))
+        .Where(s => memberIds.Contains(s.MemberId))
+        .ToListAsync();
 
             var result = sessions.Select(s => new ChatSessionSummaryResponse
             {
@@ -227,7 +227,11 @@ namespace MediMateService.Services.Implementations
                 Status = s.Status,
                 LastMessage = s.Messages.FirstOrDefault()?.Content,
                 LastMessageTime = s.Messages.FirstOrDefault()?.SendAt,
-                UnreadCount = s.UnreadCountMember
+                UnreadCount = s.UnreadCountMember,
+                // --- Map thêm thời gian ---
+                StartedAt = s.StartedAt,
+                EndedAt = s.EndedAt,
+                ChatExpiredAt = s.StartedAt.AddMinutes(125)
             }).OrderByDescending(x => x.LastMessageTime).ToList();
 
             return ApiResponse<IEnumerable<ChatSessionSummaryResponse>>.Ok(result);
@@ -237,7 +241,7 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<IEnumerable<ChatSessionSummaryResponse>>> GetSessionsByDoctorIdAsync(Guid doctorId, Guid currentUserId)
         {
             var sessions = await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => s.DoctorId == doctorId, includeProperties: "Member,Messages");
+        .FindAsync(s => s.DoctorId == doctorId, includeProperties: "Member,Messages");
 
             var result = sessions.Select(s => new ChatSessionSummaryResponse
             {
@@ -247,9 +251,11 @@ namespace MediMateService.Services.Implementations
                 Status = s.Status,
                 LastMessage = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.Content,
                 LastMessageTime = s.Messages?.OrderByDescending(m => m.SendAt).FirstOrDefault()?.SendAt,
-                // LẤY TRỰC TIẾP TỪ CỘT UNREAD CỦA DOCTOR
                 UnreadCount = s.UnreadCountDoctor,
-                ExpiredAt = s.EndedAt.HasValue ? s.EndedAt.Value.AddHours(1) : null              
+                // --- Map thêm thời gian ---
+                StartedAt = s.StartedAt,
+                EndedAt = s.EndedAt,
+                ChatExpiredAt = s.StartedAt.AddMinutes(125)
             })
             .OrderByDescending(x => x.LastMessageTime)
             .ToList();
@@ -263,18 +269,21 @@ namespace MediMateService.Services.Implementations
         public async Task<ApiResponse<ChatSessionSummaryResponse>> GetSessionDetailsAsync(Guid sessionId, Guid currentUserId, bool isDoctorRequest)
         {
             var session = (await _unitOfWork.Repository<ConsultationSessions>()
-                .FindAsync(s => s.ConsultanSessionId == sessionId, includeProperties: "Doctor,Member")).FirstOrDefault();
+        .FindAsync(s => s.ConsultanSessionId == sessionId, includeProperties: "Doctor,Member")).FirstOrDefault();
 
             if (session == null)
                 return ApiResponse<ChatSessionSummaryResponse>.Fail("Không tìm thấy phiên tư vấn.", 404);
 
-            // Tùy theo góc nhìn (Bác sĩ hay Bệnh nhân) để trả về thông tin Partner cho đúng
             var response = new ChatSessionSummaryResponse
             {
                 SessionId = session.ConsultanSessionId,
                 Status = session.Status,
                 PartnerName = isDoctorRequest ? (session.Member?.FullName ?? "Unknown") : (session.Doctor?.FullName ?? "Unknown"),
-                PartnerAvatar = isDoctorRequest ? session.Member?.AvatarUrl : session.Doctor?.LicenseImage
+                PartnerAvatar = isDoctorRequest ? session.Member?.AvatarUrl : session.Doctor?.LicenseImage,
+                // --- Map thêm thời gian để Popup đếm ngược ---
+                StartedAt = session.StartedAt,
+                EndedAt = session.EndedAt,
+                ChatExpiredAt = session.StartedAt.AddMinutes(125)
             };
 
             return ApiResponse<ChatSessionSummaryResponse>.Ok(response);
@@ -282,7 +291,6 @@ namespace MediMateService.Services.Implementations
 
         private ChatDoctorMessageResponse MapToResponse(ChatDoctorMessages message, ConsultationSessions session)
         {
-            // Xác định tên và avatar dựa trên Type
             bool isDoctor = message.Type == SenderType.Doctor;
             string senderName = isDoctor ? session.Doctor?.FullName : session.Member?.FullName;
             string senderAvatar = isDoctor ? session.Doctor?.LicenseImage : session.Member?.AvatarUrl;
@@ -298,7 +306,12 @@ namespace MediMateService.Services.Implementations
                 Content = message.Content,
                 AttachmentUrl = message.AttachmentUrl,
                 IsRead = message.IsRead,
-                SendAt = message.SendAt
+                SendAt = message.SendAt,
+
+                // ✅ GÁN GIÁ TRỊ THỜI GIAN TỪ SESSION VÀO ĐÂY
+                StartedAt = session.StartedAt,
+                EndedAt = session.EndedAt,
+                ChatExpiredAt = session.StartedAt.AddMinutes(125)
             };
         }
     }

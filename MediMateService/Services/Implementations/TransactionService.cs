@@ -66,19 +66,24 @@ namespace MediMateService.Services.Implementations
         // ==========================================
         public async Task<ApiResponse<PagedResult<TransactionItemDto>>> GetTransactionsByUserIdAsync(Guid userId, TransactionFilterDto filter)
         {
+            // 1. Tìm thông tin bác sĩ dựa trên UserId trước
+            var doctor = await _unitOfWork.Repository<Doctors>().GetQueryable()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.UserId == userId);
+
+            Guid? doctorId = doctor?.DoctorId;
+
             IQueryable<Transactions> query = _unitOfWork.Repository<Transactions>().GetQueryable()
                 .Include(t => t.Payment)
-                    .ThenInclude(p => p != null ? p.User : null)
                 .Include(t => t.Payout)
-                    .ThenInclude(dp => dp != null ? dp.ConsultationSession : null)
-                        .ThenInclude(cs => cs != null ? cs.Doctor : null);
+                    .ThenInclude(dp => dp!.ConsultationSession);
 
-            // Điều kiện lọc theo UserId: 
-            // - Nếu là Payment: so sánh với Payment.UserId
-            // - Nếu là Payout: so sánh với Payout.ConsultationSession.Doctor.UserId
+            // 2. Lọc thông minh hơn:
+            // - Nếu là giao dịch nạp tiền (IN): Kiểm tra Payment.UserId == userId
+            // - Nếu là giao dịch giải ngân (OUT): Kiểm tra Payout.ConsultationSession.DoctorId == doctorId
             query = query.Where(t =>
                 (t.Payment != null && t.Payment.UserId == userId) ||
-                (t.Payout != null && t.Payout.ConsultationSession != null && t.Payout.ConsultationSession.Doctor != null && t.Payout.ConsultationSession.Doctor.UserId == userId)
+                (t.Payout != null && t.Payout.ConsultationSession != null && t.Payout.ConsultationSession.DoctorId == doctorId)
             );
 
             // Dùng chung hàm filter và sort
@@ -95,9 +100,11 @@ namespace MediMateService.Services.Implementations
             {
                 TransactionId = t.TransactionId,
                 TransactionCode = t.TransactionCode,
-                TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.Now,
+                // Ưu tiên dùng PaidAt, nếu không có dùng CreatedAt của Payment/Payout
+                TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? t.Payout?.CalculatedAt ?? DateTime.Now,
                 TransactionType = t.TransactionType,
-                TotalAmount = t.Payment?.Amount ?? t.Payout?.Amount ?? 0,
+                // Dùng trường AmountPaid trực tiếp từ bảng Transactions (đã lưu ở bước Approve)
+                TotalAmount = t.AmountPaid > 0 ? t.AmountPaid : (t.Payment?.Amount ?? t.Payout?.Amount ?? 0),
                 Status = t.TransactionStatus
             }).ToList();
 
@@ -109,7 +116,7 @@ namespace MediMateService.Services.Implementations
                 PageSize = filter.PageSize
             };
 
-            return ApiResponse<PagedResult<TransactionItemDto>>.Ok(result, "Lấy danh sách giao dịch của bạn thành công.");
+            return ApiResponse<PagedResult<TransactionItemDto>>.Ok(result, "Lấy danh sách giao dịch thành công.");
         }
 
         // ==========================================

@@ -27,6 +27,9 @@ namespace MediMateService.DTOs
         public string? AttachmentUrl { get; set; }
         public bool IsRead { get; set; }
         public DateTime SendAt { get; set; }
+        public DateTime StartedAt { get; set; }
+        public DateTime? EndedAt { get; set; }
+        public DateTime ChatExpiredAt { get; set; }
     }
 
     public class ChatSessionSummaryResponse
@@ -44,6 +47,9 @@ namespace MediMateService.DTOs
         public string? LastMessage { get; set; }
         public DateTime? LastMessageTime { get; set; }
         public DateTime? ExpiredAt { get; set; }
+        public DateTime StartedAt { get; set; } // Thời gian bắt đầu session
+        public DateTime? EndedAt { get; set; }   // Thời gian kết thúc thực tế (nếu có)
+        public DateTime ChatExpiredAt { get; set; } // StartedAt + 125 phút (Thời điểm đóng chat)
 
         // Số tin nhắn chưa đọc trong cái phòng chat này
         public int UnreadCount { get; set; }

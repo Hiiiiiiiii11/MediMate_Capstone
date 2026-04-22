@@ -425,23 +425,29 @@ namespace MediMateService.Services.Implementations
             var result = new List<AvailableSlotDto>();
             DateTime targetDate = date.Date;
 
-            var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
-        .FindAsync(e => e.DoctorId == doctorId
-                        && e.Date.Date == targetDate
-                        && e.Status == DoctorExceptionStatuses.APPROVED); // CHỈ LẤY LỊCH ĐÃ DUYỆT
+            // --- LẤY GIỜ HIỆN TẠI ---
+            DateTime now = DateTime.Now; // Lấy giờ hệ thống
+            bool isToday = targetDate == now.Date;
+            TimeSpan currentTime = now.TimeOfDay;
 
-            // 2. Nếu nghỉ nguyên ngày (IsAvailableOverride = false)
+            // 1. Lấy tất cả các ngoại lệ (Exceptions)
+            var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+                .FindAsync(e => e.DoctorId == doctorId
+                                && e.Date.Date == targetDate
+                                && e.Status == DoctorExceptionStatuses.APPROVED);
+
+            // 2. Nếu nghỉ nguyên ngày
             if (exceptions.Any(e => e.IsAvailableOverride == false && !e.StartTime.HasValue))
             {
                 return ApiResponse<List<AvailableSlotDto>>.Ok(result, "Bác sĩ nghỉ cả ngày.");
             }
 
-            // 3. Lấy lịch làm việc định kỳ (Weekly Schedule)
+            // 3. Lấy lịch định kỳ
             string dayOfWeekString = date.DayOfWeek.ToString();
             var availabilities = await _unitOfWork.Repository<DoctorAvailability>()
                 .FindAsync(a => a.DoctorId == doctorId && a.DayOfWeek == dayOfWeekString && a.IsActive);
 
-            // 4. Lấy các lịch đã bị đặt (Booked)
+            // 4. Lấy lịch đã đặt
             var bookedAppointments = await _unitOfWork.Repository<Appointments>()
                 .FindAsync(a => a.DoctorId == doctorId && a.AppointmentDate.Date == targetDate
                                 && a.Status != AppointmentConstants.CANCELLED);
@@ -454,17 +460,22 @@ namespace MediMateService.Services.Implementations
                 TimeSpan currentSlotTime = shift.StartTime;
                 while (currentSlotTime + slotDuration <= shift.EndTime)
                 {
-                    // --- LOGIC QUAN TRỌNG TẠI ĐÂY ---
-                    // Kiểm tra xem slot này có nằm trong bất kỳ khung giờ NGHỈ nào không
-                    // Chúng ta coi IsAvailableOverride = false là "Lịch nghỉ"
+                    // ✅ LOGIC 1: NẾU LÀ HÔM NAY, BỎ QUA CÁC GIỜ ĐÃ QUA
+                    if (isToday && currentSlotTime < currentTime)
+                    {
+                        currentSlotTime = currentSlotTime.Add(slotDuration);
+                        continue;
+                    }
+
+                    // ✅ LOGIC 2: KIỂM TRA LỊCH NGHỈ (EXCEPTIONS)
                     bool isLeaveSlot = exceptions.Any(e =>
-                e.IsAvailableOverride == false &&
-                e.StartTime.HasValue &&
-                currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
+                        e.IsAvailableOverride == false &&
+                        e.StartTime.HasValue &&
+                        currentSlotTime >= e.StartTime.Value && currentSlotTime < e.EndTime.Value);
 
                     if (isLeaveSlot)
                     {
-                        currentSlotTime = currentSlotTime.Add(TimeSpan.FromMinutes(60));
+                        currentSlotTime = currentSlotTime.Add(slotDuration);
                         continue;
                     }
 
@@ -472,7 +483,7 @@ namespace MediMateService.Services.Implementations
                     {
                         AvailabilityId = shift.DoctorAvailabilityId,
                         Time = currentSlotTime,
-                        DisplayTime = $"{currentSlotTime:hh\\:mm} - {currentSlotTime + slotDuration:hh\\:mm}",
+                        DisplayTime = $"{currentSlotTime:hh\\:mm} - {(currentSlotTime + slotDuration):hh\\:mm}",
                         IsBooked = bookedTimes.Contains(currentSlotTime)
                     });
 

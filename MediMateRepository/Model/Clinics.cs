@@ -16,7 +16,7 @@ namespace MediMateRepository.Model
         public string Address { get; set; } = string.Empty;
         
         // Giấy phép hoạt động của Phòng khám
-        public string License { get; set; } = string.Empty;
+        public string LicenseUrl { get; set; } = string.Empty;
         
         public string LogoUrl { get; set; } = string.Empty;
         

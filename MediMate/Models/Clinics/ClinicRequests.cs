@@ -9,16 +9,16 @@ namespace MediMate.Models.Clinics
         [Required]
         public string Address { get; set; } = string.Empty;
         [Required]
-        public string License { get; set; } = string.Empty;
-        public string? LogoUrl { get; set; }
+        public IFormFile LicenseFile { get; set; } 
+        public IFormFile? LogoFile { get; set; }
     }
 
     public class UpdateClinicRequest
     {
         public string? Name { get; set; }
         public string? Address { get; set; }
-        public string? License { get; set; }
-        public string? LogoUrl { get; set; }
+        public IFormFile? LicenseFile { get; set; }
+        public IFormFile? LogoFile { get; set; }
         public bool? IsActive { get; set; }
     }
 
@@ -41,7 +41,7 @@ namespace MediMate.Models.Clinics
     public class CreateClinicContractRequest
     {
         [Required]
-        public string FileUrl { get; set; } = string.Empty;
+        public IFormFile? ContractFile { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public string? Note { get; set; }

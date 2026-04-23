@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace MediMateService.DTOs
 {
     // ─── Clinic ───────────────────────────────────────────────
@@ -5,16 +7,16 @@ namespace MediMateService.DTOs
     {
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
-        public string License { get; set; } = string.Empty;
-        public string? LogoUrl { get; set; }
+        public IFormFile LicenseFile { get; set; } 
+        public IFormFile? LogoFile { get; set; } 
     }
 
     public class UpdateClinicDto
     {
         public string? Name { get; set; }
         public string? Address { get; set; }
-        public string? License { get; set; }
-        public string? LogoUrl { get; set; }
+        public IFormFile? LicenseFile { get; set; }
+        public IFormFile? LogoFile { get; set; } 
         public bool? IsActive { get; set; }
     }
 
@@ -23,7 +25,7 @@ namespace MediMateService.DTOs
         public Guid ClinicId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
-        public string License { get; set; } = string.Empty;
+        public string LicenseUrl { get; set; } = string.Empty;
         public string? LogoUrl { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -63,7 +65,7 @@ namespace MediMateService.DTOs
     public class CreateClinicContractDto
     {
         public Guid ClinicId { get; set; }
-        public string FileUrl { get; set; } = string.Empty;
+        public IFormFile? ContractFile { get; set; } 
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public string? Note { get; set; }

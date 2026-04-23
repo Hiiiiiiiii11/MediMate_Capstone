@@ -26,14 +26,14 @@ namespace MediMate.Controllers
         /// <summary>Admin tạo phòng khám mới.</summary>
         [HttpPost]
         [ProducesResponseType(typeof(ApiResponse<ClinicDto>), 201)]
-        public async Task<IActionResult> CreateClinic([FromBody] CreateClinicRequest request)
+        public async Task<IActionResult> CreateClinic([FromForm] CreateClinicRequest request)
         {
             var result = await _clinicService.CreateClinicAsync(new CreateClinicDto
             {
                 Name = request.Name,
                 Address = request.Address,
-                License = request.License,
-                LogoUrl = request.LogoUrl
+                LicenseFile = request.LicenseFile,
+                LogoFile = request.LogoFile
             });
             return StatusCode(201, ApiResponse<ClinicDto>.Ok(result, "Tạo phòng khám thành công."));
         }
@@ -59,14 +59,14 @@ namespace MediMate.Controllers
         /// <summary>Admin cập nhật thông tin phòng khám.</summary>
         [HttpPut("{clinicId:guid}")]
         [ProducesResponseType(typeof(ApiResponse<ClinicDto>), 200)]
-        public async Task<IActionResult> UpdateClinic(Guid clinicId, [FromBody] UpdateClinicRequest request)
+        public async Task<IActionResult> UpdateClinic(Guid clinicId, [FromForm] UpdateClinicRequest request)
         {
             var result = await _clinicService.UpdateClinicAsync(clinicId, new UpdateClinicDto
             {
                 Name = request.Name,
                 Address = request.Address,
-                License = request.License,
-                LogoUrl = request.LogoUrl,
+                LicenseFile = request.LicenseFile,
+                LogoFile = request.LogoFile,
                 IsActive = request.IsActive
             });
             return Ok(ApiResponse<ClinicDto>.Ok(result, "Cập nhật phòng khám thành công."));
@@ -138,12 +138,12 @@ namespace MediMate.Controllers
         /// <summary>Admin tạo hợp đồng mới cho phòng khám.</summary>
         [HttpPost("{clinicId:guid}/contracts")]
         [ProducesResponseType(typeof(ApiResponse<ClinicContractDto>), 201)]
-        public async Task<IActionResult> CreateContract(Guid clinicId, [FromBody] CreateClinicContractRequest request)
+        public async Task<IActionResult> CreateContract(Guid clinicId, [FromForm] CreateClinicContractRequest request)
         {
             var result = await _clinicService.CreateContractAsync(new CreateClinicContractDto
             {
                 ClinicId = clinicId,
-                FileUrl = request.FileUrl,
+                ContractFile = request.ContractFile,
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
                 Note = request.Note

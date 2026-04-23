@@ -3,16 +3,19 @@ using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
 using Microsoft.EntityFrameworkCore;
+using Org.BouncyCastle.Bcpg.OpenPgp;
 
 namespace MediMateService.Services.Implementations
 {
     public class ClinicService : IClinicService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
-        public ClinicService(IUnitOfWork unitOfWork)
+        public ClinicService(IUnitOfWork unitOfWork, IUploadPhotoService  uploadPhotoService)
         {
             _unitOfWork = unitOfWork;
+            _uploadPhotoService = uploadPhotoService;
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -21,15 +24,34 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ClinicDto> CreateClinicAsync(CreateClinicDto dto)
         {
+            string logoUrl = string.Empty;
+            string LicenseUrl = string.Empty;
+
+            // 1. Upload lên Cloudinary nếu có file
+            if (dto.LogoFile != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.LogoFile);
+
+                // Truy cập vào thuộc tính Url (hoặc SecureUrl tùy theo DTO của bạn)
+                logoUrl = uploadResult.OriginalUrl;
+            }
+            if (dto.LicenseFile != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.LicenseFile);
+
+                // Truy cập vào thuộc tính Url (hoặc SecureUrl tùy theo DTO của bạn)
+                LicenseUrl = uploadResult.OriginalUrl;
+            }
+
+            // 2. Lưu vào DB
             var clinic = new Clinics
             {
                 Name = dto.Name,
                 Address = dto.Address,
-                License = dto.License,
-                LogoUrl = dto.LogoUrl ?? string.Empty,
+                LicenseUrl = LicenseUrl,
+                LogoUrl = logoUrl, // URL từ Cloudinary
                 IsActive = true,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                CreatedAt = DateTime.Now
             };
 
             await _unitOfWork.Repository<Clinics>().AddAsync(clinic);
@@ -76,8 +98,20 @@ namespace MediMateService.Services.Implementations
 
             if (dto.Name != null) clinic.Name = dto.Name;
             if (dto.Address != null) clinic.Address = dto.Address;
-            if (dto.License != null) clinic.License = dto.License;
-            if (dto.LogoUrl != null) clinic.LogoUrl = dto.LogoUrl;
+            if (dto.LicenseFile != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.LicenseFile);
+
+                // Truy cập vào thuộc tính Url (hoặc SecureUrl tùy theo DTO của bạn)
+                clinic.LicenseUrl = uploadResult.OriginalUrl;
+            }
+            if (dto.LogoFile != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.LogoFile);
+
+                // Truy cập vào thuộc tính Url (hoặc SecureUrl tùy theo DTO của bạn)
+                clinic.LogoUrl = uploadResult.OriginalUrl;
+            }
             if (dto.IsActive.HasValue) clinic.IsActive = dto.IsActive.Value;
             clinic.UpdatedAt = DateTime.Now;
 
@@ -226,10 +260,22 @@ namespace MediMateService.Services.Implementations
             var clinic = await _unitOfWork.Repository<Clinics>().GetByIdAsync(dto.ClinicId)
                 ?? throw new NotFoundException($"Không tìm thấy phòng khám với ID {dto.ClinicId}.");
 
+            string uploadedFileUrl = string.Empty;
+            if (dto.ContractFile != null && dto.ContractFile.Length > 0)
+            {
+                // VÌ TRẢ VỀ STRING NÊN GÁN THẲNG LUÔN, KHÔNG DÙNG .Url NỮA
+                uploadedFileUrl = await _uploadPhotoService.UploadDocumentAsync(dto.ContractFile);
+            }
+            else
+            {
+                throw new BadRequestException("File hợp đồng không được để trống.");
+            }
+
+            // 3. Khởi tạo đối tượng Contract với URL đã upload
             var contract = new ClinicContract
             {
                 ClinicId = dto.ClinicId,
-                FileUrl = dto.FileUrl,
+                FileUrl = uploadedFileUrl, // Gán URL từ Cloudinary vào đây
                 StartDate = dto.StartDate,
                 EndDate = dto.EndDate,
                 Status = "Active",
@@ -313,7 +359,7 @@ namespace MediMateService.Services.Implementations
             ClinicId = clinic.ClinicId,
             Name = clinic.Name,
             Address = clinic.Address,
-            License = clinic.License,
+            LicenseUrl = clinic.LicenseUrl,
             LogoUrl = clinic.LogoUrl,
             IsActive = clinic.IsActive,
             CreatedAt = clinic.CreatedAt,

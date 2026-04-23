@@ -53,7 +53,6 @@ namespace MediMateService.Services.Implementations
                 DurationDays = dto.DurationDays,
                 MemberLimit = dto.MemberLimit,
                 OcrLimit = dto.OcrLimit,
-                ConsultantLimit = dto.ConsultantLimit,
                 Description = dto.Description
             };
 
@@ -76,7 +75,6 @@ namespace MediMateService.Services.Implementations
             if (dto.DurationDays.HasValue) package.DurationDays = dto.DurationDays.Value;
             if (dto.MemberLimit.HasValue) package.MemberLimit = dto.MemberLimit.Value;
             if (dto.OcrLimit.HasValue) package.OcrLimit = dto.OcrLimit.Value;
-            if (dto.ConsultantLimit.HasValue) package.ConsultantLimit = dto.ConsultantLimit.Value;
             if (dto.Description != null) package.Description = dto.Description;
 
             _unitOfWork.Repository<MembershipPackages>().Update(package);
@@ -116,7 +114,6 @@ namespace MediMateService.Services.Implementations
             DurationDays = p.DurationDays,
             MemberLimit = p.MemberLimit,
             OcrLimit = p.OcrLimit,
-            ConsultantLimit = p.ConsultantLimit,
             Description = p.Description,
             ActiveSubscriberCount = activeSubscriberCount
         };

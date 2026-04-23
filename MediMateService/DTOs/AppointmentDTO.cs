@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
 {
@@ -6,7 +6,8 @@ namespace MediMateService.DTOs
     {
 
         public Guid DoctorId { get; set; }
-
+        
+        public Guid ClinicId { get; set; }
 
         public Guid MemberId { get; set; }
 
@@ -21,6 +22,13 @@ namespace MediMateService.DTOs
     public class CancelAppointmentDto
     {
         public string Reason { get; set; } = string.Empty;
+    }
+
+    public class AppointmentPaymentResponseDto
+    {
+        public AppointmentDto Appointment { get; set; } = null!;
+        public string CheckoutUrl { get; set; } = string.Empty;
+        public long OrderCode { get; set; }
     }
 
     public class AppointmentDto

@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using MediMateRepository.Data;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
@@ -180,6 +179,98 @@ public class PayOSService : IPayOSService
         }
     }
 
+    public async Task<PaymentLinkResponse> CreateAppointmentPaymentLinkAsync(Guid userId, Payments paymentRecord, CreatePaymentRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            int orderCode = (int)(DateTime.Now.Ticks % int.MaxValue);
+
+            // Create Transaction to store OrderCode
+            var transaction = new Transactions
+            {
+                TransactionId = Guid.NewGuid(),
+                TransactionCode = $"APP{orderCode}",
+                PaymentId = paymentRecord.PaymentId,
+                GatewayName = "PayOS",
+                GatewayTransactionId = orderCode.ToString(),
+                TransactionStatus = "Pending",
+                TransactionType = TransactionTypes.MoneyReceived,
+                AmountPaid = 0 // Will update on success
+            };
+            await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
+            await _unitOfWork.CompleteAsync();
+
+            var payload = new
+            {
+                orderCode = orderCode,
+                amount = (int)paymentRecord.Amount,
+                description = $"Thanh toan #{orderCode}",
+                buyerName = request.BuyerName,
+                buyerEmail = request.BuyerEmail,
+                buyerPhone = request.BuyerPhone,
+                items = new[] {
+                    new {
+                        name = "Thanh toán tiền khám bệnh",
+                        quantity = 1,
+                        price = (int)paymentRecord.Amount,
+                        unit = "VND"
+                    }
+                },
+                cancelUrl = request.CancelUrl ?? _defaultCancelUrl,
+                returnUrl = request.ReturnUrl ?? _defaultReturnUrl,
+                expiredAt = (int?)DateTime.Now.AddMinutes(15).Subtract(DateTime.UnixEpoch).TotalSeconds
+            };
+
+            var signature = CreateSignature(payload);
+            var requestBody = new
+            {
+                orderCode = payload.orderCode,
+                amount = payload.amount,
+                description = payload.description,
+                buyerName = payload.buyerName,
+                buyerEmail = payload.buyerEmail,
+                buyerPhone = payload.buyerPhone,
+                items = payload.items,
+                cancelUrl = payload.cancelUrl,
+                returnUrl = payload.returnUrl,
+                expiredAt = payload.expiredAt,
+                signature = signature
+            };
+
+            var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            _logger.LogInformation("Creating PayOS appointment payment link for OrderCode {OrderCode}", orderCode);
+
+            var response = await _httpClient.PostAsync("/v2/payment-requests", content, cancellationToken);
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = JsonSerializer.Deserialize<PayOSApiResponse<PaymentLinkData>>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                if (result?.Data != null)
+                {
+                    return new PaymentLinkResponse
+                    {
+                        PaymentUrl = result.Data.CheckoutUrl,
+                        OrderCode = orderCode,
+                        QrCode = result.Data.QrCode,
+                        Message = "Payment link created successfully"
+                    };
+                }
+            }
+
+            _logger.LogError("PayOS Error: {Response}", responseContent);
+            throw new Exception($"Failed to create appointment payment link: {responseContent}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating appointment payment link");
+            throw;
+        }
+    }
+
     public async Task<PaymentStatusResponse?> GetPaymentInfoAsync(int orderCode, CancellationToken cancellationToken = default)
     {
         try
@@ -226,6 +317,8 @@ public class PayOSService : IPayOSService
                 .Include(t => t.Payment)
                 .ThenInclude(p => p.Subscription)
                 .ThenInclude(s => s.Package)
+                .Include(t => t.Payment)
+                .ThenInclude(p => p.Appointment)
                 .FirstOrDefaultAsync(t => t.GatewayName == "PayOS" && t.GatewayTransactionId == orderCode.ToString(), cancellationToken);
 
             if (transaction == null)
@@ -254,39 +347,81 @@ public class PayOSService : IPayOSService
                 // 2. Cập nhật Payment
                 transaction.Payment.Status = "Success";
 
-                // 3. Cập nhật Subscription
-                var sub = transaction.Payment.Subscription;
-
-                // Hủy các gói đang kích hoạt cũ của Gia đình này
-                var oldActiveSubscriptions = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
-                    .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
-                    .ToListAsync(cancellationToken);
-
-                foreach (var oldSub in oldActiveSubscriptions)
+                // XỬ LÝ THEO LOẠI THANH TOÁN (Gói dịch vụ HOẶC Đặt lịch)
+                if (transaction.Payment.SubscriptionId != null && transaction.Payment.Subscription != null)
                 {
-                    oldSub.Status = "Inactive";
+                    // ==========================================
+                    // 3A. Cập nhật Subscription
+                    // ==========================================
+                    var sub = transaction.Payment.Subscription;
+
+                    // Hủy các gói đang kích hoạt cũ của Gia đình này
+                    var oldActiveSubscriptions = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
+                        .Where(s => s.FamilyId == sub.FamilyId && s.Status == "Active" && s.SubscriptionId != sub.SubscriptionId)
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var oldSub in oldActiveSubscriptions)
+                    {
+                        oldSub.Status = "Inactive";
+                    }
+
+                    // Kích hoạt gói mới và thiết lập ngày tháng, số lượt
+                    sub.Status = "Active";
+                    sub.StartDate = DateOnly.FromDateTime(DateTime.Now);
+                    sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
+                    sub.RemainingOcrCount = sub.Package.OcrLimit;
+
+                    _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
+
+                    var member = await _unitOfWork.Repository<Members>().GetQueryable()
+                        .FirstOrDefaultAsync(m => m.UserId == transaction.Payment.UserId && m.FamilyId == sub.FamilyId, cancellationToken);
+
+                    await _activityLogService.LogActivityAsync(
+                        familyId: sub.FamilyId,
+                        memberId: member?.MemberId ?? Guid.Empty,
+                        actionType: ActivityActionTypes.UPDATE,
+                        entityName: ActivityEntityNames.FAMILY,
+                        entityId: sub.FamilyId,
+                        description: $"Gia đình đã nâng cấp thành công lên gói '{sub.Package.PackageName}'."
+                    );
                 }
+                else if (transaction.Payment.AppointmentId != null && transaction.Payment.Appointment != null)
+                {
+                    // ==========================================
+                    // 3B. Cập nhật Appointment
+                    // ==========================================
+                    var appointment = transaction.Payment.Appointment;
+                    appointment.PaymentStatus = "Paid";
+                    // Chuyển sang trạng thái Approved ngay sau khi thanh toán thành công
+                    appointment.Status = AppointmentConstants.APPROVED;
+                    
+                    _unitOfWork.Repository<Appointments>().Update(appointment);
 
-                // Kích hoạt gói mới và thiết lập ngày tháng, số lượt
-                sub.Status = "Active";
-                sub.StartDate = DateOnly.FromDateTime(DateTime.Now);
-                sub.EndDate = sub.StartDate.AddDays(sub.Package.DurationDays);
-                sub.RemainingOcrCount = sub.Package.OcrLimit;
-                sub.RemainingConsultantCount = sub.Package.ConsultantLimit;
+                    // Khởi tạo dòng tiền chờ thanh toán cho Phòng khám
+                    var doctorPayout = new DoctorPayout
+                    {
+                        PayoutId = Guid.NewGuid(),
+                        AppointmentId = appointment.AppointmentId,
+                        ClinicId = appointment.ClinicId ?? Guid.Empty,
+                        Amount = transaction.Payment.Amount,
+                        Status = "Hold", // Tạm giữ chờ đến khi khám xong
+                        CalculatedAt = DateTime.Now
+                    };
+                    await _unitOfWork.Repository<DoctorPayout>().AddAsync(doctorPayout);
 
-                _unitOfWork.Repository<FamilySubscriptions>().UpdateRange(oldActiveSubscriptions);
-
-                var member = await _unitOfWork.Repository<Members>().GetQueryable()
-        .FirstOrDefaultAsync(m => m.UserId == transaction.Payment.UserId && m.FamilyId == sub.FamilyId, cancellationToken);
-
-                await _activityLogService.LogActivityAsync(
-                    familyId: sub.FamilyId,
-                    memberId: member?.MemberId ?? Guid.Empty,
-                    actionType: ActivityActionTypes.UPDATE, // Hoặc dùng Action riêng cho Payment
-                    entityName: ActivityEntityNames.FAMILY,
-                    entityId: sub.FamilyId,
-                    description: $"Gia đình đã nâng cấp thành công lên gói '{sub.Package.PackageName}'."
-                );
+                    var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
+                    if (member?.FamilyId != null)
+                    {
+                        await _activityLogService.LogActivityAsync(
+                            familyId: member.FamilyId.Value,
+                            memberId: member.MemberId,
+                            actionType: ActivityActionTypes.UPDATE,
+                            entityName: "Appointment",
+                            entityId: appointment.AppointmentId,
+                            description: $"Đã thanh toán thành công tiền khám bệnh."
+                        );
+                    }
+                }
             }
             else
             {
@@ -299,10 +434,15 @@ public class PayOSService : IPayOSService
 
                 transaction.Payment.Status = "Failed";
 
-                // Hủy bỏ gói Subscription (chưa kích hoạt)
-                if (transaction.Payment.Subscription != null)
+                // Hủy bỏ gói Subscription hoặc Lịch khám (chưa thanh toán)
+                if (transaction.Payment.SubscriptionId != null && transaction.Payment.Subscription != null)
                 {
                     transaction.Payment.Subscription.Status = "Failed";
+                }
+                else if (transaction.Payment.AppointmentId != null && transaction.Payment.Appointment != null)
+                {
+                    transaction.Payment.Appointment.Status = AppointmentConstants.CANCELLED;
+                    transaction.Payment.Appointment.PaymentStatus = "Cancelled";
                 }
             }
 

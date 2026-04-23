@@ -325,7 +325,6 @@ namespace MediMateService.Services.Implementations
 
                     if (activeSubscription != null)
                     {
-                        activeSubscription.RemainingConsultantCount += 1;
                         _unitOfWork.Repository<MediMateRepository.Model.FamilySubscriptions>().Update(activeSubscription);
                     }
                 }
@@ -380,26 +379,16 @@ namespace MediMateService.Services.Implementations
                 await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
                 // =========================================================
-                // [NEW] TỰ ĐỘNG TẠO PHIẾU TRẢ TIỀN (PAYOUT) CHO BÁC SĨ
+                // [NEW] CẬP NHẬT PHIẾU TRẢ TIỀN (PAYOUT) CHO PHÒNG KHÁM
                 // =========================================================
-                var activeRate = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayoutRate>().GetQueryable()
-                    .Where(r => r.IsActive)
-                    .OrderByDescending(r => r.CreatedAt)
-                    .FirstOrDefaultAsync();
+                var payout = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().GetQueryable()
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
 
-                if (activeRate != null)
+                if (payout != null)
                 {
-                    var payout = new MediMateRepository.Model.DoctorPayout
-                    {
-                        PayoutId = Guid.NewGuid(),
-                        ConsultationId = session.ConsultanSessionId,
-                        RateId = activeRate.RateId,
-                        Amount = activeRate.AmountPerSession,
-                        Status = "Pending",
-                        CalculatedAt = DateTime.Now
-                    };
-
-                    await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().AddAsync(payout);
+                    payout.ConsultationId = session.ConsultanSessionId;
+                    payout.Status = "ReadyToPay";
+                    _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().Update(payout);
                 }
             }
 

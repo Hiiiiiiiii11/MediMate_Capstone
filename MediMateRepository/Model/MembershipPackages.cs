@@ -13,7 +13,8 @@ namespace MediMateRepository.Model
         public int DurationDays { get; set; }
         public int MemberLimit { get; set; }
         public int OcrLimit { get; set; }
-        public int ConsultantLimit { get; set; }
+        // Đã chuyển sang mô hình Pay-per-booking, gói không còn chứa số lượt khám
+        // public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260423184318_ApplyClinicDoctorsModel")]
+    partial class ApplyClinicDoctorsModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -492,16 +495,13 @@ namespace MediMateRepository.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid?>("AppointmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid?>("ClinicId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ConsultationId")
+                    b.Property<Guid>("ConsultationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("PaidAt")
@@ -516,13 +516,41 @@ namespace MediMateRepository.Migrations
 
                     b.HasKey("PayoutId");
 
-                    b.HasIndex("AppointmentId");
-
                     b.HasIndex("ClinicId");
 
                     b.HasIndex("ConsultationId");
 
                     b.ToTable("DoctorPayouts");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.DoctorPayoutRate", b =>
+                {
+                    b.Property<Guid>("RateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AmountPerSession")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("ConsultationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateOnly?>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("RateId");
+
+                    b.ToTable("DoctorPayoutRates");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
@@ -1133,9 +1161,6 @@ namespace MediMateRepository.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
-                    b.Property<Guid?>("AppointmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -1146,15 +1171,13 @@ namespace MediMateRepository.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("SubscriptionId")
+                    b.Property<Guid>("SubscriptionId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("PaymentId");
-
-                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("SubscriptionId");
 
@@ -1752,11 +1775,6 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.DoctorPayout", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Appointments", "Appointment")
-                        .WithMany("DoctorPayouts")
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("MediMateRepository.Model.Clinics", "Clinic")
                         .WithMany()
                         .HasForeignKey("ClinicId")
@@ -1765,9 +1783,8 @@ namespace MediMateRepository.Migrations
                     b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultationSession")
                         .WithMany()
                         .HasForeignKey("ConsultationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Appointment");
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Clinic");
 
@@ -1982,23 +1999,17 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Payments", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Appointments", "Appointment")
-                        .WithMany("Payments")
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("MediMateRepository.Model.FamilySubscriptions", "Subscription")
                         .WithMany()
                         .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("MediMateRepository.Model.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Appointment");
 
                     b.Navigation("Subscription");
 
@@ -2122,13 +2133,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("Payout");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Appointments", b =>
-                {
-                    b.Navigation("DoctorPayouts");
-
-                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Clinics", b =>

@@ -64,7 +64,7 @@ namespace MediMateService.Services.Implementations
                 // 1. Trường hợp: Chưa từng gửi gì cả (Bị rớt do server restart ngay lúc giờ vàng)
                 if (!isSent)
                 {
-                    await NotifyReminderTimeAsync(reminder.ReminderId, 1);
+                    await NotifyReminderTimeAsync(reminder.ReminderId, 5);
                     continue;
                 }
 

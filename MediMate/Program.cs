@@ -103,10 +103,6 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorDocumentService, DoctorDocumentService>();
             builder.Services.AddScoped<IDoctorAvailabilityExceptionService, DoctorAvailabilityExceptionService>();
             builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
-            builder.Services.AddScoped<IRagBaseCollectionService, RagBaseCollectionService>();
-            builder.Services.AddScoped<IRagBaseConfigService, RagBaseConfigService>();
-            builder.Services.AddScoped<IRagBaseDocumentService, RagBaseDocumentService>();
-            builder.Services.AddScoped<IRagBaseEmbeddingService, RagBaseEmbeddingService>();
             builder.Services.AddScoped<IPayOSService, PayOSService>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
             builder.Services.AddScoped<ITransactionService, TransactionService>();

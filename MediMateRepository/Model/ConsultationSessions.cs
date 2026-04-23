@@ -14,7 +14,10 @@ namespace MediMateRepository.Model
         public Guid MemberId { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
-        public string? RecordUrl { get; set; }
+        public string? RecordUrl { get; set; }         // URL video trên Cloudinary
+        public int? RecordingDuration { get; set; }     // Thời lượng ghi hình (giây)
+        public string? AgoraRecordingResourceId { get; set; } // Dùng để stop recording
+        public string? AgoraSid { get; set; }           // Agora Cloud Recording SID
         public string Status { get; set; } = "Processing";
         public int UnreadCountDoctor { get; set; } = 0;
         public int UnreadCountMember { get; set; } = 0;

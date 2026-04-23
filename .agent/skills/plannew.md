@@ -39,7 +39,7 @@
 **Đề xuất cải tiến:**
 - **Sử dụng Agora Cloud Recording:**
   - Tích hợp API của Agora để ghi lại tự động khi cả 2 bên (Bác sĩ & Bệnh nhân) join vào channel.
-  - Video được tự động push về **Cloudinary** hoặc **AWS S3** sau khi cuộc gọi kết thúc.
+  - Video được tự động push về **Cloudinary** sau khi cuộc gọi kết thúc.
 - **Thêm trường dữ liệu:** Thêm cột `RecordingUrl` và `RecordingDuration` vào bảng `ConsultationSessions`.
 - **Quyền riêng tư:** Chỉ Bác sĩ khám và User (Chủ hộ) mới được quyền xem lại video này. Phục vụ cho việc User xem lại lời dặn của bác sĩ mà không cần ghi nhớ.
 
@@ -95,24 +95,13 @@
 
 ## 9. Cải thiện các Flow và Service Khác (Bảo mật & Trải nghiệm)
 
-**9.1. Flow Xác thực (Auth Service)**
-- **Vấn đề:** Hiện tại chỉ cấp Access Token (JWT), nếu token hết hạn thì user phải login lại từ đầu (nhập email, pass), gây trải nghiệm rất kém. Gửi OTP qua email liên tục dễ bị spam gây tốn tài nguyên.
-- **Đề xuất:** 
-  - Cấu hình **Refresh Token**: Lưu Refresh Token vào Database hoặc HttpOnly Cookie với thời hạn dài (Ví dụ: 30 ngày). Khi Access Token hết hạn, tự động dùng Refresh Token để lấy token mới (Silent Login) mà không phiền user.
-  - **Rate Limiting cho OTP:** Giới hạn 1 email/SĐT chỉ được gửi tối đa 3 mã OTP trong vòng 5 phút để chống spam.
-
-**9.2. Quản lý Gia đình & Thành viên (Family & Member Service)**
+**9.1. Quản lý Gia đình & Thành viên (Family & Member Service)**
   - **Ràng buộc Xoá Family:** Trước khi cho phép xoá (Delete) Family, hệ thống bắt buộc phải kiểm tra xem có bất kỳ thành viên nào trong gia đình đó đang có `Appointments` ở trạng thái `Pending` hoặc `Confirmed` (chưa khám) hay không. Nếu có, chặn thao tác xoá và thông báo yêu cầu người dùng phải huỷ lịch hẹn trước khi xoá gia đình.
 
-**9.3. Flow Thanh toán & Webhook (Payment Service)**
+**9.2. Flow Thanh toán & Webhook (Payment Service)**
 - **Vấn đề:** Cổng thanh toán (PayOS) có thể gửi cùng một Webhook báo thành công 2-3 lần do lỗi mạng (Retry), dẫn đến việc hệ thống có thể cộng nhầm 2 lần gói dịch vụ cho khách.
 - **Đề xuất:**
   - Áp dụng **Idempotency Key (Khóa bất biến)** khi xử lý Webhook. Check trong database xem `OrderCode` hoặc `TransactionId` đã được xử lý thành công (Status = Success) hay chưa. Nếu đã xử lý rồi thì return 200 OK ngay lập tức, tuyệt đối bỏ qua logic cộng gói phía sau.
-
-**9.4. Hồ sơ bệnh án & Tương tác nhiều người dùng**
-- **Vấn đề:** Gia đình chung có nhiều thành viên cùng quản lý sức khoẻ cho 1 người phụ thuộc (Ví dụ: Bố và Mẹ cùng chăm sóc Con). Nếu Mẹ sửa bệnh án hoặc cho con uống thuốc, Bố không biết.
-- **Đề xuất:**
-  - Thêm **Audit Log (Lịch sử thao tác)** cơ bản cho `HealthProfile` và `MedicationLogs`. Ghi lại rõ ràng: Ai (UserId nào) đã cập nhật hồ sơ bệnh án hoặc ai đã đánh dấu "Đã cho con uống thuốc" vào lúc mấy giờ, để các thành viên khác trong Family cùng được đồng bộ thông tin.
 
 ## 10. Mở rộng Hệ thống: Mô hình Phòng khám / Tổ chức Y tế (Clinic / Hospital)
 

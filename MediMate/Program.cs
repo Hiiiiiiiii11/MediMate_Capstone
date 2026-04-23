@@ -118,6 +118,7 @@ namespace MediMate
             builder.Services.AddScoped<IVersionService, VersionService>();
             builder.Services.AddScoped<IClinicService, ClinicService>();
             builder.Services.AddScoped<IPayoutService, PayoutService>();
+            builder.Services.AddScoped<IAgoraRecordingService, AgoraRecordingService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();
 

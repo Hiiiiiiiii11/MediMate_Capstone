@@ -12,10 +12,5 @@ namespace MediMateService.Services
     {
         Task<ApiResponse<string>> GenerateRtcTokenAsync(Guid sessionId, uint uid, string role = "publisher");
 
-        /// <summary>
-        /// Tạo Agora token cho Người giám hộ (Guardian/Owner) tham gia cuộc gọi 3 bên.
-        /// Chỉ cấp token nếu guardianUserId khớp với session.GuardianUserId.
-        /// </summary>
-
     }
 }

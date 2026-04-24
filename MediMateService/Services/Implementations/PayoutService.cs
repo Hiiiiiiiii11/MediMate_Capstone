@@ -9,10 +9,14 @@ namespace MediMateService.Services.Implementations
     public class PayoutService : IPayoutService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IUploadPhotoService _uploadPhotoService;
+        private readonly IEmailService _emailService;
 
-        public PayoutService(IUnitOfWork unitOfWork)
+        public PayoutService(IUnitOfWork unitOfWork, IUploadPhotoService uploadPhotoService, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
+            _uploadPhotoService = uploadPhotoService;
+            _emailService = emailService;
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -80,22 +84,63 @@ namespace MediMateService.Services.Implementations
         public async Task<int> ProcessClinicPayoutAsync(Guid clinicId, ProcessPayoutDto dto)
         {
             var pendingPayouts = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                .Include(p => p.Clinic)
+                .ThenInclude(c => c.Admin)
                 .Where(p => p.ClinicId == clinicId && p.Status == "ReadyToPay")
                 .ToListAsync();
 
             if (!pendingPayouts.Any())
                 throw new NotFoundException($"Không có khoản công nợ nào ở trạng thái ReadyToPay cho phòng khám này.");
 
+            string? transferImageUrl = null;
+            if (dto.TransferImage != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.TransferImage);
+                transferImageUrl = uploadResult.OriginalUrl;
+            }
+
+            string? reportFileUrl = null;
+            if (dto.ReportFile != null)
+            {
+                reportFileUrl = await _uploadPhotoService.UploadDocumentAsync(dto.ReportFile);
+            }
+
             var now = DateTime.Now;
+            decimal totalAmount = 0;
+            var clinic = pendingPayouts.First().Clinic;
+
             foreach (var payout in pendingPayouts)
             {
                 payout.Status = "Paid";
                 payout.PaidAt = now;
-                payout.TransferImageUrl = dto.TransferImageUrl;
+                payout.TransferImageUrl = transferImageUrl;
+                payout.ReportFileUrl = reportFileUrl;
+                totalAmount += payout.Amount;
                 _unitOfWork.Repository<DoctorPayout>().Update(payout);
             }
 
             await _unitOfWork.CompleteAsync();
+
+            // Gửi Email thông báo cho Clinic Admin
+            if (clinic?.Admin?.Email != null)
+            {
+                var subject = $"[MediMate] Thông báo Tất toán Công nợ - {now:dd/MM/yyyy}";
+                var emailBody = $@"
+                    <h3>Kính gửi phòng khám {clinic.Name},</h3>
+                    <p>MediMate thông báo đã thực hiện tất toán số tiền <strong>{totalAmount:N0} VNĐ</strong> cho các lượt khám thành công.</p>
+                    <p><strong>Ngày tất toán:</strong> {now:dd/MM/yyyy HH:mm}</p>
+                    <ul>
+                        {(transferImageUrl != null ? $"<li><a href='{transferImageUrl}'>Xem Hình ảnh Ủy nhiệm chi (Chuyển khoản)</a></li>" : "")}
+                        {(reportFileUrl != null ? $"<li><a href='{reportFileUrl}'>Tải Báo cáo Danh sách Bác sĩ / Lượt khám đính kèm</a></li>" : "")}
+                    </ul>
+                    <p>Ghi chú từ Admin: {dto.Note}</p>
+                    <p>Trân trọng,<br>Đội ngũ MediMate</p>
+                ";
+
+                // Chạy background task để tránh block request API nếu mail server phản hồi chậm
+                _ = Task.Run(() => _emailService.SendEmailAsync(clinic.Admin.Email, subject, emailBody));
+            }
+
             return pendingPayouts.Count;
         }
 
@@ -113,7 +158,8 @@ namespace MediMateService.Services.Implementations
             Status = p.Status,
             CalculatedAt = p.CalculatedAt,
             PaidAt = p.PaidAt,
-            TransferImageUrl = p.TransferImageUrl
+            TransferImageUrl = p.TransferImageUrl,
+            ReportFileUrl = p.ReportFileUrl
         };
     }
 }

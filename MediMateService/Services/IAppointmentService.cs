@@ -14,5 +14,15 @@ namespace MediMateService.Services
         Task<List<AppointmentDto>> GetAppointmentsByDoctorIdAsync(Guid doctorId);
         Task<ApiResponse<AppointmentDetailDto>> GetAppointmentDetailAsync(Guid appointmentId);
         Task<List<AppointmentDto>> GetAppointmentsByMemberIdAsync(Guid memberId);
+
+        // Refund Management cho Admin
+        Task<List<AppointmentDto>> GetRefundableAppointmentsAsync();
+        Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId);
+
+        /// <summary>
+        /// Webhook PayOS gọi sau khi thanh toán thành công.
+        /// Cập nhật PaymentStatus = "Paid" và tự động sinh DoctorPayout (Hold).
+        /// </summary>
+        Task<AppointmentDto> UpdateAppointmentPaymentStatusAsync(Guid appointmentId, string paymentStatus);
     }
 }

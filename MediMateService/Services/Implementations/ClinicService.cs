@@ -51,6 +51,7 @@ namespace MediMateService.Services.Implementations
                 LicenseUrl = LicenseUrl,
                 LogoUrl = logoUrl, // URL từ Cloudinary
                 IsActive = true,
+                Email = dto.Email,
                 BankName = dto.BankName,
                 BankAccountNumber = dto.BankAccountNumber,
                 BankAccountHolder = dto.BankAccountHolder,
@@ -101,6 +102,7 @@ namespace MediMateService.Services.Implementations
 
             if (dto.Name != null) clinic.Name = dto.Name;
             if (dto.Address != null) clinic.Address = dto.Address;
+            if (dto.Email != null) clinic.Email = dto.Email;
             if (dto.LicenseFile != null)
             {
                 var uploadResult = await _uploadPhotoService.UploadPhotoAsync(dto.LicenseFile);
@@ -373,6 +375,7 @@ namespace MediMateService.Services.Implementations
             IsActive = clinic.IsActive,
             CreatedAt = clinic.CreatedAt,
             DoctorCount = doctorCount,
+            Email = clinic.Email,
             BankName = clinic.BankName,
             BankAccountNumber = clinic.BankAccountNumber,
             BankAccountHolder = clinic.BankAccountHolder

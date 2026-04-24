@@ -409,6 +409,19 @@ public class PayOSService : IPayOSService
                     };
                     await _unitOfWork.Repository<DoctorPayout>().AddAsync(doctorPayout);
 
+                    // Khởi tạo sẵn Phiên khám trực tuyến (ConsultationSessions)
+                    var session = new ConsultationSessions
+                    {
+                        ConsultanSessionId = Guid.NewGuid(),
+                        AppointmentId = appointment.AppointmentId,
+                        DoctorId = appointment.DoctorId,
+                        MemberId = appointment.MemberId,
+                        StartedAt = appointment.AppointmentDate.Add(appointment.AppointmentTime), // Thời gian dự kiến bắt đầu
+                        Status = "Scheduled", // Chưa bắt đầu
+                        DoctorNote = string.Empty
+                    };
+                    await _unitOfWork.Repository<ConsultationSessions>().AddAsync(session);
+
                     var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
                     if (member?.FamilyId != null)
                     {

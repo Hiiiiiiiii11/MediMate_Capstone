@@ -32,7 +32,6 @@ namespace MediMateRepository.Data
         public DbSet<DoctorDocument> DoctorDocuments { get; set; }
 
         public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
-        public DbSet<Ratings> Ratings { get; set; }
         // Payment
         public DbSet<MembershipPackages> MembershipPackages { get; set; }
         public DbSet<FamilySubscriptions> FamilySubscriptions { get; set; }
@@ -81,7 +80,6 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<DoctorAvailabilityExceptions>().HasKey(da => da.ExceptionId);
             modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
             modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
-            modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
             modelBuilder.Entity<DoctorBankAccount>().HasKey(dba => dba.BankAccountId);
             modelBuilder.Entity<DoctorDocument>().HasKey(dd => dd.DocumentId);
             // Payment
@@ -291,24 +289,6 @@ namespace MediMateRepository.Data
                 .WithMany()
                 .HasForeignKey(pd => pd.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            // ConsultationSessions 1-N Ratings
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.ConsultationSession)
-                .WithMany()
-                .HasForeignKey(r => r.ConsultanSessionId)
-                .OnDelete(DeleteBehavior.Cascade);
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.Doctor)
-                .WithMany()
-                .HasForeignKey(r => r.DoctorId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.Member)
-                .WithMany()
-                .HasForeignKey(r => r.MemberId)
-                .OnDelete(DeleteBehavior.NoAction);
 
             // Doctors 1-1 Users
             modelBuilder.Entity<Doctors>()

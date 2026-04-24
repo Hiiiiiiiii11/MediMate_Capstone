@@ -97,16 +97,16 @@ namespace MediMate.Controllers
         }
 
         // ─────────────────────────────────────────────────────────
-        // POST: Chỉ bệnh nhân (User) mới được kết thúc phiên meet
+        // POST: Cả bệnh nhân và bác sĩ đều được kết thúc phiên meet
         //   Sau khi End: bác sĩ vẫn có thể gửi tin nhắn, bệnh nhân thì không
         //   Appointment → Completed
         // ─────────────────────────────────────────────────────────
         [HttpPost("{sessionId}/end")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
-        public async Task<IActionResult> EndSessionByUser(Guid sessionId)
+        public async Task<IActionResult> EndSession(Guid sessionId)
         {
             var userId = _currentUserService.UserId;
-            var result = await _consultationService.EndSessionByUserAsync(sessionId, userId);
+            var result = await _consultationService.EndSessionAsync(sessionId, userId);
             return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Phiên tư vấn đã kết thúc thành công."));
         }
 

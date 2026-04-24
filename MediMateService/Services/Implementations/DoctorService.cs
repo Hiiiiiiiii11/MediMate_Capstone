@@ -424,7 +424,6 @@ namespace MediMateService.Services.Implementations
             LicenseImage = e.LicenseImage,
             YearsOfExperience = e.YearsOfExperience,
             Bio = e.Bio,
-            AverageRating = e.AverageRating,
             Status = e.Status,
             RejectionReason = e.RejectionReason,
             LastSeenAt = e.LastSeenAt,

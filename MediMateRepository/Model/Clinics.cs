@@ -29,6 +29,8 @@ namespace MediMateRepository.Model
         
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
+        [Required]
+        public string Email { get; set; }
 
         // ── Thông tin ngân hàng (bắt buộc khi tạo — dùng để nhận payout) ──────
         [Required]

@@ -4,13 +4,9 @@ namespace MediMateService.DTOs
 {
     public class CreateAppointmentDto
     {
-
         public Guid DoctorId { get; set; }
-        
-        public Guid ClinicId { get; set; }
 
         public Guid MemberId { get; set; }
-
 
         public Guid AvailabilityId { get; set; }
 
@@ -35,12 +31,14 @@ namespace MediMateService.DTOs
     {
         public Guid AppointmentId { get; set; }
         public Guid DoctorId { get; set; }
+        public Guid? ClinicId { get; set; }   // Nullable vì Appointments.ClinicId là Guid?
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
         public Guid AvailabilityId { get; set; }
         public DateTime AppointmentDate { get; set; }
         public TimeSpan AppointmentTime { get; set; }
         public string Status { get; set; } = string.Empty;
+        public string PaymentStatus { get; set; } = string.Empty;
         public string? CancelReason { get; set; }
         public DateTime CreatedAt { get; set; }
     }

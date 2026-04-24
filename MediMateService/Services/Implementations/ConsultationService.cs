@@ -362,18 +362,23 @@ namespace MediMateService.Services.Implementations
         }
 
         // ─────────────────────────────────────────────
-        // END SESSION BY USER (chỉ User mới được gọi)
+        // END SESSION (Bác sĩ hoặc Bệnh nhân đều được gọi)
         // ─────────────────────────────────────────────
-        public async Task<ConsultationSessionDto> EndSessionByUserAsync(Guid sessionId, Guid callerMemberId)
+        public async Task<ConsultationSessionDto> EndSessionAsync(Guid sessionId, Guid userId)
         {
             var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
-            var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
-            // Xác minh người gọi là bệnh nhân (User) của phiên này
-            if (session.MemberId != callerMemberId)
+
+            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+            bool isDoctor = doctor != null && doctor.UserId == userId;
+
+            var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
+            bool isPatient = patientMember != null && patientMember.UserId == userId;
+
+            if (!isDoctor && !isPatient)
             {
-                throw new ForbiddenException("Chỉ bệnh nhân trực tiếp của lịch hẹn này mới có quyền kết thúc phiên tư vấn.");
+                throw new ForbiddenException("Chỉ bác sĩ phụ trách hoặc bệnh nhân trực tiếp mới có quyền kết thúc phiên tư vấn.");
             }
 
             if (session.Status == ConsultationSessionConstants.ENDED)
@@ -417,16 +422,43 @@ namespace MediMateService.Services.Implementations
                 catch { /* Lỗi recording không ảnh hưởng luồng chính */ }
             });
 
-            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+            // Thông báo cho các bên liên quan
+            string enderName = isDoctor ? "Bác sĩ" : "Bệnh nhân";
+
+            // Thông báo cho Bác sĩ (nếu bệnh nhân kết thúc) hoặc gửi thông báo chung
             if (doctor != null)
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "✅ Bệnh nhân đã kết thúc phiên",
-                    message: $"Bệnh nhân {member.FullName} đã kết thúc phiên tư vấn. Hệ thống đã ghi nhận doanh thu phiên khám.",
+                    title: "✅ Phiên tư vấn đã kết thúc",
+                    message: $"{enderName} đã kết thúc phiên tư vấn. Hệ thống đã ghi nhận doanh thu phiên khám.",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
                 );
+            }
+
+            // Thông báo cho bệnh nhân (chủ hộ)
+            if (patientMember != null)
+            {
+                Guid? headUserId = patientMember.UserId;
+                if (!headUserId.HasValue && patientMember.FamilyId != null)
+                {
+                    var familyManager = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetQueryable()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(m => m.FamilyId == patientMember.FamilyId && m.UserId != null);
+                    headUserId = familyManager?.UserId;
+                }
+
+                if (headUserId.HasValue)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: headUserId.Value,
+                        title: "✅ Phiên tư vấn đã kết thúc",
+                        message: $"{enderName} đã kết thúc phiên tư vấn.",
+                        type: ConsultationSessionActionTypes.SESSION_ENDED,
+                        referenceId: session.ConsultanSessionId
+                    );
+                }
             }
 
             return MapSession(session);

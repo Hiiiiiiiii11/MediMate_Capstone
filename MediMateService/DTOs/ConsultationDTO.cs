@@ -57,14 +57,5 @@ namespace MediMateService.DTOs
         // Không cần body, nhưng để dto cho nhất quán
     }
 
-    /// <summary>Response khi Guardian (người giám hộ) tham gia cuộc gọi 3 bên</summary>
-    public class GuardianJoinResponse
-    {
-        public string Token { get; set; } = string.Empty;
-        public uint Uid { get; set; }
-        public string ChannelName { get; set; } = string.Empty;
-        public Guid SessionId { get; set; }
-        public string MemberName { get; set; } = string.Empty;
-        public string DoctorName { get; set; } = string.Empty;
-    }
+
 }

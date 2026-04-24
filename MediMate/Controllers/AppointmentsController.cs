@@ -53,8 +53,7 @@ namespace MediMate.Controllers
                     MemberId = request.MemberId,
                     AvailabilityId = request.AvailabilityId,
                     AppointmentDate = request.AppointmentDate,
-                    AppointmentTime = request.AppointmentTime, // Map giờ khám vào đây
-                    ClinicId = request.ClinicId
+                    AppointmentTime = request.AppointmentTime, 
                 };
 
                 // 3. Gọi Service xử lý nghiệp vụ (Kiểm tra trùng lịch, trừ lượt, v.v.)
@@ -170,13 +169,67 @@ namespace MediMate.Controllers
             {
                 AppointmentId = dto.AppointmentId,
                 DoctorId = dto.DoctorId,
+                ClinicId = dto.ClinicId,
                 MemberId = dto.MemberId,
+                MemberName = dto.MemberName,
                 AvailabilityId = dto.AvailabilityId,
                 AppointmentDate = dto.AppointmentDate,
+                AppointmentTime = dto.AppointmentTime,
                 Status = dto.Status,
+                PaymentStatus = dto.PaymentStatus,
                 CancelReason = dto.CancelReason,
                 CreatedAt = dto.CreatedAt
             };
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // REFUND MANAGEMENT (ADMIN)
+        // ─────────────────────────────────────────────────────────────────
+
+        /// <summary>Admin: Lấy danh sách các lịch hẹn cần hoàn tiền (PaymentStatus == "Refunded").</summary>
+        [HttpGet("refunds")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
+        public async Task<IActionResult> GetRefundableAppointments()
+        {
+            try
+            {
+                var result = await _appointmentService.GetRefundableAppointmentsAsync();
+                return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách cần hoàn tiền thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<List<AppointmentDto>>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
+            }
+        }
+        [HttpPut("{appointmentId:guid}/update-payment-status")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
+        public async Task<IActionResult> UpdatePaymentStatus(Guid appointmentId, [FromBody] UpdatePaymentStatusRequest request)
+        {
+            try
+            {
+                var result = await _appointmentService.UpdateAppointmentPaymentStatusAsync(appointmentId, request.Status);
+                return Ok(ApiResponse<AppointmentDto>.Ok(result, "Cập nhật trạng thái thanh toán thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<AppointmentDto>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
+            }
+        }
+
+        /// <summary>Admin: Đánh dấu đã hoàn tất hoàn tiền (chuyển trạng thái sang "RefundCompleted").</summary>
+        [HttpPut("{appointmentId:guid}/complete-refund")]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
+        public async Task<IActionResult> CompleteRefund(Guid appointmentId)
+        {
+            try
+            {
+                var result = await _appointmentService.CompleteRefundAsync(appointmentId);
+                return Ok(ApiResponse<AppointmentDto>.Ok(result, "Đã cập nhật trạng thái hoàn tiền thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<AppointmentDto>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
+            }
         }
     }
 }

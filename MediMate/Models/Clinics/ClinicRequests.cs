@@ -14,6 +14,7 @@ namespace MediMate.Models.Clinics
         public IFormFile LicenseFile { get; set; }
 
         public IFormFile? LogoFile { get; set; }
+        public string Email { get; set; } = string.Empty;
 
         // ── Thông tin ngân hàng — bắt buộc để nhận payout từ Admin ──────────
         [Required]
@@ -33,6 +34,7 @@ namespace MediMate.Models.Clinics
         public IFormFile? LicenseFile { get; set; }
         public IFormFile? LogoFile { get; set; }
         public bool? IsActive { get; set; }
+        public string Email { get; set; } = string.Empty;
 
         // Banking — tùy chọn khi cập nhật
         public string? BankName { get; set; }
@@ -75,7 +77,8 @@ namespace MediMate.Models.Clinics
 
     public class ProcessPayoutRequest
     {
-        public string? TransferImageUrl { get; set; }
+        public IFormFile? TransferImage { get; set; }
+        public IFormFile? ReportFile { get; set; }
         public string? Note { get; set; }
     }
 }

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace MediMateService.DTOs
 {
     public class PayoutItemDto
@@ -14,6 +16,7 @@ namespace MediMateService.DTOs
         public DateTime CalculatedAt { get; set; }
         public DateTime? PaidAt { get; set; }
         public string? TransferImageUrl { get; set; }
+        public string? ReportFileUrl { get; set; }
     }
 
     public class PayoutSummaryDto
@@ -27,9 +30,8 @@ namespace MediMateService.DTOs
 
     public class ProcessPayoutDto
     {
-        // URL ảnh chuyển khoản (bằng chứng thanh toán)
-        public string? TransferImageUrl { get; set; }
-        // Ghi chú của admin
+        public IFormFile? TransferImage { get; set; }
+        public IFormFile? ReportFile { get; set; }
         public string? Note { get; set; }
     }
 

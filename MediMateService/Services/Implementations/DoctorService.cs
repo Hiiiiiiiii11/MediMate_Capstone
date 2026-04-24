@@ -119,7 +119,8 @@ namespace MediMateService.Services.Implementations
                 FullName = request.FullName,
                 UserId = newUserId,
                 CreatedAt = DateTime.Now,
-                Status = DoctorStatuses.Inactive
+                Status = DoctorStatuses.Inactive,
+                CurrentHospitalName = request.CurrentHospitalName?.Trim() ?? string.Empty
             };
 
             await _repo.AddDoctorAsync(doctor);

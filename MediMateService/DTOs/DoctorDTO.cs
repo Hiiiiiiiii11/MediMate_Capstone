@@ -27,13 +27,14 @@ namespace MediMateService.DTOs
         public string FullName { get; set; } = string.Empty;
         public string Gender { get; set; } = string.Empty;
         public DateTime? DateOfBirth { get; set; }
+        public string? CurrentHospitalName { get; set; }
     }
 
     public class SubmitDoctorDto
     {
         public string FullName { get; set; } = string.Empty;
         public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
+        public string? CurrentHospitalName { get; set; }
         public string? AvatarUrl { get; set; }
         public string LicenseNumber { get; set; } = string.Empty;
         public string? LicenseImage { get; set; }

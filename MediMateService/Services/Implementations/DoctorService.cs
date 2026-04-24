@@ -215,7 +215,8 @@ namespace MediMateService.Services.Implementations
 
             doctor.FullName = dto.FullName;
             doctor.Specialty = dto.Specialty;
-            doctor.CurrentHospitalName = dto.CurrentHospitalName;
+            if (!string.IsNullOrWhiteSpace(dto.CurrentHospitalName))
+                doctor.CurrentHospitalName = dto.CurrentHospitalName.Trim();
             doctor.LicenseNumber = dto.LicenseNumber;
             doctor.LicenseImage = dto.LicenseImage;
             doctor.YearsOfExperience = dto.YearsOfExperience;

@@ -16,5 +16,18 @@ namespace MediMateRepository.Model
         // Đã chuyển sang mô hình Pay-per-booking, gói không còn chứa số lượt khám
         // public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
+
+        // ── Feature Flags ────────────────────────────────────────────────
+        /// <summary>
+        /// Cho phép xem lại video phiên khám sau khi kết thúc.
+        /// Freemium = false, các gói trả phí = true.
+        /// </summary>
+        public bool AllowVideoRecordingAccess { get; set; } = false;
+
+        /// <summary>
+        /// Bật tính năng cảnh báo tương tác thuốc bằng AI (Groq).
+        /// Freemium = false, các gói trả phí = true.
+        /// </summary>
+        public bool HealthAlertEnabled { get; set; } = false;
     }
 }

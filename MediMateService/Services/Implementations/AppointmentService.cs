@@ -298,6 +298,14 @@ namespace MediMateService.Services.Implementations
             // Cập nhật Database
             await _unitOfWork.CompleteAsync();
 
+            // ── Kiểm tra User có tài khoản ngân hàng để nhận hoàn tiền chưa ──
+            bool userHasBankAccount = false;
+            if (appointment.PaymentStatus == "Refunded" && member?.UserId != null)
+            {
+                userHasBankAccount = await _unitOfWork.Repository<UserBankAccount>().GetQueryable()
+                    .AnyAsync(b => b.UserId == member.UserId);
+            }
+
             string timeString = appointment.AppointmentTime.ToString(@"hh\:mm");
             string dateString = appointment.AppointmentDate.ToString("dd/MM/yyyy");
             string reasonStr = string.IsNullOrWhiteSpace(request.Reason) ? "Không có lý do cụ thể" : request.Reason;
@@ -384,6 +392,20 @@ namespace MediMateService.Services.Implementations
                     appointmentId = appointment.AppointmentId,
                     status = appointment.Status
                 });
+            }
+
+            // ── Cảnh báo nếu User chưa có banking info (cần để nhận hoàn tiền) ──
+            if (appointment.PaymentStatus == "Refunded" && !userHasBankAccount && headUserIdCancel.HasValue)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: headUserIdCancel.Value,
+                    title: "⚠️ Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
+                    message: "Lịch hẹn đã hủy thành công và hệ thống sẽ hoàn tiền cho bạn. " +
+                             "Tuy nhiên, bạn chưa cập nhật thông tin ngân hàng. " +
+                             "Vui lòng vào Cài đặt → Tài khoản ngân hàng để thêm thông tin nhận hoàn tiền.",
+                    type: "BANKING_INFO_MISSING",
+                    referenceId: appointment.AppointmentId
+                );
             }
 
             return MapAppointment(appointment);

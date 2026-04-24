@@ -30,6 +30,16 @@ namespace MediMateRepository.Model
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
+        // ── Thông tin ngân hàng (bắt buộc khi tạo — dùng để nhận payout) ──────
+        [Required]
+        public string BankName { get; set; } = string.Empty;
+
+        [Required]
+        public string BankAccountNumber { get; set; } = string.Empty;
+
+        [Required]
+        public string BankAccountHolder { get; set; } = string.Empty;
+
         // Navigation property
         public virtual ICollection<ClinicDoctors> ClinicDoctors { get; set; } = new List<ClinicDoctors>();
         public virtual ICollection<ClinicContract> ClinicContracts { get; set; } = new List<ClinicContract>();

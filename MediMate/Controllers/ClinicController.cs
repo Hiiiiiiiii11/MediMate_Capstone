@@ -33,7 +33,10 @@ namespace MediMate.Controllers
                 Name = request.Name,
                 Address = request.Address,
                 LicenseFile = request.LicenseFile,
-                LogoFile = request.LogoFile
+                LogoFile = request.LogoFile,
+                BankName = request.BankName,
+                BankAccountNumber = request.BankAccountNumber,
+                BankAccountHolder = request.BankAccountHolder
             });
             return StatusCode(201, ApiResponse<ClinicDto>.Ok(result, "Tạo phòng khám thành công."));
         }
@@ -67,7 +70,10 @@ namespace MediMate.Controllers
                 Address = request.Address,
                 LicenseFile = request.LicenseFile,
                 LogoFile = request.LogoFile,
-                IsActive = request.IsActive
+                IsActive = request.IsActive,
+                BankName = request.BankName,
+                BankAccountNumber = request.BankAccountNumber,
+                BankAccountHolder = request.BankAccountHolder
             });
             return Ok(ApiResponse<ClinicDto>.Ok(result, "Cập nhật phòng khám thành công."));
         }

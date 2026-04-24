@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260423190724_ApplyClinicDoctorsModel1")]
+    partial class ApplyClinicDoctorsModel1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -256,7 +259,7 @@ namespace MediMateRepository.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LicenseUrl")
+                    b.Property<string>("License")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -283,12 +286,6 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("ConsultanSessionId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<string>("AgoraRecordingResourceId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AgoraSid")
-                        .HasColumnType("text");
 
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uuid");
@@ -319,9 +316,6 @@ namespace MediMateRepository.Migrations
 
                     b.Property<string>("RecordUrl")
                         .HasColumnType("text");
-
-                    b.Property<int?>("RecordingDuration")
-                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp without time zone");

@@ -21,12 +21,13 @@ namespace MediMateService.Services.Implementations
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IActivityLogService _activityLogService;
         private readonly IHubContext<MediMateHub> _hubContext;
+        private readonly IPayOSService _payOsService; // [NEW]
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService, IHubContext<MediMateHub> hubContext)
+            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService, IHubContext<MediMateHub> hubContext, IPayOSService payOsService)
 
         {
             _appointmentRepository = appointmentRepository;
@@ -36,9 +37,10 @@ namespace MediMateService.Services.Implementations
             _backgroundJobClient = backgroundJobClient;
             _activityLogService = activityLogService;
             _hubContext = hubContext;
+            _payOsService = payOsService;
         }
         //check lịch availability
-        public async Task<AppointmentDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
+        public async Task<AppointmentPaymentResponseDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
         {
             // 1. Kiểm tra thời gian đặt lịch
             var requestedDateTime = request.AppointmentDate.Date.Add(request.AppointmentTime);
@@ -97,40 +99,59 @@ namespace MediMateService.Services.Implementations
                                 && a.Status != AppointmentConstants.REJECTED)).Any();
             if (isSlotBooked) throw new ConflictException("Khung giờ này đã có bệnh nhân khác đặt.");
 
-            // 8. Kiểm tra gói dịch vụ (Subscription)
-            if (member.FamilyId == null) throw new BadRequestException("Hồ sơ không thuộc gia đình nào.");
+            // 8. KIỂM TRA PHÒNG KHÁM VÀ LẤY GIÁ KHÁM (ConsultationFee)
+            var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
+                .FirstOrDefaultAsync(cd => cd.DoctorId == request.DoctorId && cd.ClinicId == request.ClinicId);
 
-            var currentDate = DateOnly.FromDateTime(DateTime.Now);
-            var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
-                .FindAsync(s => s.FamilyId == member.FamilyId
-                                && s.Status == "Active"
-                                && s.StartDate <= currentDate
-                                && s.EndDate >= currentDate)).FirstOrDefault();
+            if (clinicDoctor == null || clinicDoctor.Status != "Active")
+            {
+                throw new BadRequestException("Bác sĩ hiện không hoạt động tại phòng khám này.");
+            }
 
-            if (activeSubscription == null) throw new ForbiddenException("Gia đình không có gói hội viên đang hoạt động.");
-            if (activeSubscription.RemainingConsultantCount <= 0) throw new ForbiddenException("Gia đình bạn đã hết lượt khám.");
-
-            // --- THỰC HIỆN NGHIỆP VỤ ---
-
-            // Trừ lượt khám
-            activeSubscription.RemainingConsultantCount -= 1;
-            _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
-
-            // Tạo Appointment
+            // Tạo Appointment (Trạng thái thanh toán là Pending)
             var appointment = new Appointments
             {
                 AppointmentId = Guid.NewGuid(),
                 DoctorId = request.DoctorId,
                 MemberId = request.MemberId,
                 AvailabilityId = request.AvailabilityId,
+                ClinicId = request.ClinicId,
                 AppointmentDate = request.AppointmentDate,
                 AppointmentTime = request.AppointmentTime,
                 Status = AppointmentConstants.PENDING,
+                PaymentStatus = "Pending", // [NEW] Chờ thanh toán PayOS
                 CreatedAt = DateTime.Now
             };
             await _appointmentRepository.AddAppointmentAsync(appointment);
 
-            // Định dạng thông tin hiển thị
+            // Ghi nhận Payment xuống Database
+            var paymentRecord = new Payments
+            {
+                PaymentId = Guid.NewGuid(),
+                AppointmentId = appointment.AppointmentId,
+                UserId = userId,
+                Amount = clinicDoctor.ConsultationFee,
+                PaymentContent = $"Thanh toan tien kham benh - {member.FullName}",
+                Status = "Pending",
+                CreatedAt = DateTime.Now
+            };
+            await _unitOfWork.Repository<Payments>().AddAsync(paymentRecord);
+            
+            // Gọi PayOS để lấy link thanh toán
+            var payOsRequest = new CreatePaymentRequest
+            {
+                // Truyền các thông tin cần thiết vào (ở đây ta tận dụng CreatePaymentRequest, cần mở rộng nếu thiếu field)
+                BuyerName = orderPlacer?.FullName ?? member.FullName,
+                BuyerEmail = orderPlacer?.Email ?? "",
+                BuyerPhone = orderPlacer?.PhoneNumber ?? "",
+                ReturnUrl = "http://localhost:5173/payment/success", // Cấu hình URL trả về của Frontend
+                CancelUrl = "http://localhost:5173/payment/cancel"
+            };
+            // Do hàm CreatePaymentLinkAsync hiện tại đang được code cho Package, ta cần viết 1 hàm riêng cho Appointment
+            // Ở bước này, tạm gọi CreateAppointmentPaymentLinkAsync (sẽ thêm vào IPayOSService sau)
+            var paymentLinkResponse = await _payOsService.CreateAppointmentPaymentLinkAsync(userId, paymentRecord, payOsRequest);
+
+            // Định dạng thông tin hiển thị cho thông báo
             string timeStr = request.AppointmentTime.ToString(@"hh\:mm");
             string dateStr = request.AppointmentDate.ToString("dd/MM/yyyy");
             string familyName = member.Family?.FamilyName ?? "Gia đình";
@@ -219,7 +240,12 @@ namespace MediMateService.Services.Implementations
                 });
             }
 
-            return MapAppointment(appointment);
+            return new AppointmentPaymentResponseDto
+            {
+                Appointment = MapAppointment(appointment),
+                CheckoutUrl = paymentLinkResponse.PaymentUrl,
+                OrderCode = paymentLinkResponse.OrderCode
+            };
         }
 
         public async Task<AppointmentDto> CancelAppointmentAsync(Guid appointmentId, Guid userId, CancelAppointmentDto request)
@@ -254,20 +280,18 @@ namespace MediMateService.Services.Implementations
             }
 
             // -------------------------------------------------------------------------
-            // [NEW] NẾU HỦY LỊCH TRƯỚC KHI KHÁM -> HOÀN TRẢ LẠI 1 LƯỢT CHO GIA ĐÌNH
+            // [NEW] NẾU HỦY LỊCH TRƯỚC KHI KHÁM VÀ ĐÃ THANH TOÁN -> ĐÁNH DẤU REFUNDED & CANCEL PAYOUT
             // -------------------------------------------------------------------------
-            if (member?.FamilyId != null)
+            if (appointment.PaymentStatus == "Paid")
             {
-                var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
-                    .FindAsync(s => s.FamilyId == member.FamilyId
-                                    && s.Status == "Active"
-                                    && s.EndDate >= currentDate)).FirstOrDefault();
-
-                if (activeSubscription != null)
+                appointment.PaymentStatus = "Refunded"; // Giả định là hoàn tiền
+                // Cập nhật DoctorPayout
+                var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId && p.Status == "Hold" && p.Amount > 0);
+                if (payout != null)
                 {
-                    activeSubscription.RemainingConsultantCount += 1;
-                    _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
+                    payout.Status = "Cancelled";
+                    _unitOfWork.Repository<DoctorPayout>().Update(payout);
                 }
             }
 
@@ -522,19 +546,20 @@ namespace MediMateService.Services.Implementations
             // NẾU TRẠNG THÁI CÓ SỰ THAY ĐỔI
             if (!string.Equals(appointment.Status, request.Status, StringComparison.OrdinalIgnoreCase))
             {
-                // --- NGHIỆP VỤ: TỪ CHỐI (REJECTED) -> HOÀN LƯỢT KHÁM ---
-                if (request.Status.Equals(AppointmentConstants.REJECTED, StringComparison.OrdinalIgnoreCase) && member?.FamilyId != null)
+                // --- NGHIỆP VỤ: TỪ CHỐI (REJECTED) -> ĐÁNH DẤU REFUND VÀ HỦY PAYOUT ---
+                if (request.Status.Equals(AppointmentConstants.REJECTED, StringComparison.OrdinalIgnoreCase))
                 {
-                    var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                    var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
-                        .FindAsync(s => s.FamilyId == member.FamilyId
-                                        && s.Status == "Active"
-                                        && s.EndDate >= currentDate)).FirstOrDefault();
-
-                    if (activeSubscription != null)
+                    if (appointment.PaymentStatus == "Paid")
                     {
-                        activeSubscription.RemainingConsultantCount += 1; // Trả lại 1 lượt cho gia đình
-                        _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
+                        appointment.PaymentStatus = "Refunded";
+                        // Cập nhật DoctorPayout
+                        var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                            .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId && p.Status == "Hold" && p.Amount > 0); 
+                        if (payout != null)
+                        {
+                            payout.Status = "Cancelled";
+                            _unitOfWork.Repository<DoctorPayout>().Update(payout);
+                        }
                     }
                 }
 

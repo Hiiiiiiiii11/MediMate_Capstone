@@ -39,7 +39,6 @@ namespace MediMateRepository.Data
         public DbSet<Payments> Payments { get; set; }
         public DbSet<Transactions> Transactions { get; set; }
         public DbSet<DoctorPayout> DoctorPayouts { get; set; }
-        public DbSet<DoctorPayoutRate> DoctorPayoutRates { get; set; }
         public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
         public DbSet<ChatDoctorMessages> ChatDoctorMessages { get; set; }
 
@@ -49,7 +48,10 @@ namespace MediMateRepository.Data
 
         public DbSet<Drug> Drugs { get; set; }
         public DbSet<DrugInteraction> DrugInteractions { get; set; }
-        public DbSet<DoctorContract> DoctorContracts { get; set; }
+        public DbSet<ClinicContract> ClinicContracts { get; set; }
+        public DbSet<ClinicDoctors> ClinicDoctors { get; set; }
+        public DbSet<Clinics> Clinics { get; set; }
+        public DbSet<SubscriptionUsageLogs> SubscriptionUsageLogs { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -88,7 +90,6 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
             modelBuilder.Entity<Transactions>().HasIndex(t => t.TransactionCode).IsUnique();
             modelBuilder.Entity<DoctorPayout>().HasKey(dp => dp.PayoutId);
-            modelBuilder.Entity<DoctorPayoutRate>().HasKey(dpr => dpr.RateId);
             modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.ConsultanSessionId);
             modelBuilder.Entity<ChatDoctorMessages>().HasKey(cm => cm.ChatDoctorMessageId);
 
@@ -98,7 +99,10 @@ namespace MediMateRepository.Data
 
             modelBuilder.Entity<Drug>().HasKey(d => d.DrugId);
             modelBuilder.Entity<DrugInteraction>().HasKey(di => di.InteractionId);
-            modelBuilder.Entity<DoctorContract>().HasKey(dc => dc.ContractId);
+            modelBuilder.Entity<ClinicContract>().HasKey(cc => cc.ContractId);
+            modelBuilder.Entity<ClinicDoctors>().HasKey(cd => cd.Id);
+            modelBuilder.Entity<Clinics>().HasKey(c => c.ClinicId);
+            modelBuilder.Entity<SubscriptionUsageLogs>().HasKey(s => s.Id);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
@@ -355,6 +359,23 @@ namespace MediMateRepository.Data
                 .HasOne(p => p.Subscription)
                 .WithMany()
                 .HasForeignKey(p => p.SubscriptionId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments 1-N Payments
+            modelBuilder.Entity<Payments>()
+                .HasOne(p => p.Appointment)
+                .WithMany(a => a.Payments)
+                .HasForeignKey(p => p.AppointmentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments 1-N DoctorPayouts
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.Appointment)
+                .WithMany(a => a.DoctorPayouts)
+                .HasForeignKey(dp => dp.AppointmentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Payments 1-N Transactions (nullable FK)
@@ -365,12 +386,6 @@ namespace MediMateRepository.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // DoctorPayoutRate 1-N DoctorPayout
-            modelBuilder.Entity<DoctorPayout>()
-                .HasOne(dp => dp.Rate)
-                .WithMany()
-                .HasForeignKey(dp => dp.RateId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             // ConsultationSessions 1-N DoctorPayout
             modelBuilder.Entity<DoctorPayout>()
@@ -425,6 +440,40 @@ namespace MediMateRepository.Data
         .HasOne(d => d.DoctorBankAccount)
         .WithOne(b => b.Doctor)
         .HasForeignKey<DoctorBankAccount>(b => b.DoctorId);
+
+            // ClinicContracts (Admin - Phòng khám)
+            modelBuilder.Entity<ClinicContract>()
+                .HasOne(cc => cc.Clinic)
+                .WithMany(c => c.ClinicContracts)
+                .HasForeignKey(cc => cc.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ClinicDoctors (Phòng khám - Bác sĩ)
+            modelBuilder.Entity<ClinicDoctors>()
+                .HasOne(cd => cd.Doctor)
+                .WithMany()
+                .HasForeignKey(cd => cd.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ClinicDoctors>()
+                .HasOne(cd => cd.Clinic)
+                .WithMany(c => c.ClinicDoctors)
+                .HasForeignKey(cd => cd.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments - Clinic
+            modelBuilder.Entity<Appointments>()
+                .HasOne(a => a.Clinic)
+                .WithMany()
+                .HasForeignKey(a => a.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // DoctorPayout - Clinic
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.Clinic)
+                .WithMany()
+                .HasForeignKey(dp => dp.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
 
     }

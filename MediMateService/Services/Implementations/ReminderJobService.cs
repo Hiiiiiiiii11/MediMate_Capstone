@@ -523,24 +523,14 @@ namespace MediMateService.Services.Implementations
                 _unitOfWork.Repository<Appointments>().Update(appointment);
                 if (session.DoctorJoined)
                 {
-                    var activeRate = await _unitOfWork.Repository<DoctorPayoutRate>().GetQueryable()
-                        .Where(r => r.IsActive)
-                        .OrderByDescending(r => r.CreatedAt)
-                        .FirstOrDefaultAsync();
+                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
 
-                    if (activeRate != null)
+                    if (payout != null)
                     {
-                        var payout = new DoctorPayout
-                        {
-                            PayoutId = Guid.NewGuid(),
-                            ConsultationId = session.ConsultanSessionId,
-                            RateId = activeRate.RateId,
-                            Amount = activeRate.AmountPerSession,
-                            Status = "Pending",
-                            CalculatedAt = DateTime.Now
-                        };
-
-                        await _unitOfWork.Repository<DoctorPayout>().AddAsync(payout);
+                        payout.ConsultationId = session.ConsultanSessionId;
+                        payout.Status = "ReadyToPay";
+                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
                     }
                 }
             }
@@ -617,7 +607,6 @@ namespace MediMateService.Services.Implementations
 
                     if (activeSubscription != null)
                     {
-                        activeSubscription.RemainingConsultantCount += 1; // Hoàn lại 1 lượt
                         _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
                     }
                 }

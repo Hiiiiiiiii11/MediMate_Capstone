@@ -1,3 +1,4 @@
+using MediMateRepository.Model;
 using MediMateService.DTOs;
 using Share.Common;
 
@@ -6,6 +7,7 @@ namespace MediMateService.Services;
 public interface IPayOSService
 {
     Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default);
+    Task<PaymentLinkResponse> CreateAppointmentPaymentLinkAsync(Guid userId, Payments paymentRecord, CreatePaymentRequest request, CancellationToken cancellationToken = default);
     Task<PaymentStatusResponse?> GetPaymentInfoAsync(int orderCode, CancellationToken cancellationToken = default);
     Task<bool> ProcessPaymentWebhookAsync(int orderCode, bool isSuccess, CancellationToken cancellationToken = default);
     Task<bool> VerifyWebhookSignatureAsync(string signature, string data, CancellationToken cancellationToken = default);

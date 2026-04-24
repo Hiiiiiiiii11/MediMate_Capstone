@@ -18,13 +18,16 @@ namespace MediMate.Controllers
     {
         private readonly IConsultationService _consultationService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IAgoraRecordingService _agoraRecordingService;
 
         public ConsultationSessionController(
             IConsultationService consultationService,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            IAgoraRecordingService agoraRecordingService)
         {
             _consultationService = consultationService;
             _currentUserService = currentUserService;
+            _agoraRecordingService = agoraRecordingService;
         }
 
         // ─────────────────────────────────────────────────────────
@@ -117,6 +120,22 @@ namespace MediMate.Controllers
             var userId = _currentUserService.UserId;
             var result = await _consultationService.AttachPrescriptionAsync(sessionId, userId, request);
             return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Đã gắn đơn thuốc vào phiên tư vấn."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // GET: Xem URL video ghi lại phiên khám
+        // Chỉ Bác sĩ phụ trách và Family Owner mới được xem
+        // ─────────────────────────────────────────────────────────
+        /// <summary>Lấy URL video ghi lại phiên khám. Chỉ Bác sĩ hoặc chủ hộ mới được xem.</summary>
+        [HttpGet("{sessionId}/recording")]
+        [ProducesResponseType(typeof(ApiResponse<string>), 200)]
+        public async Task<IActionResult> GetRecordingUrl(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            var url = await _agoraRecordingService.GetRecordingUrlAsync(sessionId, userId);
+            if (url == null)
+                return Ok(ApiResponse<string>.Ok(null, "Phiên này chưa có bản ghi hình."));
+            return Ok(ApiResponse<string>.Ok(url, "Lấy URL video thành công."));
         }
     }
 }

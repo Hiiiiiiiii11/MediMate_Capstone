@@ -39,7 +39,7 @@ namespace MediMateService.Services.Implementations
                     FamilyId = familyId,
                     EnablePushNotification = true,
                     EnableFamilyAlert = true,
-                    ReminderAdvanceMinutes = 15,
+                    ReminderAdvanceMinutes =0 ,
                     CustomSetting = "{\"autoSnooze\":true}",
                     UpdateAt = DateTime.Now
                 };

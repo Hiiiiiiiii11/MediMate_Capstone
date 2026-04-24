@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -53,14 +53,66 @@ namespace MediMateService.Services.Implementations
             };
 
             await _unitOfWork.Repository<PrescriptionsByDoctor>().AddAsync(prescription);
-
-            // Tùy chọn: Có thể tự động kết thúc (End) Session luôn nếu bác sĩ kê đơn xong
-            // session.Status = "Ended";
-            // _unitOfWork.Repository<ConsultationSessions>().Update(session);
-
             await _unitOfWork.CompleteAsync();
 
-            return ApiResponse<PrescriptionByDoctorDto>.Ok(MapToDto(prescription), "Kê đơn thuốc thành công.");
+            // ═══════════════════════════════════════════════════════════
+            // [PHASE 4] TỰ ĐỘNG GỬI TIN NHẮN HỆ THỐNG VÀO CHAT
+            // Sau khi kê đơn, sinh System Message vào khung chat của phiên
+            // ═══════════════════════════════════════════════════════════
+            try
+            {
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(request.MemberId);
+                // Tái sử dụng biến doctor đã có từ validation phía trên
+
+                // Xây dựng nội dung tin nhắn dạng text đầy đủ
+                var medicineLines = new System.Text.StringBuilder();
+                var medicines = new List<DigitalMedicineItemDto>();
+                try { medicines = System.Text.Json.JsonSerializer.Deserialize<List<DigitalMedicineItemDto>>(medicinesJson) ?? new(); } catch { }
+
+                for (int i = 0; i < medicines.Count; i++)
+                {
+                    var m = medicines[i];
+                    medicineLines.AppendLine($"  {i + 1}. {m.MedicineName} ({m.Dosage}) - {m.Quantity} {m.Unit}");
+                    if (!string.IsNullOrWhiteSpace(m.Instructions))
+                        medicineLines.AppendLine($"     → {m.Instructions}");
+                }
+
+                var messageContent = $"""
+📋 ĐƠN THUỐC ĐIỆN TỬ
+━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Bệnh nhân : {member?.FullName ?? "Không rõ"}
+👨‍⚕️ Bác sĩ     : {doctor?.FullName ?? "Không rõ"}
+📅 Ngày kê   : {DateTime.Now:dd/MM/yyyy HH:mm}
+━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Chẩn đoán : {request.Diagnosis}
+
+💊 DANH SÁCH THUỐC:
+{medicineLines}
+━━━━━━━━━━━━━━━━━━━━━━━━
+📝 Lời dặn: {request.Advice}
+""";
+
+                var systemMessage = new ChatDoctorMessages
+                {
+                    ChatDoctorMessageId = Guid.NewGuid(),
+                    ConsultanSessionId = request.ConsultanSessionId,
+                    SenderId = doctorId,
+                    Type = SenderType.Doctor,
+                    Content = "Đơn thuốc đã được gửi",
+                    AttachmentUrl = null,
+                    IsRead = false,
+                    SendAt = DateTime.Now
+                };
+
+                await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(systemMessage);
+                await _unitOfWork.CompleteAsync();
+            }
+            catch
+            {
+                // Không để lỗi gửi chat làm gián đoạn luồng chính
+            }
+
+            return ApiResponse<PrescriptionByDoctorDto>.Ok(MapToDto(prescription), "Kê đơn thuốc thành công và đã gửi vào chat.");
         }
 
         public async Task<ApiResponse<PrescriptionByDoctorDto>> GetByIdAsync(Guid prescriptionId, Guid currentUserId)

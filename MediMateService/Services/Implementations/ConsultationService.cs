@@ -13,17 +13,20 @@ namespace MediMateService.Services.Implementations
         private readonly IDoctorRepository _doctorRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationService _notificationService;
+        private readonly IAgoraRecordingService _agoraRecordingService;
 
         public ConsultationService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IAgoraRecordingService agoraRecordingService)
         {
             _appointmentRepository = appointmentRepository;
             _doctorRepository = doctorRepository;
             _unitOfWork = unitOfWork;
             _notificationService = notificationService;
+            _agoraRecordingService = agoraRecordingService;
         }
 
         // ─────────────────────────────────────────────
@@ -251,6 +254,16 @@ namespace MediMateService.Services.Implementations
             await _appointmentRepository.UpdateSessionAsync(session);
             await _unitOfWork.CompleteAsync();
 
+            // [RECORDING] Bắt đầu ghi hình ngay khi cả 2 bên đã join vào phòng
+            if (session.UserJoined && session.DoctorJoined)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await _agoraRecordingService.StartRecordingAsync(sessionId); }
+                    catch { /* Lỗi recording không ảnh hưởng luồng chính */ }
+                });
+            }
+
             return MapSession(session);
         }
 
@@ -325,7 +338,6 @@ namespace MediMateService.Services.Implementations
 
                     if (activeSubscription != null)
                     {
-                        activeSubscription.RemainingConsultantCount += 1;
                         _unitOfWork.Repository<MediMateRepository.Model.FamilySubscriptions>().Update(activeSubscription);
                     }
                 }
@@ -380,30 +392,30 @@ namespace MediMateService.Services.Implementations
                 await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
                 // =========================================================
-                // [NEW] TỰ ĐỘNG TẠO PHIẾU TRẢ TIỀN (PAYOUT) CHO BÁC SĨ
+                // [NEW] CẬP NHẬT PHIẾU TRẢ TIỀN (PAYOUT) CHO PHÒNG KHÁM
                 // =========================================================
-                var activeRate = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayoutRate>().GetQueryable()
-                    .Where(r => r.IsActive)
-                    .OrderByDescending(r => r.CreatedAt)
-                    .FirstOrDefaultAsync();
+                var payout = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().GetQueryable()
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
 
-                if (activeRate != null)
+                if (payout != null)
                 {
-                    var payout = new MediMateRepository.Model.DoctorPayout
-                    {
-                        PayoutId = Guid.NewGuid(),
-                        ConsultationId = session.ConsultanSessionId,
-                        RateId = activeRate.RateId,
-                        Amount = activeRate.AmountPerSession,
-                        Status = "Pending",
-                        CalculatedAt = DateTime.Now
-                    };
-
-                    await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().AddAsync(payout);
+                    payout.ConsultationId = session.ConsultanSessionId;
+                    payout.Status = "ReadyToPay";
+                    _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().Update(payout);
                 }
             }
 
             await _unitOfWork.CompleteAsync();
+
+            // ═══════════════════════════════════════════════════════════
+            // [RECORDING] Dừng ghi hình và upload lên Cloudinary
+            // Chạy fire-and-forget để không block response trả về cho User
+            // ═══════════════════════════════════════════════════════════
+            _ = Task.Run(async () =>
+            {
+                try { await _agoraRecordingService.StopAndUploadRecordingAsync(sessionId); }
+                catch { /* Lỗi recording không ảnh hưởng luồng chính */ }
+            });
 
             var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
             if (doctor != null)

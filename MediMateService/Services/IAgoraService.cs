@@ -16,6 +16,6 @@ namespace MediMateService.Services
         /// Tạo Agora token cho Người giám hộ (Guardian/Owner) tham gia cuộc gọi 3 bên.
         /// Chỉ cấp token nếu guardianUserId khớp với session.GuardianUserId.
         /// </summary>
-        Task<ApiResponse<GuardianJoinResponse>> GenerateGuardianTokenAsync(Guid sessionId, Guid guardianUserId);
+
     }
 }

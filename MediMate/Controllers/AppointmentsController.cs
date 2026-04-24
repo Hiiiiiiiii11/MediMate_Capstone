@@ -38,7 +38,7 @@ namespace MediMate.Controllers
             }
         }
         [HttpPost]
-        [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 201)]
+        [ProducesResponseType(typeof(ApiResponse<AppointmentPaymentResponseDto>), 201)]
         public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequest request)
         {
             try
@@ -54,13 +54,13 @@ namespace MediMate.Controllers
                     AvailabilityId = request.AvailabilityId,
                     AppointmentDate = request.AppointmentDate,
                     AppointmentTime = request.AppointmentTime, // Map giờ khám vào đây
-
+                    ClinicId = request.ClinicId
                 };
 
                 // 3. Gọi Service xử lý nghiệp vụ (Kiểm tra trùng lịch, trừ lượt, v.v.)
                 var result = await _appointmentService.CreateAppointmentAsync(userId, createDto);
 
-                return StatusCode(201, ApiResponse<AppointmentDto>.Ok(result, "Đặt lịch khám thành công."));
+                return StatusCode(201, ApiResponse<AppointmentPaymentResponseDto>.Ok(result, "Tạo đơn đặt lịch thành công. Vui lòng thanh toán để xác nhận."));
             }
             catch (Exception ex)
             {

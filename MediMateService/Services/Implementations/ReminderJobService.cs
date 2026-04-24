@@ -385,21 +385,6 @@ namespace MediMateService.Services.Implementations
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(appointment.DoctorId);
             if (member == null || doctor == null) return;
 
-            // ── Xác định Guardian ──────────────────────────────────────────
-            // Nếu member không có tài khoản (dependent) → chủ gia đình là guardian
-            Guid? guardianUserId = null;
-            string? guardianFullName = null;
-            if (member.UserId == null && member.FamilyId.HasValue)
-            {
-                var family = await _unitOfWork.Repository<Families>().GetByIdAsync(member.FamilyId.Value);
-                guardianUserId = family?.CreateBy;
-                if (guardianUserId.HasValue)
-                {
-                    var guardianUser = await _unitOfWork.Repository<User>().GetByIdAsync(guardianUserId.Value);
-                    guardianFullName = guardianUser?.FullName ?? "Người giám hộ";
-                }
-            }
-
             var session = new ConsultationSessions
             {
                 ConsultanSessionId = Guid.NewGuid(),
@@ -411,8 +396,6 @@ namespace MediMateService.Services.Implementations
                 Status = ConsultationSessionConstants.PROCESSING,
                 UserJoined = false,
                 DoctorJoined = false,
-                GuardianUserId = guardianUserId,
-                GuardianJoined = false,
                 Note = null,
                 DoctorNote = null
             };
@@ -444,51 +427,14 @@ namespace MediMateService.Services.Implementations
                 memberId: member.MemberId
             );
 
-            // ── Thông báo Guardian ─────────────────────────────────────────
-            if (guardianUserId.HasValue)
-            {
-                var guardianMessage = $"{member.FullName} đang vào khám với Bác sĩ {doctor.FullName} lúc {timeString}. Bạn có muốn tham gia theo dõi không?";
-
-                // Notification (Firebase - kể cả khi app đóng)
-                await _notificationService.SendNotificationAsync(
-                    userId: guardianUserId.Value,
-                    title: "👨‍👩‍👦 Phòng khám đã mở!",
-                    message: guardianMessage,
-                    type: ConsultationSessionActionTypes.GUARDIAN_SESSION_INVITE,
-                    referenceId: session.ConsultanSessionId
-                );
-
-                // SignalR (real-time khi app đang mở → hiện popup ngay)
-                await _hubContext.Clients.Group($"User_{guardianUserId}")
-                    .SendAsync("GuardianSessionInvite", new
-                    {
-                        sessionId        = session.ConsultanSessionId,
-                        memberName       = member.FullName,
-                        memberAvatarUrl  = member.AvatarUrl,
-                        doctorName       = doctor.FullName,
-                        scheduledTime    = timeString
-                    });
-
-                // Thông báo cho bác sĩ biết sẽ có người giám hộ
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "🔔 Phòng khám đã mở!",
-                    message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Lưu ý: {guardianFullName} (người giám hộ) có thể tham gia theo dõi.",
-                    type: ConsultationSessionActionTypes.SESSION_STARTED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
-            else
-            {
-                // Member bình thường → thông báo bác sĩ như cũ
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "🔔 Phòng khám đã mở!",
-                    message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
-                    type: ConsultationSessionActionTypes.SESSION_STARTED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
+            // Member bình thường → thông báo bác sĩ như cũ
+            await _notificationService.SendNotificationAsync(
+                userId: doctor.UserId,
+                title: "🔔 Phòng khám đã mở!",
+                message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
+                type: ConsultationSessionActionTypes.SESSION_STARTED,
+                referenceId: session.ConsultanSessionId
+            );
 
             _backgroundJobClient.Schedule<IReminderJobService>(
                 job => job.AutoEndExpiredSessionAsync(session.ConsultanSessionId),

@@ -24,5 +24,6 @@ namespace MediMateRepository.Model
         public DateTime? PaidAt { get; set; }
         
         public string? TransferImageUrl { get; set; }
+        public string? ReportFileUrl { get; set; }
     }
 }

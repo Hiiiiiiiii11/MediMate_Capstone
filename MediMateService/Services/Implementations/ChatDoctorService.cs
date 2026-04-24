@@ -175,10 +175,6 @@ namespace MediMateService.Services.Implementations
 
         private async Task<bool> ValidateAccessAsync(ConsultationSessions session, Guid currentUserId, bool isDoctorRequest)
         {
-            // 1. Nếu là Người giám hộ
-            if (session.GuardianUserId.HasValue && session.GuardianUserId.Value == currentUserId)
-                return true;
-
             if (isDoctorRequest)
             {
                 // GIẢI PHÁP: Sử dụng session.Doctor đã được Include từ hàm gọi

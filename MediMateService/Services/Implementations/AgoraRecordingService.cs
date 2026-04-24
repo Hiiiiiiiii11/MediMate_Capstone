@@ -208,9 +208,9 @@ namespace MediMateService.Services.Implementations
 
             // ── Kiểm tra danh tính ────────────────────────────────────────
             bool isDoctor = session.Doctor?.UserId == callerUserId;
-            bool isOwner = session.GuardianUserId == callerUserId;
+            bool isOwner = false;
 
-            if (!isDoctor && !isOwner)
+            if (!isDoctor)
             {
                 var member = await _unitOfWork.Repository<Members>()
                     .GetQueryable().AsNoTracking()

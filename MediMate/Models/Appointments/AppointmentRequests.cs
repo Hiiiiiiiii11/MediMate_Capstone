@@ -16,9 +16,6 @@ namespace MediMate.Models.Appointments
         [Required]
         public DateTime AppointmentDate { get; set; }
 
-        [Required]
-        public Guid ClinicId { get; set; }
-
         // THÊM MỚI: Nhận giờ khám (Ví dụ: 8, 9, 14, 15)
         [Required]
         public TimeSpan AppointmentTime { get; set; }

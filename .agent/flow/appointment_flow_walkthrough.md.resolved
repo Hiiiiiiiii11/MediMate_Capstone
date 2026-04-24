@@ -1,0 +1,82 @@
+# Luồng hoạt động của Appointment & Payment
+
+Tài liệu này mô tả chi tiết vòng đời 8 bước tiêu chuẩn của một lịch khám (Appointment) cùng với sự thay đổi của các bản ghi Payment, Transaction và Payout tương ứng trong cơ sở dữ liệu.
+
+## 1. Bệnh nhân (Member) đặt lịch
+**Hành động:** Người dùng chọn bác sĩ, khung giờ và xác nhận đặt khám.
+- Hệ thống kiểm tra trùng lịch, kiểm tra lịch nghỉ phép của bác sĩ.
+- **Database updates:**
+  - `Appointments`: Tạo mới với `Status = "Pending"`, `PaymentStatus = "Pending"`. Hệ thống tự map `ClinicId` dựa trên phòng khám bác sĩ đang hoạt động.
+  - `Payments`: Tạo mới với `Status = "Pending"`, `Amount = ConsultationFee`.
+- Trả về `CheckoutUrl` từ PayOS cho ứng dụng chuyển hướng người dùng sang trang thanh toán.
+
+## 2. Thanh toán thành công
+**Hành động:** Người dùng hoàn tất chuyển khoản PayOS. Hệ thống nhận Webhook.
+- PayOS gửi Webhook báo mã `OrderCode` đã thanh toán.
+- **Database updates:**
+  - `Payments`: Cập nhật `Status = "Success"`.
+  - `Transactions`: Tạo một bản ghi đối soát mới.
+  - `Appointments`: Cập nhật `PaymentStatus = "Paid"`. **Lưu ý: `Status` vẫn giữ `"Pending"`** để chờ Bác sĩ duyệt.
+- Bắn Notification + SignalR cho Bác sĩ biết có lịch chờ duyệt.
+
+## 3. Bác sĩ chấp nhận lịch (Doctor Approve)
+**Hành động:** Bác sĩ mở App, xem thông tin và bấm "Chấp nhận".
+- **Database updates:**
+  - `Appointments`: Cập nhật `Status = "Approved"`.
+  - `DoctorPayouts`: Lần đầu tiên tạo bản ghi chia sẻ doanh thu cho Bác sĩ/Phòng khám. `Status = "Hold"` (Tiền đang tạm giữ, chưa được phép rút).
+- **Background Jobs (Hangfire):**
+  - Đặt lịch T-15 phút: Gửi push nhắc nhở 2 bên.
+  - Đặt lịch T-5 phút: Tự động khởi tạo phiên khám trực tuyến (`ConsultationSessions`).
+- Bắn Notification báo cho Bệnh nhân lịch đã được chốt.
+
+## 4. Đến giờ vào khám
+**Hành động:** Tới giờ hẹn (T-5 phút), Background Job chạy.
+- **Database updates:**
+  - `ConsultationSessions`: Được tạo mới với `Status = "Processing"`.
+  - Khi có một người join: Ghi nhận trạng thái `UserJoined` hoặc `DoctorJoined`.
+  - Khi cả hai cùng join: Hệ thống tự gọi Agora Cloud Recording để ghi hình, cập nhật Session thành `Status = "InProgress"`.
+> [!IMPORTANT]
+> Khi `ConsultationSessions` đã tồn tại và mang trạng thái `InProgress` hoặc `Ended`, **KHÔNG AI** được quyền ấn "Hủy lịch" (`Cancel`) nữa.
+
+## 5. Hoàn thành khám
+**Hành động:** Bác sĩ ấn "Kết thúc phiên khám" (End Session) trên ứng dụng.
+- File ghi hình Agora tự động được tải và upload lên Cloudinary.
+- **Database updates:**
+  - `ConsultationSessions`: Cập nhật `Status = "Ended"`, ghi nhận `RecordUrl` và thời lượng.
+  - `Appointments`: Tự động đồng bộ cập nhật `Status = "Completed"`.
+
+## 6. Cập nhật Payout cho Bác sĩ (ReadyToPay)
+**Hành động:** Dựa trên sự kiện "Kết thúc phiên khám" ở bước 5.
+- Cùng thời điểm kết thúc phiên khám, hệ thống sẽ chốt công nợ.
+- **Database updates:**
+  - `DoctorPayouts`: Tìm bản ghi có `Status = "Hold"` của buổi khám này, cập nhật thành `Status = "ReadyToPay"`.
+- Bác sĩ và Phòng khám bắt đầu nhìn thấy khoản tiền này nổi lên trong mục "Số dư chờ thanh toán" (Pending Amount) trên Dashboard.
+
+## 7. Admin tất toán tiền cho Clinic
+**Hành động:** Cuối tuần hoặc cuối tháng, Admin vào trang quản trị xem tổng công nợ `ReadyToPay` của một phòng khám và ấn "Đã chuyển khoản".
+- Quản trị viên (Admin) chuyển tiền thực tế qua ngân hàng cho Phòng khám.
+- Sau khi chuyển khoản, Admin đính kèm biên lai (TransferImageUrl).
+- **Database updates:**
+  - `DoctorPayouts`: Batch-update toàn bộ bản ghi `ReadyToPay` của Clinic đó sang `Status = "Paid"`, cập nhật `PaidAt = DateTime.Now`.
+
+## 8. Clinic trả tiền cho Bác sĩ
+**Hành động:** Nội bộ phòng khám.
+- Dòng tiền đã về tài khoản ngân hàng của Phòng khám.
+- Chủ phòng khám tự phân bổ, trích phần trăm và chuyển khoản lương cho các Bác sĩ đang làm việc tại cơ sở của mình dựa trên thỏa thuận nội bộ. Hệ thống MediMate không can thiệp vào nghiệp vụ chia tiền giữa Phòng khám và Bác sĩ.
+
+---
+
+## Tóm tắt trạng thái Database Xuyên Suốt Vòng Đời
+
+| Giai đoạn | `Appointments.Status` | `Appointments.PaymentStatus` | `Payments.Status` | `ConsultationSession` | `DoctorPayout.Status` |
+|-----------|-----------------------|------------------------------|-------------------|-----------------------|-----------------------|
+| 1. Đặt lịch | `Pending` | `Pending` | `Pending` | *(Chưa tạo)* | *(Chưa tạo)* |
+| 2. Thanh toán | **`Pending`** | `Paid` | `Success` | *(Chưa tạo)* | *(Chưa tạo)* |
+| 3. Chấp nhận | `Approved` | `Paid` | `Success` | *(Chưa tạo)* | `Hold` |
+| 4. Vào khám | `Approved` | `Paid` | `Success` | `Processing` -> `InProgress` | `Hold` |
+| 5 & 6. Hoàn thành | `Completed` | `Paid` | `Success` | `Ended` | **`ReadyToPay`** |
+| 7. Admin tất toán | `Completed` | `Paid` | `Success` | `Ended` | **`Paid`** |
+
+> [!NOTE]
+> - Nếu bị từ chối/hủy ở bước 1, 2: Không sinh Payout.
+> - Nếu bị hủy ở bước 3: Tiền sẽ được Refund, Payout chuyển từ `Hold` sang `Cancelled`.

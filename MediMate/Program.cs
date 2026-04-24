@@ -91,8 +91,6 @@ namespace MediMate
 
             builder.Services.AddScoped<IDoctorRepository, DoctorRepository>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
-            builder.Services.AddScoped<IRatingRepository, RatingRepository>();
-            builder.Services.AddScoped<IRatingService, RatingService>();
             builder.Services.AddScoped<IAppointmentRepository, AppointmentRepository>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IConsultationService, ConsultationService>();

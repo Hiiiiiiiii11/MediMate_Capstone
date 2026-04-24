@@ -7,8 +7,10 @@ namespace MediMateService.DTOs
     {
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
-        public IFormFile LicenseFile { get; set; } 
-        public IFormFile? LogoFile { get; set; } 
+        public IFormFile LicenseFile { get; set; }
+        public IFormFile? LogoFile { get; set; }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Email { get; set; } = string.Empty;
 
         // Banking: bắt buộc khi tạo phòng khám — dùng để nhận payout từ Admin
         [System.ComponentModel.DataAnnotations.Required]
@@ -28,6 +30,7 @@ namespace MediMateService.DTOs
         public IFormFile? LicenseFile { get; set; }
         public IFormFile? LogoFile { get; set; }
         public bool? IsActive { get; set; }
+        public string? Email { get; set; } 
 
         // Banking — tùy chọn khi cập nhật
         public string? BankName { get; set; }
@@ -45,6 +48,7 @@ namespace MediMateService.DTOs
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public int DoctorCount { get; set; }
+        public string Email { get; set; }
 
         // Banking info
         public string BankName { get; set; } = string.Empty;

@@ -47,11 +47,12 @@ namespace MediMate.Controllers
         /// </summary>
         [HttpPost("clinics/{clinicId:guid}/process")]
         [ProducesResponseType(typeof(ApiResponse<int>), 200)]
-        public async Task<IActionResult> ProcessClinicPayout(Guid clinicId, [FromBody] ProcessPayoutRequest request)
+        public async Task<IActionResult> ProcessClinicPayout(Guid clinicId, [FromForm] ProcessPayoutRequest request)
         {
             var count = await _payoutService.ProcessClinicPayoutAsync(clinicId, new ProcessPayoutDto
             {
-                TransferImageUrl = request.TransferImageUrl,
+                TransferImage = request.TransferImage,
+                ReportFile = request.ReportFile,
                 Note = request.Note
             });
             return Ok(ApiResponse<int>.Ok(count, $"Đã xác nhận thanh toán thành công cho {count} khoản công nợ."));

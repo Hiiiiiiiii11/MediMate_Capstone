@@ -52,6 +52,7 @@ namespace MediMateRepository.Data
         public DbSet<ClinicDoctors> ClinicDoctors { get; set; }
         public DbSet<Clinics> Clinics { get; set; }
         public DbSet<SubscriptionUsageLogs> SubscriptionUsageLogs { get; set; }
+        public DbSet<UserBankAccount> UserBankAccounts { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -474,6 +475,21 @@ namespace MediMateRepository.Data
                 .WithMany()
                 .HasForeignKey(dp => dp.ClinicId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // UserBankAccount - User (1-to-1: mỗi User có tối đa 1 tài khoản ngân hàng)
+            modelBuilder.Entity<UserBankAccount>()
+                .HasKey(uba => uba.BankAccountId);
+
+            modelBuilder.Entity<UserBankAccount>()
+                .HasOne(uba => uba.User)
+                .WithOne()
+                .HasForeignKey<UserBankAccount>(uba => uba.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Index đảm bảo 1 User chỉ có 1 bank account
+            modelBuilder.Entity<UserBankAccount>()
+                .HasIndex(uba => uba.UserId)
+                .IsUnique();
         }
 
     }

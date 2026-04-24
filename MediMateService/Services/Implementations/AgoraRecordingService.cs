@@ -206,22 +206,46 @@ namespace MediMateService.Services.Implementations
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên khám.");
 
-            // Kiểm tra quyền: Doctor của phiên hoặc Family Owner (Guardian)
+            // ── Kiểm tra danh tính ────────────────────────────────────────
             bool isDoctor = session.Doctor?.UserId == callerUserId;
             bool isOwner = session.GuardianUserId == callerUserId;
 
-            // Nếu không phải doctor cũng không phải owner, kiểm tra xem có phải member.UserId không
             if (!isDoctor && !isOwner)
             {
                 var member = await _unitOfWork.Repository<Members>()
-                    .GetQueryable()
-                    .AsNoTracking()
+                    .GetQueryable().AsNoTracking()
                     .FirstOrDefaultAsync(m => m.MemberId == session.MemberId && m.UserId == callerUserId);
                 isOwner = member != null;
             }
 
-            //if (!isDoctor && !isOwner)
-            //    throw new ForbiddenException("Bạn không có quyền xem video phiên khám này.");
+            // if (!isDoctor && !isOwner)
+            //     throw new ForbiddenException("Bạn không có quyền xem video phiên khám này.");
+
+            // ── Kiểm tra gói đăng ký (chỉ áp dụng với User, Doctor được miễn) ──
+            if (!isDoctor)
+            {
+                // Tìm FamilyId của member trong phiên
+                var memberRecord = await _unitOfWork.Repository<Members>()
+                    .GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.MemberId == session.MemberId);
+
+                if (memberRecord?.FamilyId != null)
+                {
+                    var activeSub = await _unitOfWork.Repository<FamilySubscriptions>()
+                        .GetQueryable()
+                        .Include(fs => fs.Package)
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(fs =>
+                            fs.FamilyId == memberRecord.FamilyId &&
+                            fs.Status == "Active" &&
+                            fs.Package.AllowVideoRecordingAccess);
+
+                    if (activeSub == null)
+                        throw new ForbiddenException(
+                            "Tính năng xem lại video phiên khám chỉ dành cho gói Premium trở lên. " +
+                            "Vui lòng nâng cấp gói để sử dụng tính năng này.");
+                }
+            }
 
             return session.RecordUrl;
         }

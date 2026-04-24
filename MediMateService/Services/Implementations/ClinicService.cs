@@ -51,6 +51,9 @@ namespace MediMateService.Services.Implementations
                 LicenseUrl = LicenseUrl,
                 LogoUrl = logoUrl, // URL từ Cloudinary
                 IsActive = true,
+                BankName = dto.BankName,
+                BankAccountNumber = dto.BankAccountNumber,
+                BankAccountHolder = dto.BankAccountHolder,
                 CreatedAt = DateTime.Now
             };
 
@@ -113,6 +116,12 @@ namespace MediMateService.Services.Implementations
                 clinic.LogoUrl = uploadResult.OriginalUrl;
             }
             if (dto.IsActive.HasValue) clinic.IsActive = dto.IsActive.Value;
+
+            // ── Cập nhật thông tin ngân hàng nếu có ──
+            if (dto.BankName != null) clinic.BankName = dto.BankName;
+            if (dto.BankAccountNumber != null) clinic.BankAccountNumber = dto.BankAccountNumber;
+            if (dto.BankAccountHolder != null) clinic.BankAccountHolder = dto.BankAccountHolder;
+
             clinic.UpdatedAt = DateTime.Now;
 
             _unitOfWork.Repository<Clinics>().Update(clinic);
@@ -363,7 +372,10 @@ namespace MediMateService.Services.Implementations
             LogoUrl = clinic.LogoUrl,
             IsActive = clinic.IsActive,
             CreatedAt = clinic.CreatedAt,
-            DoctorCount = doctorCount
+            DoctorCount = doctorCount,
+            BankName = clinic.BankName,
+            BankAccountNumber = clinic.BankAccountNumber,
+            BankAccountHolder = clinic.BankAccountHolder
         };
     }
 }

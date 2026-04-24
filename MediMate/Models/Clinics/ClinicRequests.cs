@@ -6,11 +6,24 @@ namespace MediMate.Models.Clinics
     {
         [Required]
         public string Name { get; set; } = string.Empty;
+
         [Required]
         public string Address { get; set; } = string.Empty;
+
         [Required]
-        public IFormFile LicenseFile { get; set; } 
+        public IFormFile LicenseFile { get; set; }
+
         public IFormFile? LogoFile { get; set; }
+
+        // ── Thông tin ngân hàng — bắt buộc để nhận payout từ Admin ──────────
+        [Required]
+        public string BankName { get; set; } = string.Empty;
+
+        [Required]
+        public string BankAccountNumber { get; set; } = string.Empty;
+
+        [Required]
+        public string BankAccountHolder { get; set; } = string.Empty;
     }
 
     public class UpdateClinicRequest
@@ -20,6 +33,11 @@ namespace MediMate.Models.Clinics
         public IFormFile? LicenseFile { get; set; }
         public IFormFile? LogoFile { get; set; }
         public bool? IsActive { get; set; }
+
+        // Banking — tùy chọn khi cập nhật
+        public string? BankName { get; set; }
+        public string? BankAccountNumber { get; set; }
+        public string? BankAccountHolder { get; set; }
     }
 
     public class AddDoctorToClinicRequest

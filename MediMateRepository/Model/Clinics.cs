@@ -26,11 +26,11 @@ namespace MediMateRepository.Model
         // Admin quản lý phòng khám này (Có thể null nếu do Admin hệ thống tạo)
         public Guid? AdminId { get; set; }
         public virtual User? Admin { get; set; }
-        
+
+        public string? Email { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
-        [Required]
-        public string Email { get; set; }
 
         // ── Thông tin ngân hàng (bắt buộc khi tạo — dùng để nhận payout) ──────
         [Required]

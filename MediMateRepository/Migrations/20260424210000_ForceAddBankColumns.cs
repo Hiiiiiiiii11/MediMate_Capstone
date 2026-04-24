@@ -14,6 +14,7 @@ namespace MediMateRepository.Migrations
                 ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankName"" text NOT NULL DEFAULT '';
                 ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankAccountNumber"" text NOT NULL DEFAULT '';
                 ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankAccountHolder"" text NOT NULL DEFAULT '';
+                ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""Email"" text;
                 ALTER TABLE ""DoctorPayouts"" ADD COLUMN IF NOT EXISTS ""ReportFileUrl"" text;
             ");
         }

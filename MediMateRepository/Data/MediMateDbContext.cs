@@ -121,7 +121,7 @@ namespace MediMateRepository.Data
 
             // Quan h? 1-N: Family -> Members
             modelBuilder.Entity<Members>()
-                .HasOne<Families>() // Member thu?c v? 1 Family (dùng shadow navigation ho?c thêm prop Family vào Member n?u c?n)
+                .HasOne(m => m.Family) // Sử dụng navigation property có sẵn
                 .WithMany(f => f.FamilyMembers) // Family có nhi?u Member
                 .HasForeignKey(m => m.FamilyId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa Family -> Xóa h?t Member

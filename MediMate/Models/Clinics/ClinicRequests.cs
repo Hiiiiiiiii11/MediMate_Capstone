@@ -34,7 +34,7 @@ namespace MediMate.Models.Clinics
         public IFormFile? LicenseFile { get; set; }
         public IFormFile? LogoFile { get; set; }
         public bool? IsActive { get; set; }
-        public string Email { get; set; } = string.Empty;
+        public string? Email { get; set; }
 
         // Banking — tùy chọn khi cập nhật
         public string? BankName { get; set; }

@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260424155704_AddClinicEmailAndPayoutReportUrl")]
+    partial class AddClinicEmailAndPayoutReportUrl
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -967,6 +970,9 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid?>("FamilyId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("FamilyId1")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FcmToken")
                         .HasColumnType("text");
 
@@ -1002,6 +1008,8 @@ namespace MediMateRepository.Migrations
                     b.HasKey("MemberId");
 
                     b.HasIndex("FamilyId");
+
+                    b.HasIndex("FamilyId1");
 
                     b.HasIndex("NotificationSettingSettingId");
 
@@ -1937,10 +1945,14 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Families", "Family")
+                    b.HasOne("MediMateRepository.Model.Families", null)
                         .WithMany("FamilyMembers")
                         .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MediMateRepository.Model.Families", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId1");
 
                     b.HasOne("MediMateRepository.Model.NotificationSetting", "NotificationSetting")
                         .WithMany()

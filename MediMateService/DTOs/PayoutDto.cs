@@ -8,6 +8,17 @@ namespace MediMateService.DTOs
         public Guid? ClinicId { get; set; }
         public string ClinicName { get; set; } = string.Empty;
         public Guid? AppointmentId { get; set; }
+        public DateTime? AppointmentDate { get; set; }
+        public TimeSpan? AppointmentTime { get; set; }
+        public string? PatientName { get; set; }
+        public string? DoctorName { get; set; }
+
+        public string? PaymentStatus { get; set; }
+        public string? PayerName { get; set; }
+        public string? PayerPhoneNumber { get; set; }
+        public string? PayerBankName { get; set; }
+        public string? PayerBankAccountNumber { get; set; }
+        public string? PayerBankAccountHolder { get; set; }
         public Guid? ConsultationId { get; set; }
 
         public decimal Amount { get; set; }

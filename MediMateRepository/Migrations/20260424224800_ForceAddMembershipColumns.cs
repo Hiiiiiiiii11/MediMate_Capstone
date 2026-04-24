@@ -4,20 +4,17 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateRepository.Data.MediMateDbContext))]
-    [Migration("20260424210000_ForceAddBankColumns")]
-    public partial class ForceAddBankColumns : Migration
+    [Migration("20260424224800_ForceAddMembershipColumns")]
+    public partial class ForceAddMembershipColumns : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Sử dụng IF NOT EXISTS để đảm bảo không bị lỗi nếu cột đã có
             migrationBuilder.Sql(@"
-                ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankName"" text NOT NULL DEFAULT '';
-                ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankAccountNumber"" text NOT NULL DEFAULT '';
-                ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""BankAccountHolder"" text NOT NULL DEFAULT '';
-                ALTER TABLE ""Clinics"" ADD COLUMN IF NOT EXISTS ""Email"" text;
-                ALTER TABLE ""DoctorPayouts"" ADD COLUMN IF NOT EXISTS ""ReportFileUrl"" text;
+                ALTER TABLE ""MembershipPackages"" ADD COLUMN IF NOT EXISTS ""AllowVideoRecordingAccess"" boolean NOT NULL DEFAULT FALSE;
+                ALTER TABLE ""MembershipPackages"" ADD COLUMN IF NOT EXISTS ""HealthAlertEnabled"" boolean NOT NULL DEFAULT FALSE;
 
-                CREATE TABLE IF NOT EXISTS ""UserBankAccounts"" (
+
+CREATE TABLE IF NOT EXISTS ""UserBankAccounts"" (
                     ""BankAccountId"" uuid NOT NULL DEFAULT gen_random_uuid(),
                     ""UserId"" uuid NOT NULL,
                     ""BankName"" text NOT NULL DEFAULT '',
@@ -34,7 +31,6 @@ namespace MediMateRepository.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Tùy chọn drop column
         }
     }
 }

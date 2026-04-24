@@ -26,6 +26,21 @@ namespace MediMateService.Services.Implementations
         {
             var query = _unitOfWork.Repository<DoctorPayout>().GetQueryable()
                 .Include(p => p.Clinic)
+                .Include(p => p.Appointment)
+                    .ThenInclude(a => a.Member)
+                .Include(p => p.Appointment)
+                    .ThenInclude(a => a.Doctor)
+                .Include(p => p.Appointment)
+                    .ThenInclude(a => a.Payments)
+                        .ThenInclude(pay => pay.User)
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(c => c.Member)
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(c => c.Doctor)
+                .Include(p => p.ConsultationSession)
+                    .ThenInclude(c => c.Appointment)
+                        .ThenInclude(a => a.Payments)
+                            .ThenInclude(pay => pay.User)
                 .AsNoTracking();
 
             if (filter.ClinicId.HasValue)
@@ -36,18 +51,39 @@ namespace MediMateService.Services.Implementations
 
             var totalCount = await query.CountAsync();
 
+
             var items = await query
                 .OrderByDescending(p => p.CalculatedAt)
                 .Skip((filter.PageNumber - 1) * filter.PageSize)
                 .Take(filter.PageSize)
                 .ToListAsync();
 
+            // Lấy tất cả UserId của người thanh toán để tra bank account một lần (tránh N+1)
+            var payerUserIds = items
+                .Select(p =>
+                {
+                    var appt = p.Appointment ?? p.ConsultationSession?.Appointment;
+                    return appt?.Payments?.FirstOrDefault()?.UserId;
+                })
+                .Where(id => id != null)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+
+            var bankAccounts = payerUserIds.Any()
+                ? await _unitOfWork.Repository<UserBankAccount>()
+                    .GetQueryable()
+                    .AsNoTracking()
+                    .Where(b => payerUserIds.Contains(b.UserId))
+                    .ToDictionaryAsync(b => b.UserId, b => b)
+                : new Dictionary<Guid, UserBankAccount>();
+
             return new PagedResult<PayoutItemDto>
             {
                 TotalCount = totalCount,
                 PageNumber = filter.PageNumber,
                 PageSize = filter.PageSize,
-                Items = items.Select(MapPayoutItemDto).ToList()
+                Items = items.Select(p => MapPayoutItemDto(p, bankAccounts)).ToList()
             };
         }
 
@@ -147,19 +183,39 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────────────────────────
         // HELPER
         // ─────────────────────────────────────────────────────────────────
-        private static PayoutItemDto MapPayoutItemDto(DoctorPayout p) => new()
+        private static PayoutItemDto MapPayoutItemDto(DoctorPayout p, Dictionary<Guid, UserBankAccount> bankAccounts)
         {
-            PayoutId = p.PayoutId,
-            ClinicId = p.ClinicId,
-            ClinicName = p.Clinic?.Name ?? string.Empty,
-            AppointmentId = p.AppointmentId,
-            ConsultationId = p.ConsultationId,
-            Amount = p.Amount,
-            Status = p.Status,
-            CalculatedAt = p.CalculatedAt,
-            PaidAt = p.PaidAt,
-            TransferImageUrl = p.TransferImageUrl,
-            ReportFileUrl = p.ReportFileUrl
-        };
+            var appointment = p.Appointment ?? p.ConsultationSession?.Appointment;
+            var payment = appointment?.Payments?.FirstOrDefault();
+            var payerUserId = payment?.UserId;
+            bankAccounts.TryGetValue(payerUserId ?? Guid.Empty, out var bankAccount);
+
+            return new PayoutItemDto
+            {
+                PayoutId = p.PayoutId,
+                ClinicId = p.ClinicId,
+                ClinicName = p.Clinic?.Name ?? string.Empty,
+                AppointmentId = p.AppointmentId,
+                AppointmentDate = p.Appointment?.AppointmentDate,
+                AppointmentTime = p.Appointment?.AppointmentTime,
+                PatientName = p.Appointment?.Member?.FullName ?? p.ConsultationSession?.Member?.FullName,
+                DoctorName = p.Appointment?.Doctor?.FullName ?? p.ConsultationSession?.Doctor?.FullName,
+
+                PaymentStatus = appointment?.PaymentStatus,
+                PayerName = payment?.User?.FullName,
+                PayerPhoneNumber = payment?.User?.PhoneNumber,
+                PayerBankName = bankAccount?.BankName,
+                PayerBankAccountNumber = bankAccount?.AccountNumber,
+                PayerBankAccountHolder = bankAccount?.AccountHolder,
+
+                ConsultationId = p.ConsultationId,
+                Amount = p.Amount,
+                Status = p.Status,
+                CalculatedAt = p.CalculatedAt,
+                PaidAt = p.PaidAt,
+                TransferImageUrl = p.TransferImageUrl,
+                ReportFileUrl = p.ReportFileUrl
+            };
+        }
     }
 }

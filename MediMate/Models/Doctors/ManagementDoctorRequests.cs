@@ -8,6 +8,7 @@ namespace MediMate.Models.Doctors
         public string Email { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string? CurrentHospitalName { get; set; }
     }
 
     public class CreateDoctorManagerRequest
@@ -59,8 +60,8 @@ namespace MediMate.Models.Doctors
         [Required]
         public string Specialty { get; set; } = string.Empty;
 
-        [Required]
-        public string CurrentHospitalName { get; set; } = string.Empty;
+        // Optional: bác sĩ thuộc Clinic, field này chỉ dùng như thông tin bổ sung
+        public string? CurrentHospitalName { get; set; }
 
         [Required]
         public string LicenseNumber { get; set; } = string.Empty;

@@ -33,7 +33,8 @@ namespace MediMate.Controllers
             {
                 Email = request.Email,
                 PhoneNumber = request.PhoneNumber,
-                FullName = request.FullName
+                FullName = request.FullName,
+                CurrentHospitalName = request.CurrentHospitalName
             });
             return Ok(ApiResponse<ManagementDoctorResponse>.Ok(MapResponse(data), "Tạo hồ sơ bác sĩ thành công."));
         }

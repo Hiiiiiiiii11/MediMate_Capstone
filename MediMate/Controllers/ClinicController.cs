@@ -71,6 +71,7 @@ namespace MediMate.Controllers
                 LicenseFile = request.LicenseFile,
                 LogoFile = request.LogoFile,
                 IsActive = request.IsActive,
+                Email = request.Email,
                 BankName = request.BankName,
                 BankAccountNumber = request.BankAccountNumber,
                 BankAccountHolder = request.BankAccountHolder

@@ -1,20 +1,19 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateRepository.Data.MediMateDbContext))]
-    [Migration("20260424224800_ForceAddMembershipColumns")]
-    public partial class ForceAddMembershipColumns : Migration
+    [Migration("20260424233000_ForceCreateUserBankAccounts")]
+    public partial class ForceCreateUserBankAccounts : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
-                ALTER TABLE ""MembershipPackages"" ADD COLUMN IF NOT EXISTS ""AllowVideoRecordingAccess"" boolean NOT NULL DEFAULT FALSE;
-                ALTER TABLE ""MembershipPackages"" ADD COLUMN IF NOT EXISTS ""HealthAlertEnabled"" boolean NOT NULL DEFAULT FALSE;
-
-
-CREATE TABLE IF NOT EXISTS ""UserBankAccounts"" (
+                CREATE TABLE IF NOT EXISTS ""UserBankAccounts"" (
                     ""BankAccountId"" uuid NOT NULL DEFAULT gen_random_uuid(),
                     ""UserId"" uuid NOT NULL,
                     ""BankName"" text NOT NULL DEFAULT '',
@@ -31,6 +30,8 @@ CREATE TABLE IF NOT EXISTS ""UserBankAccounts"" (
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "UserBankAccounts");
         }
     }
 }

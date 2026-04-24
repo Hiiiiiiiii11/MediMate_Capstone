@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
@@ -16,6 +16,18 @@ namespace MediMateService.DTOs
         public bool IsActive { get; set; }
         public string? Role { get; set; }
         public DateTime CreatedAt { get; set; }
+        public UserBankInfo? BankAccount { get; set; }
+    }
+
+    /// <summary>Thông tin ngân hàng nhúng vào UserProfileResponse</summary>
+    public class UserBankInfo
+    {
+        public Guid BankAccountId { get; set; }
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
     }
 
     public class CreateDoctorManagerDto

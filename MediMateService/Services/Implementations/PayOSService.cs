@@ -18,6 +18,7 @@ public class PayOSService : IPayOSService
     private readonly IConfiguration _configuration;
     private readonly ILogger<PayOSService> _logger;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationService _notificationService;
 
     private readonly IActivityLogService _activityLogService;
 
@@ -28,7 +29,7 @@ public class PayOSService : IPayOSService
     private readonly string _defaultReturnUrl;
     private readonly string _defaultCancelUrl;
 
-    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService)
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService, INotificationService notificationService)
     {
         _httpClient = httpClient;
         _configuration = configuration;
@@ -46,6 +47,7 @@ public class PayOSService : IPayOSService
         _httpClient.DefaultRequestHeaders.Add("x-client-id", _clientId);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
         _activityLogService = activityLogService;
+        _notificationService = notificationService;
     }
 
     public async Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default)

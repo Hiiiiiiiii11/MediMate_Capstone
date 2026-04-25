@@ -1,4 +1,5 @@
 using MediMateService.DTOs;
+using Microsoft.AspNetCore.Http;
 using Share.Common;
 
 namespace MediMateService.Services
@@ -17,7 +18,7 @@ namespace MediMateService.Services
 
         // Refund Management cho Admin
         Task<List<AppointmentDto>> GetRefundableAppointmentsAsync();
-        Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId);
+        Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId, IFormFile? transferImage);
 
         /// <summary>
         /// Webhook PayOS gọi sau khi thanh toán thành công.

@@ -4,7 +4,10 @@ namespace MediMate.Models.Appointments
     {
         public Guid AppointmentId { get; set; }
         public Guid DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public string? DoctorAvatar { get; set; }
         public Guid? ClinicId { get; set; }
+        public string? ClinicName { get; set; }
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
         public Guid AvailabilityId { get; set; }
@@ -13,6 +16,8 @@ namespace MediMate.Models.Appointments
         public string Status { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
         public string? CancelReason { get; set; }
+        public decimal? Amount { get; set; }
+        public Guid? ConsultationSessionId { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

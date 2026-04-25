@@ -247,12 +247,59 @@ namespace MediMateService.Services.Implementations
                 });
             }
 
+            // 12. LÊN LỊCH HỦY TỰ ĐỘNG NẾU KHÔNG THANH TOÁN (15 phút)
+            _backgroundJobClient.Schedule(() => CheckAndCancelUnpaidAppointmentAsync(appointment.AppointmentId), TimeSpan.FromMinutes(15));
+
             return new AppointmentPaymentResponseDto
             {
                 Appointment = MapAppointment(appointment),
                 CheckoutUrl = paymentLinkResponse.PaymentUrl,
                 OrderCode = paymentLinkResponse.OrderCode
             };
+        }
+
+        public async Task CheckAndCancelUnpaidAppointmentAsync(Guid appointmentId)
+        {
+            var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+            if (appointment != null && appointment.PaymentStatus == "Pending" && appointment.Status == AppointmentConstants.PENDING)
+            {
+                // Thay vì đổi trạng thái sang Cancelled, xóa hẳn để slot trở lại trống hoàn toàn
+                var payment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
+                if (payment != null)
+                {
+                    _unitOfWork.Repository<Payments>().Remove(payment);
+                }
+
+                _unitOfWork.Repository<Appointments>().Remove(appointment);
+                await _unitOfWork.CompleteAsync();
+            }
+        }
+
+        public async Task DeleteUnpaidAppointmentAsync(Guid appointmentId)
+        {
+            var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+            if (appointment == null) throw new NotFoundException("Không tìm thấy lịch hẹn.");
+            
+            if (appointment.PaymentStatus != "Pending" || appointment.Status != AppointmentConstants.PENDING)
+            {
+                throw new BadRequestException("Chỉ có thể xóa lịch hẹn khi đang ở trạng thái chờ thanh toán.");
+            }
+
+            var payment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
+            
+            if (payment != null)
+            {
+                _unitOfWork.Repository<Payments>().Remove(payment);
+            }
+
+            _unitOfWork.Repository<Appointments>().Remove(appointment);
+            await _unitOfWork.CompleteAsync();
         }
 
         public async Task<AppointmentDto> CancelAppointmentAsync(Guid appointmentId, Guid userId, CancelAppointmentDto request)
@@ -454,6 +501,11 @@ namespace MediMateService.Services.Implementations
             // 4. Lấy lịch hẹn của tất cả các thành viên trong các gia đình đó
             var memberAppointments = await _unitOfWork.Repository<Appointments>()
                 .GetQueryable()
+                .Include(a => a.Member)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Clinic)
+                .Include(a => a.Payments)
+                .Include(a => a.ConsultationSessions)
                 .Where(a => allFamilyMemberIds.Contains(a.MemberId))
                 .ToListAsync();
 
@@ -756,7 +808,11 @@ namespace MediMateService.Services.Implementations
         {
             var appointments = await _unitOfWork.Repository<Appointments>()
                 .GetQueryable()
-                .Include(appointments => appointments.Member)
+                .Include(a => a.Member)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Clinic)
+                .Include(a => a.Payments)
+                .Include(a => a.ConsultationSessions)
                 .Where(a => a.DoctorId == doctorId)
                 .ToListAsync();
 
@@ -773,6 +829,9 @@ namespace MediMateService.Services.Implementations
                 .Include(a => a.Doctor)
                     .ThenInclude(d => d!.User) // Lấy thông tin User của Bác sĩ (chứa Tên, Avatar...)
                 .Include(a => a.Member)        // Lấy thông tin bệnh nhân
+                .Include(a => a.Clinic)        // Thông tin phòng khám
+                .Include(a => a.Payments)      // Thông tin thanh toán (phí)
+                .Include(a => a.ConsultationSessions) // Phiên tư vấn
                 .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
 
             if (appointment == null)
@@ -780,14 +839,23 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<AppointmentDetailDto>.Fail("Không tìm thấy thông tin lịch hẹn.", 404);
             }
 
+            var payment = appointment.Payments?.FirstOrDefault();
+            var session = appointment.ConsultationSessions?.FirstOrDefault();
+
             var detail = new AppointmentDetailDto
             {
                 AppointmentId = appointment.AppointmentId,
                 AppointmentDate = appointment.AppointmentDate,
                 AppointmentTime = appointment.AppointmentTime,
                 Status = appointment.Status,
+                PaymentStatus = appointment.PaymentStatus,
                 CancelReason = appointment.CancelReason,
+                Amount = payment?.Amount,
                 CreatedAt = appointment.CreatedAt,
+
+                // Thông tin Phòng khám
+                ClinicId = appointment.ClinicId,
+                ClinicName = appointment.Clinic?.Name,
 
                 // Map thông tin Bác sĩ (Giả sử Tên và Avatar nằm trong bảng User)
                 DoctorId = appointment.DoctorId,
@@ -800,7 +868,12 @@ namespace MediMateService.Services.Implementations
                 MemberName = appointment.Member?.FullName ?? "Chưa cập nhật",
                 MemberAvatar = appointment.Member?.AvatarUrl,
                 MemberGender = appointment.Member?.Gender,
-                MemberDateOfBirth = appointment.Member?.DateOfBirth
+                MemberDateOfBirth = appointment.Member?.DateOfBirth,
+
+                // Thông tin phiên
+                ConsultationSessionId = session?.ConsultanSessionId,
+                ConsultationSessionStatus = session?.Status,
+                RecordingUrl = session?.RecordUrl
             };
 
             return ApiResponse<AppointmentDetailDto>.Ok(detail, "Lấy chi tiết lịch hẹn thành công.");
@@ -811,6 +884,11 @@ namespace MediMateService.Services.Implementations
             // Lấy tất cả lịch hẹn mà MemberId trùng với tham số truyền vào
             var appointments = await _unitOfWork.Repository<Appointments>()
                 .GetQueryable()
+                .Include(a => a.Member)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Clinic)
+                .Include(a => a.Payments)
+                .Include(a => a.ConsultationSessions)
                 .Where(a => a.MemberId == memberId)
                 .OrderByDescending(a => a.AppointmentDate)
                 .ThenByDescending(a => a.AppointmentTime)
@@ -899,11 +977,19 @@ namespace MediMateService.Services.Implementations
 
         private static AppointmentDto MapAppointment(Appointments item)
         {
+            // Lấy thông tin thanh toán đầu tiên (nếu có)
+            var payment = item.Payments?.FirstOrDefault();
+            // Lấy session đầu tiên (nếu có)
+            var session = item.ConsultationSessions?.FirstOrDefault();
+
             return new AppointmentDto
             {
                 AppointmentId = item.AppointmentId,
                 DoctorId = item.DoctorId,
+                DoctorName = item.Doctor?.User?.FullName ?? item.Doctor?.FullName,
+                DoctorAvatar = item.Doctor?.User?.AvatarUrl,
                 ClinicId = item.ClinicId,
+                ClinicName = item.Clinic?.Name,
                 MemberId = item.MemberId,
                 MemberName = item.Member?.FullName,
                 AvailabilityId = item.AvailabilityId,
@@ -912,6 +998,8 @@ namespace MediMateService.Services.Implementations
                 Status = item.Status,
                 PaymentStatus = item.PaymentStatus,
                 CancelReason = item.CancelReason,
+                Amount = payment?.Amount,
+                ConsultationSessionId = session?.ConsultanSessionId,
                 CreatedAt = item.CreatedAt
             };
         }

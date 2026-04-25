@@ -32,7 +32,10 @@ namespace MediMateService.DTOs
     {
         public Guid AppointmentId { get; set; }
         public Guid DoctorId { get; set; }
-        public Guid? ClinicId { get; set; }   // Nullable vì Appointments.ClinicId là Guid?
+        public string? DoctorName { get; set; }           // Tên bác sĩ — hiển thị list
+        public string? DoctorAvatar { get; set; }         // Ảnh bác sĩ
+        public Guid? ClinicId { get; set; }
+        public string? ClinicName { get; set; }           // Tên phòng khám
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
         public Guid AvailabilityId { get; set; }
@@ -41,6 +44,8 @@ namespace MediMateService.DTOs
         public string Status { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
         public string? CancelReason { get; set; }
+        public decimal? Amount { get; set; }              // Phí khám — hiển thị list
+        public Guid? ConsultationSessionId { get; set; } // Dùng để navigate vào phiên
         public DateTime CreatedAt { get; set; }
     }
 
@@ -65,8 +70,14 @@ namespace MediMateService.DTOs
         public DateTime AppointmentDate { get; set; }
         public TimeSpan AppointmentTime { get; set; }
         public string Status { get; set; } = string.Empty;
+        public string PaymentStatus { get; set; } = string.Empty; // Thêm PaymentStatus
         public string? CancelReason { get; set; }
+        public decimal? Amount { get; set; }              // Phí khám
         public DateTime CreatedAt { get; set; }
+
+        // Thông tin Phòng khám
+        public Guid? ClinicId { get; set; }
+        public string? ClinicName { get; set; }
 
         // Thông tin Bác sĩ
         public Guid DoctorId { get; set; }
@@ -80,6 +91,11 @@ namespace MediMateService.DTOs
         public string? MemberAvatar { get; set; }
         public string? MemberGender { get; set; }
         public DateTime? MemberDateOfBirth { get; set; }
+
+        // Thông tin Phiên tư vấn (nếu đã có)
+        public Guid? ConsultationSessionId { get; set; }
+        public string? ConsultationSessionStatus { get; set; } // Scheduled/InProgress/Ended
+        public string? RecordingUrl { get; set; }          // URL video ghi hình
     }
 
     /// <summary>Request body cho endpoint hoàn tất refund — dùng multipart/form-data.</summary>

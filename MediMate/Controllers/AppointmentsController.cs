@@ -78,12 +78,27 @@ namespace MediMate.Controllers
         }
 
         [HttpGet("members/me")]
-        [ProducesResponseType(typeof(ApiResponse<List<AppointmentResponse>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
         public async Task<IActionResult> GetAppointmentsByCurrentMember()
         {
             var userId = _currentUserService.UserId;
             var result = await _appointmentService.GetAppointmentsByMemberIdAsync(userId);
             return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch hẹn của thành viên thành công."));
+        }
+
+        [HttpGet("members/{memberId:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
+        public async Task<IActionResult> GetAppointmentsByMemberId(Guid memberId)
+        {
+            try
+            {
+                var result = await _appointmentService.GetAppointmentsByMemberIdAsync(memberId);
+                return Ok(ApiResponse<List<AppointmentDto>>.Ok(result, "Lấy danh sách lịch hẹn thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail($"Lỗi hệ thống: {ex.Message}", 500));
+            }
         }
 
 
@@ -123,6 +138,21 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<AppointmentResponse>.Ok(MapAppointmentResponse(data), "Hủy lịch hẹn thành công."));
         }
 
+
+        [HttpDelete("{appointmentId}/unpaid")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+        public async Task<IActionResult> DeleteUnpaidAppointment(Guid appointmentId)
+        {
+            try
+            {
+                await _appointmentService.DeleteUnpaidAppointmentAsync(appointmentId);
+                return Ok(ApiResponse<object>.Ok(null, "Đã hủy bỏ slot và lịch hẹn thành công."));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
+            }
+        }
 
         [HttpPut("{appointmentId}/status")]
         [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
@@ -169,7 +199,10 @@ namespace MediMate.Controllers
             {
                 AppointmentId = dto.AppointmentId,
                 DoctorId = dto.DoctorId,
+                DoctorName = dto.DoctorName,
+                DoctorAvatar = dto.DoctorAvatar,
                 ClinicId = dto.ClinicId,
+                ClinicName = dto.ClinicName,
                 MemberId = dto.MemberId,
                 MemberName = dto.MemberName,
                 AvailabilityId = dto.AvailabilityId,
@@ -178,6 +211,8 @@ namespace MediMate.Controllers
                 Status = dto.Status,
                 PaymentStatus = dto.PaymentStatus,
                 CancelReason = dto.CancelReason,
+                Amount = dto.Amount,
+                ConsultationSessionId = dto.ConsultationSessionId,
                 CreatedAt = dto.CreatedAt
             };
         }
@@ -187,7 +222,7 @@ namespace MediMate.Controllers
         // ─────────────────────────────────────────────────────────────────
 
         /// <summary>Admin: Lấy danh sách các lịch hẹn cần hoàn tiền (PaymentStatus == "Refunded").</summary>
-        [HttpGet("refunds")]
+        [HttpGet("refundable")]
         [ProducesResponseType(typeof(ApiResponse<List<AppointmentDto>>), 200)]
         public async Task<IActionResult> GetRefundableAppointments()
         {

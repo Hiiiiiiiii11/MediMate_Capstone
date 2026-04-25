@@ -26,6 +26,7 @@ namespace MediMateService.DTOs
         public AppointmentDto Appointment { get; set; } = null!;
         public string CheckoutUrl { get; set; } = string.Empty;
         public long OrderCode { get; set; }
+        public string? QrCode { get; set; }
     }
 
     public class AppointmentDto

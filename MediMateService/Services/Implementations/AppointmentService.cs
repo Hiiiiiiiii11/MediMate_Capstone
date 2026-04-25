@@ -254,7 +254,8 @@ namespace MediMateService.Services.Implementations
             {
                 Appointment = MapAppointment(appointment),
                 CheckoutUrl = paymentLinkResponse.PaymentUrl,
-                OrderCode = paymentLinkResponse.OrderCode
+                OrderCode = paymentLinkResponse.OrderCode,
+                QrCode = paymentLinkResponse.QrCode
             };
         }
 

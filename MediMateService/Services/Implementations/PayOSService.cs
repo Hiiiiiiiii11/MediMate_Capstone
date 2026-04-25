@@ -328,7 +328,7 @@ public class PayOSService : IPayOSService
             }
 
             // Nếu giao dịch đã được ghi nhận là Thành công trước đó thì bỏ qua (tránh Webhook gọi trùng lặp)
-            if (transaction.TransactionStatus == "Success" || transaction.Payment.Status == "Success")
+            if (transaction.TransactionStatus == "Success" || transaction.Payment?.Status == "Success")
             {
                 return true;
             }

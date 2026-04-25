@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
@@ -21,14 +22,19 @@ namespace MediMateService.Services.Implementations
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IActivityLogService _activityLogService;
         private readonly IHubContext<MediMateHub> _hubContext;
-        private readonly IPayOSService _payOsService; // [NEW]
+        private readonly IPayOSService _payOsService;
+        private readonly IUploadPhotoService _uploadPhotoService;
 
         public AppointmentService(
             IAppointmentRepository appointmentRepository,
             IDoctorRepository doctorRepository,
             IUnitOfWork unitOfWork,
-            INotificationService notificationService, IBackgroundJobClient backgroundJobClient, IActivityLogService activityLogService, IHubContext<MediMateHub> hubContext, IPayOSService payOsService)
-
+            INotificationService notificationService,
+            IBackgroundJobClient backgroundJobClient,
+            IActivityLogService activityLogService,
+            IHubContext<MediMateHub> hubContext,
+            IPayOSService payOsService,
+            IUploadPhotoService uploadPhotoService)
         {
             _appointmentRepository = appointmentRepository;
             _doctorRepository = doctorRepository;
@@ -38,6 +44,7 @@ namespace MediMateService.Services.Implementations
             _activityLogService = activityLogService;
             _hubContext = hubContext;
             _payOsService = payOsService;
+            _uploadPhotoService = uploadPhotoService;
         }
         //check lịch availability
         public async Task<AppointmentPaymentResponseDto> CreateAppointmentAsync(Guid userId, CreateAppointmentDto request)
@@ -829,25 +836,62 @@ namespace MediMateService.Services.Implementations
             return appointments.Select(MapAppointment).ToList();
         }
 
-        public async Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId)
+        public async Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId, IFormFile? transferImage)
         {
             var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
                 .Include(a => a.Member)
+                .Include(a => a.Payments)
                 .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
 
             if (appointment == null)
-            {
                 throw new NotFoundException("Không tìm thấy lịch hẹn.");
-            }
 
             if (appointment.PaymentStatus != "Refunded")
-            {
                 throw new BadRequestException("Chỉ có thể hoàn tất hoàn tiền cho các lịch hẹn có trạng thái Refunded.");
+
+            // Upload ảnh chứng minh chuyển khoản hoàn tiền nếu có
+            string? refundImageUrl = null;
+            if (transferImage != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(transferImage);
+                refundImageUrl = uploadResult.OriginalUrl;
             }
 
-            appointment.PaymentStatus = "RefundCompleted";
+            // Lấy userId người đặt lịch (chủ Family) từ Payment gốc
+            var originalPayment = appointment.Payments?.FirstOrDefault();
+            var payerUserId = originalPayment?.UserId ?? Guid.Empty;
 
+            // Tạo Payment mới loại Refund
+            var refundPayment = new Payments
+            {
+                PaymentId = Guid.NewGuid(),
+                AppointmentId = appointmentId,
+                UserId = payerUserId,
+                Amount = originalPayment?.Amount ?? 0,
+                PaymentContent = $"Hoàn tiền lịch hẹn #{appointmentId}",
+                Status = "RefundCompleted",
+                CreatedAt = DateTime.Now
+            };
+            await _unitOfWork.Repository<Payments>().AddAsync(refundPayment);
+
+            // Tạo Transaction loại OUT để ghi nhận dòng tiền ra
+            var refundTransaction = new Transactions
+            {
+                TransactionId = Guid.NewGuid(),
+                TransactionCode = $"REFUND-{appointmentId.ToString()[..8].ToUpper()}",
+                PaymentId = refundPayment.PaymentId,
+                GatewayName = "Manual",
+                TransactionStatus = "Success", // Đồng nhất với PayOSService
+                AmountPaid = refundPayment.Amount,
+                TransactionType = TransactionTypes.MoneySent,
+                GatewayResponse = refundImageUrl,
+                PaidAt = DateTime.Now
+            };
+            await _unitOfWork.Repository<Transactions>().AddAsync(refundTransaction);
+
+            appointment.PaymentStatus = "RefundCompleted";
             _unitOfWork.Repository<Appointments>().Update(appointment);
+
             await _unitOfWork.CompleteAsync();
 
             return MapAppointment(appointment);
@@ -891,7 +935,27 @@ namespace MediMateService.Services.Implementations
                 return MapAppointment(appointment);
 
             appointment.PaymentStatus = paymentStatus;
-            // Status KHÔNG thay đổi — vẫn giữ "Pending" để bác sĩ tự Approve
+
+            // Khi thanh toán thành công, cập nhật trạng thái Payment và Transaction tương ứng
+            if (paymentStatus == "Paid")
+            {
+                var payment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                    .Include(p => p.Transactions)
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
+
+                if (payment != null)
+                {
+                    payment.Status = "Success"; // Đồng nhất với PayOSService
+                    _unitOfWork.Repository<Payments>().Update(payment);
+
+                    foreach (var tx in payment.Transactions)
+                    {
+                        tx.TransactionStatus = "Success"; // Đồng nhất với PayOSService
+                        tx.PaidAt = DateTime.Now;
+                        _unitOfWork.Repository<Transactions>().Update(tx);
+                    }
+                }
+            }
 
             _unitOfWork.Repository<Appointments>().Update(appointment);
             await _unitOfWork.CompleteAsync();

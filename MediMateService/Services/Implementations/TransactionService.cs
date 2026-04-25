@@ -46,10 +46,12 @@ namespace MediMateService.Services.Implementations
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.UserId == userId);
 
+            Guid? doctorId = doctor?.DoctorId;
+
             var query = GetFullTransactionQuery();
             query = query.Where(t =>
                 (t.Payment != null && t.Payment.UserId == userId) ||
-                (t.Payout != null && t.Payout.ConsultationSession != null && t.Payout.ConsultationSession.DoctorId == doctor.DoctorId)
+                (doctorId != null && t.Payout != null && t.Payout.ConsultationSession != null && t.Payout.ConsultationSession.DoctorId == doctorId.Value)
             );
 
             query = ApplyFiltersAndSorting(query, filter);
@@ -218,9 +220,7 @@ namespace MediMateService.Services.Implementations
                 TransactionCode = t.TransactionCode,
                 TransactionDate = t.PaidAt ?? t.Payment?.CreatedAt ?? DateTime.Now,
                 TransactionType = t.TransactionType,
-                Content = t.TransactionType == TransactionTypes.MoneyReceived
-                    ? (t.Payment?.PaymentContent ?? "Nạp tiền")
-                    : $"Giải ngân tư vấn #{t.Payout?.ConsultationId}", // [FIX] Sửa thành ConsultationId
+                Content = t.Payment != null ? (t.Payment.PaymentContent ?? "Giao dịch") : $"Giải ngân tư vấn #{t.Payout?.ConsultationId}",
                 TotalAmount = t.AmountPaid,
                 Status = t.TransactionStatus,
                 GatewayResponse = t.GatewayResponse
@@ -232,7 +232,8 @@ namespace MediMateService.Services.Implementations
             return new TransactionDetailDto
             {
                 TransactionId = t.TransactionId,
-                Content = t.TransactionType == TransactionTypes.MoneyReceived ? t.Payment?.PaymentContent : "Thanh toán thù lao",
+                TransactionType = t.TransactionType,
+                Content = t.Payment != null ? (t.Payment.PaymentContent ?? "Giao dịch") : (t.Payout != null ? "Thanh toán thù lao" : "Giao dịch"),
                 Amount = t.AmountPaid,
                 GatewayResponse = t.GatewayResponse,
                 PaymentStatus = t.TransactionStatus,

@@ -7,7 +7,7 @@ namespace MediMateService.DTOs
         public Guid DoctorId { get; set; }
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
-        public string? MemberAvatar { get; set; } // Bổ sung thêm avatar bệnh nhân
+        public string? MemberAvatar { get; set; }
 
         // --- THÔNG TIN BỔ SUNG TỪ APPOINTMENT ---
         public DateTime AppointmentDate { get; set; }
@@ -27,6 +27,10 @@ namespace MediMateService.DTOs
 
         public string? Note { get; set; }
         public string? DoctorNote { get; set; }
+
+        // --- KẾT QUẢ PHIÊN ---
+        public string? RecordingUrl { get; set; }         // URL video ghi hình (Agora → Cloudinary)
+        public Guid? PrescriptionId { get; set; }         // Đơn thuốc bác sĩ gắn vào session
     }
 
     public class EndConsultationDto

@@ -36,6 +36,11 @@ namespace MediMateRepository.Repositories.Implementations
         public async Task<List<Appointments>> GetAppointmentsByDoctorIdAsync(Guid doctorId)
         {
             return await _context.Appointments
+                .Include(a => a.Member)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Clinic)
+                .Include(a => a.Payments)
+                .Include(a => a.ConsultationSessions)
                 .Where(a => a.DoctorId == doctorId)
                 .OrderByDescending(a => a.AppointmentDate)
                 .ToListAsync();

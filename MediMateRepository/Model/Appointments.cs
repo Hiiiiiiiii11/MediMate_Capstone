@@ -33,5 +33,6 @@ namespace MediMateRepository.Model
         public virtual DoctorAvailability Availability { get; set; } = null!;
         public virtual ICollection<Payments> Payments { get; set; } = new List<Payments>();
         public virtual ICollection<DoctorPayout> DoctorPayouts { get; set; } = new List<DoctorPayout>();
+        public virtual ICollection<ConsultationSessions> ConsultationSessions { get; set; } = new List<ConsultationSessions>();
     }
 }

@@ -25,5 +25,7 @@ namespace MediMateService.Services
         /// Cập nhật PaymentStatus = "Paid" và tự động sinh DoctorPayout (Hold).
         /// </summary>
         Task<AppointmentDto> UpdateAppointmentPaymentStatusAsync(Guid appointmentId, string paymentStatus);
+        Task CheckAndCancelUnpaidAppointmentAsync(Guid appointmentId);
+        Task DeleteUnpaidAppointmentAsync(Guid appointmentId);
     }
 }

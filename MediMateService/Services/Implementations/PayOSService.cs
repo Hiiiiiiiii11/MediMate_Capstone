@@ -388,40 +388,25 @@ public class PayOSService : IPayOSService
                 else if (transaction.Payment.AppointmentId != null && transaction.Payment.Appointment != null)
                 {
                     // ==========================================
-                    // 3B. Cập nhật Appointment
+                    // 3B. Cập nhật Appointment sau thanh toán
                     // ==========================================
                     var appointment = transaction.Payment.Appointment;
+
+                    // Chỉ cập nhật PaymentStatus = "Paid"
+                    // Status vẫn giữ "Pending" → chờ Bác sĩ xem và bấm "Chấp nhận"
                     appointment.PaymentStatus = "Paid";
-                    // Chuyển sang trạng thái Approved ngay sau khi thanh toán thành công
-                    appointment.Status = AppointmentConstants.APPROVED;
-                    
+                    // KHÔNG tự động chuyển sang Approved ở đây
+                    // appointment.Status = AppointmentConstants.APPROVED;  ← ĐÃ XÓA
+
                     _unitOfWork.Repository<Appointments>().Update(appointment);
 
-                    // Khởi tạo dòng tiền chờ thanh toán cho Phòng khám
-                    var doctorPayout = new DoctorPayout
-                    {
-                        PayoutId = Guid.NewGuid(),
-                        AppointmentId = appointment.AppointmentId,
-                        ClinicId = appointment.ClinicId ?? Guid.Empty,
-                        Amount = transaction.Payment.Amount,
-                        Status = "Hold", // Tạm giữ chờ đến khi khám xong
-                        CalculatedAt = DateTime.Now
-                    };
-                    await _unitOfWork.Repository<DoctorPayout>().AddAsync(doctorPayout);
+                    // KHÔNG tạo DoctorPayout ở đây.
+                    // DoctorPayout sẽ được tạo trong UpdateAppointmentAsync khi Bác sĩ Approve.
 
-                    // Khởi tạo sẵn Phiên khám trực tuyến (ConsultationSessions)
-                    var session = new ConsultationSessions
-                    {
-                        ConsultanSessionId = Guid.NewGuid(),
-                        AppointmentId = appointment.AppointmentId,
-                        DoctorId = appointment.DoctorId,
-                        MemberId = appointment.MemberId,
-                        StartedAt = appointment.AppointmentDate.Add(appointment.AppointmentTime), // Thời gian dự kiến bắt đầu
-                        Status = "Scheduled", // Chưa bắt đầu
-                        DoctorNote = string.Empty
-                    };
-                    await _unitOfWork.Repository<ConsultationSessions>().AddAsync(session);
+                    // KHÔNG tạo ConsultationSessions ở đây.
+                    // ConsultationSessions sẽ được tạo qua Hangfire job T-5 phút khi Bác sĩ Approve.
 
+                    // Ghi nhật ký
                     var member = await _unitOfWork.Repository<Members>().GetByIdAsync(appointment.MemberId);
                     if (member?.FamilyId != null)
                     {
@@ -431,7 +416,27 @@ public class PayOSService : IPayOSService
                             actionType: ActivityActionTypes.UPDATE,
                             entityName: "Appointment",
                             entityId: appointment.AppointmentId,
-                            description: $"Đã thanh toán thành công tiền khám bệnh."
+                            description: $"Đã thanh toán thành công tiền khám bệnh. Đang chờ Bác sĩ xác nhận."
+                        );
+                    }
+
+                    // Gửi thông báo cho Bác sĩ biết có lịch chờ duyệt
+                    var doctor = await _unitOfWork.Repository<Doctors>().GetQueryable()
+                        .Include(d => d.User)
+                        .FirstOrDefaultAsync(d => d.DoctorId == appointment.DoctorId, cancellationToken);
+
+                    if (doctor?.UserId != null)
+                    {
+                        string memberName = member?.FullName ?? "Bệnh nhân";
+                        string timeStr = appointment.AppointmentTime.ToString(@"hh\:mm");
+                        string dateStr = appointment.AppointmentDate.ToString("dd/MM/yyyy");
+
+                        await _notificationService.SendNotificationAsync(
+                            userId: doctor.UserId,
+                            title: "💳 Lịch khám mới chờ xác nhận!",
+                            message: $"Bệnh nhân {memberName} đã thanh toán thành công và đang chờ bạn xác nhận lịch khám lúc {timeStr} ngày {dateStr}.",
+                            type: "NEW_APPOINTMENT_PAID",
+                            referenceId: appointment.AppointmentId
                         );
                     }
                 }

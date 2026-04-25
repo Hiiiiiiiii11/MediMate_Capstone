@@ -656,6 +656,12 @@ namespace MediMateService.Services.Implementations
                 // --- NGHIỆP VỤ: ĐỒNG Ý (APPROVED) -> TẠO PAYOUT (HOLD) ---
                 if (request.Status.Equals(AppointmentConstants.APPROVED, StringComparison.OrdinalIgnoreCase))
                 {
+                    // ✅ Guard: Chỉ được Approve khi bệnh nhân đã thanh toán
+                    if (appointment.PaymentStatus != "Paid")
+                    {
+                        throw new BadRequestException("Không thể xác nhận lịch hẹn khi bệnh nhân chưa hoàn tất thanh toán.");
+                    }
+
                     // Tìm phí khám từ ClinicDoctors
                     var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
                         .FirstOrDefaultAsync(cd => cd.DoctorId == appointment.DoctorId && cd.Status == "Active");

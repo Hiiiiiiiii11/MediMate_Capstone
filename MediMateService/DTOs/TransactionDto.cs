@@ -20,25 +20,29 @@ namespace MediMateService.DTOs
         public string TransactionCode { get; set; } = string.Empty;
         public DateTime TransactionDate { get; set; }
         public string TransactionType { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
         public string Status { get; set; } = string.Empty;
+        public string? GatewayName { get; set; }
+        public string? GatewayTransactionId { get; set; }
+        public string? GatewayResponse { get; set; } // Chứa log hoặc link ảnh
     }
 
     public class TransactionDetailDto
     {
         public Guid TransactionId { get; set; }
         public string SenderName { get; set; } = string.Empty;
-        public string ReceiverName { get; set; } = "MediMate";
+        public string ReceiverName { get; set; } = string.Empty;
         public string TransactionType { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public decimal Amount { get; set; }
-        public decimal TransactionFee { get; set; }
         public decimal TotalAmount { get; set; }
         public string TransactionCode { get; set; } = string.Empty;
-        public string PaymentCode { get; set; } = string.Empty;
+        public string? PaymentCode { get; set; } // GatewayTransactionId
         public DateTime? AppointmentDate { get; set; }
-        public string PaymentMethod { get; set; } = string.Empty;
+        public string? PaymentMethod { get; set; } // GatewayName
         public string PaymentStatus { get; set; } = string.Empty;
+        public string? GatewayResponse { get; set; } // Bằng chứng hình ảnh hoặc JSON log
     }
     public class UpdateTransactionStatusRequest
     {

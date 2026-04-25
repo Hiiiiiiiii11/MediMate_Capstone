@@ -219,11 +219,11 @@ namespace MediMate.Controllers
         /// <summary>Admin: Đánh dấu đã hoàn tất hoàn tiền (chuyển trạng thái sang "RefundCompleted"), kèm ảnh chứng minh chuyển khoản.</summary>
         [HttpPut("{appointmentId:guid}/complete-refund")]
         [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), 200)]
-        public async Task<IActionResult> CompleteRefund(Guid appointmentId, [FromForm] IFormFile? transferImage = null)
+        public async Task<IActionResult> CompleteRefund(Guid appointmentId, [FromForm] CompleteRefundRequest request)
         {
             try
             {
-                var result = await _appointmentService.CompleteRefundAsync(appointmentId, transferImage);
+                var result = await _appointmentService.CompleteRefundAsync(appointmentId, request.TransferImage);
                 return Ok(ApiResponse<AppointmentDto>.Ok(result, "Đã cập nhật trạng thái hoàn tiền thành công."));
             }
             catch (Exception ex)

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 
 namespace MediMateService.DTOs
@@ -79,5 +80,12 @@ namespace MediMateService.DTOs
         public string? MemberAvatar { get; set; }
         public string? MemberGender { get; set; }
         public DateTime? MemberDateOfBirth { get; set; }
+    }
+
+    /// <summary>Request body cho endpoint hoàn tất refund — dùng multipart/form-data.</summary>
+    public class CompleteRefundRequest
+    {
+        /// <summary>Ảnh chứng minh đã chuyển tiền hoàn (tuỳ chọn).</summary>
+        public IFormFile? TransferImage { get; set; }
     }
 }

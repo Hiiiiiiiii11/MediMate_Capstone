@@ -11,6 +11,9 @@ namespace MediMateService.DTOs
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; }
+        public string ClinicName { get; set; } = string.Empty;
+        public Guid? ClinicId { get; set; }
+        public decimal? ConsultationFee { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? RejectionReason { get; set; }
         public DateTime? LastSeenAt { get; set; }

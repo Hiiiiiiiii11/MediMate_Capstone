@@ -186,8 +186,8 @@ namespace MediMateService.Services.Implementations
 
             // [FIX] SignalR Update (Gửi thông báo realtime) đã được dời sang Webhook (PayOSService.cs)
 
-            // 12. LÊN LỊCH HỦY TỰ ĐỘNG NẾU KHÔNG THANH TOÁN (15 phút)
-            _backgroundJobClient.Schedule(() => CheckAndCancelUnpaidAppointmentAsync(appointment.AppointmentId), TimeSpan.FromMinutes(15));
+            // 12. LÊN LỊCH HỦY TỰ ĐỘNG NẾU KHÔNG THANH TOÁN (10 phút)
+            _backgroundJobClient.Schedule(() => CheckAndCancelUnpaidAppointmentAsync(appointment.AppointmentId), TimeSpan.FromMinutes(10));
 
             return new AppointmentPaymentResponseDto
             {

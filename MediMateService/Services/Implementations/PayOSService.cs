@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Share.Common;
 using Share.Constants;
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
 
 namespace MediMateService.Services.Implementations;
 
@@ -28,8 +30,9 @@ public class PayOSService : IPayOSService
     private readonly string _baseUrl;
     private readonly string _defaultReturnUrl;
     private readonly string _defaultCancelUrl;
+    private readonly IHubContext<MediMateHub> _hubContext;
 
-    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService, INotificationService notificationService)
+    public PayOSService(HttpClient httpClient, IConfiguration configuration, ILogger<PayOSService> logger, IUnitOfWork unitOfWork, IActivityLogService activityLogService, INotificationService notificationService, IHubContext<MediMateHub> hubContext)
     {
         _httpClient = httpClient;
         _configuration = configuration;
@@ -48,6 +51,7 @@ public class PayOSService : IPayOSService
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
         _activityLogService = activityLogService;
         _notificationService = notificationService;
+        _hubContext = hubContext;
     }
 
     public async Task<PaymentLinkResponse> CreatePaymentLinkAsync(Guid userId, CreatePaymentRequest request, CancellationToken cancellationToken = default)
@@ -440,6 +444,51 @@ public class PayOSService : IPayOSService
                             type: "NEW_APPOINTMENT_PAID",
                             referenceId: appointment.AppointmentId
                         );
+
+                        // Đồng thời gửi thông báo cho người đặt lịch (người thanh toán)
+                        if (transaction.Payment.UserId != Guid.Empty)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId: transaction.Payment.UserId,
+                                title: "✅ Đặt lịch & Thanh toán thành công!",
+                                message: $"Bạn đã đặt lịch khám cho {memberName} với bác sĩ {doctor.User.FullName} vào lúc {timeStr} ngày {dateStr}. Vui lòng chờ bác sĩ xác nhận.",
+                                type: AppointmentActionTypes.NEW_APPOINTMENT,
+                                referenceId: appointment.AppointmentId
+                            );
+                        }
+
+                        // Và thông báo trực tiếp cho bệnh nhân (Member)
+                        if (appointment.MemberId != Guid.Empty)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId: null,
+                                title: "📅 Lịch khám mới cho bạn!",
+                                message: $"Đã đặt lịch khám cho bạn với bác sĩ {doctor.User.FullName} vào lúc {timeStr} ngày {dateStr}.",
+                                type: AppointmentActionTypes.NEW_APPOINTMENT,
+                                referenceId: appointment.AppointmentId,
+                                memberId: appointment.MemberId
+                            );
+                        }
+
+                        // [NEW] Gửi thông báo SignalR (Realtime Update)
+                        var statusPayload = new
+                        {
+                            appointmentId = appointment.AppointmentId,
+                            status = appointment.Status
+                        };
+
+                        await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", statusPayload);
+                        
+                        if (transaction.Payment.UserId != Guid.Empty)
+                        {
+                            await _hubContext.Clients.Group($"User_{transaction.Payment.UserId}").SendAsync("AppointmentStatusUpdated", statusPayload);
+                        }
+                        
+                        // Nếu user của bệnh nhân khác với người đặt
+                        if (member?.UserId.HasValue == true && member.UserId.Value != transaction.Payment.UserId)
+                        {
+                            await _hubContext.Clients.Group($"User_{member.UserId.Value}").SendAsync("AppointmentStatusUpdated", statusPayload);
+                        }
                     }
                 }
             }

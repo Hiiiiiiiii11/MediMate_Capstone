@@ -158,7 +158,7 @@ namespace MediMateService.Services.Implementations
             // Ở bước này, tạm gọi CreateAppointmentPaymentLinkAsync (sẽ thêm vào IPayOSService sau)
             var paymentLinkResponse = await _payOsService.CreateAppointmentPaymentLinkAsync(userId, paymentRecord, payOsRequest);
 
-            // Định dạng thông tin hiển thị cho thông báo
+            // Định dạng thông tin hiển thị cho thông báo (có thể dùng trong ActivityLog)
             string timeStr = request.AppointmentTime.ToString(@"hh\:mm");
             string dateStr = request.AppointmentDate.ToString("dd/MM/yyyy");
             string familyName = member.Family?.FamilyName ?? "Gia đình";
@@ -166,48 +166,10 @@ namespace MediMateService.Services.Implementations
             string patientName = member.FullName;
             string placerName = orderPlacer?.FullName ?? "Thành viên gia đình";
 
-            // 9. GỬI THÔNG BÁO CHO BÁC SĨ
-            if (doctor.User != null)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "📅 Lịch đặt khám mới!",
-                    message: $"{placerName} đã đặt lịch cho bệnh nhân {patientName} ({familyName}) vào lúc {timeStr} ngày {dateStr}.",
-                    type: AppointmentActionTypes.NEW_APPOINTMENT,
-                    referenceId: appointment.AppointmentId
-                );
-            }
+            // [FIX] Các thông báo (Notification) đã được dời sang Webhook (PayOSService.cs) để đảm bảo chỉ thông báo khi đã thanh toán thành công.
 
-            // 9.1. GỬI THÔNG BÁO CHO MEMBER QUA MEMBER ID
-            await _notificationService.SendNotificationAsync(
-                userId: null,
-                title: "📅 Lịch khám mới cho bạn!",
-                message: $"{placerName} đã đặt lịch khám cho bạn với bác sĩ {doctorName} vào lúc {timeStr} ngày {dateStr}.",
-                type: AppointmentActionTypes.NEW_APPOINTMENT,
-                referenceId: appointment.AppointmentId,
-                memberId: member.MemberId
-            );
 
-            if (orderPlacer != null)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: userId, // Bắn thẳng vào userId của người đặt
-                    title: "✅ Đặt lịch thành công!",
-                    message: $"Bạn đã đặt lịch khám cho {patientName} với bác sĩ {doctorName} vào lúc {timeStr} ngày {dateStr}. Vui lòng chờ bác sĩ xác nhận.",
-                    type: AppointmentActionTypes.NEW_APPOINTMENT,
-                    referenceId: appointment.AppointmentId
-                );
-            }
 
-            // 10. GHI NHẬT KÝ HOẠT ĐỘNG (Activity Log)
-            await _activityLogService.LogActivityAsync(
-                familyId: member.FamilyId.Value,
-                memberId: member.MemberId,
-                actionType: ActivityActionTypes.CREATE,
-                entityName: "Appointment",
-                entityId: appointment.AppointmentId,
-                description: $"{placerName} đã đặt lịch khám cho {patientName} (Gia đình {familyName}). Bác sĩ: {doctorName}. Thời gian: {timeStr} ngày {dateStr}."
-            );
 
             // Lưu toàn bộ thay đổi
             await _unitOfWork.CompleteAsync();
@@ -222,30 +184,7 @@ namespace MediMateService.Services.Implementations
                 new DateTimeOffset(autoCancelTime)
             );
 
-            // SignalR Update
-            if (doctor.User != null)
-            {
-                await _hubContext.Clients.Group($"User_{doctor.UserId}").SendAsync("AppointmentStatusUpdated", new
-                {
-                    appointmentId = appointment.AppointmentId,
-                    status = appointment.Status
-                });
-            }
-            // Cập nhật cho người cầm máy thao tác đặt lịch (User Chủ hộ)
-            await _hubContext.Clients.Group($"User_{userId}").SendAsync("AppointmentStatusUpdated", new
-            {
-                appointmentId = appointment.AppointmentId,
-                status = appointment.Status
-            });
-
-            // Cập nhật cho user của bệnh nhân (nếu bệnh nhân có tài khoản riêng và khác người đặt)
-            if (member.UserId.HasValue && member.UserId.Value != userId)
-            {
-                await _hubContext.Clients.Group($"User_{member.UserId.Value}").SendAsync("AppointmentStatusUpdated", new {
-                    appointmentId = appointment.AppointmentId,
-                    status = appointment.Status
-                });
-            }
+            // [FIX] SignalR Update (Gửi thông báo realtime) đã được dời sang Webhook (PayOSService.cs)
 
             // 12. LÊN LỊCH HỦY TỰ ĐỘNG NẾU KHÔNG THANH TOÁN (15 phút)
             _backgroundJobClient.Schedule(() => CheckAndCancelUnpaidAppointmentAsync(appointment.AppointmentId), TimeSpan.FromMinutes(15));

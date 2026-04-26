@@ -198,47 +198,75 @@ namespace MediMateService.Services.Implementations
             };
         }
 
+        // 1. Hàm tự động chạy qua Hangfire sau 10 phút nếu không thanh toán
         public async Task CheckAndCancelUnpaidAppointmentAsync(Guid appointmentId)
         {
             var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
                 .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
 
+            // Chỉ xử lý nếu lịch hẹn tồn tại và vẫn đang chờ thanh toán
             if (appointment != null && appointment.PaymentStatus == "Pending" && appointment.Status == AppointmentConstants.PENDING)
             {
-                // Thay vì đổi trạng thái sang Cancelled, xóa hẳn để slot trở lại trống hoàn toàn
+                // Tìm Payment và load luôn các Transactions đính kèm (nếu có)
                 var payment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                    .Include(p => p.Transactions)
                     .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
+
                 if (payment != null)
                 {
+                    // Xóa tất cả các giao dịch (Transactions) liên quan đến Payment này
+                    if (payment.Transactions != null && payment.Transactions.Any())
+                    {
+                        foreach (var tx in payment.Transactions.ToList())
+                        {
+                            _unitOfWork.Repository<Transactions>().Remove(tx);
+                        }
+                    }
+                    // Xóa bản ghi Payment
                     _unitOfWork.Repository<Payments>().Remove(payment);
                 }
 
+                // Xóa hẳn Appointment để giải phóng slot cho bác sĩ
                 _unitOfWork.Repository<Appointments>().Remove(appointment);
+
                 await _unitOfWork.CompleteAsync();
             }
         }
 
+        // 2. Hàm xóa thủ công (khi người dùng chủ động nhấn hủy/xóa lúc chưa trả tiền)
         public async Task DeleteUnpaidAppointmentAsync(Guid appointmentId)
         {
             var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
                 .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
 
             if (appointment == null) throw new NotFoundException("Không tìm thấy lịch hẹn.");
-            
+
             if (appointment.PaymentStatus != "Pending" || appointment.Status != AppointmentConstants.PENDING)
             {
                 throw new BadRequestException("Chỉ có thể xóa lịch hẹn khi đang ở trạng thái chờ thanh toán.");
             }
 
+            // Tìm Payment kèm theo các Transactions
             var payment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                .Include(p => p.Transactions)
                 .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
-            
+
             if (payment != null)
             {
+                // Xóa các giao dịch nháp/chờ xử lý liên quan
+                if (payment.Transactions != null && payment.Transactions.Any())
+                {
+                    foreach (var tx in payment.Transactions.ToList())
+                    {
+                        _unitOfWork.Repository<Transactions>().Remove(tx);
+                    }
+                }
                 _unitOfWork.Repository<Payments>().Remove(payment);
             }
 
+            // Xóa lịch hẹn
             _unitOfWork.Repository<Appointments>().Remove(appointment);
+
             await _unitOfWork.CompleteAsync();
         }
 

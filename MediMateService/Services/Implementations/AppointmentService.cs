@@ -329,7 +329,6 @@ namespace MediMateService.Services.Implementations
                     Roles.Admin,
                     "Yêu cầu hoàn tiền mới",
                     $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} vừa bị hủy và cần được hoàn tiền.",
-                    "/dashboard/refunds",
                     "Warning"
                 );
             }

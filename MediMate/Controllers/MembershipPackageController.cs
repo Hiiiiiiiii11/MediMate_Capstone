@@ -51,7 +51,8 @@ namespace MediMate.Controllers
                 DurationDays = request.DurationDays,
                 MemberLimit = request.MemberLimit,
                 OcrLimit = request.OcrLimit,
-                ConsultantLimit = request.ConsultantLimit,
+                AllowVideoRecordingAccess = request.AllowVideoRecordingAccess,
+                HealthAlertEnabled = request.HealthAlertEnabled,
                 Description = request.Description
             });
             return Ok(result);
@@ -72,7 +73,8 @@ namespace MediMate.Controllers
                 DurationDays = request.DurationDays,
                 MemberLimit = request.MemberLimit,
                 OcrLimit = request.OcrLimit,
-                ConsultantLimit = request.ConsultantLimit,
+                AllowVideoRecordingAccess = request.AllowVideoRecordingAccess,
+                HealthAlertEnabled = request.HealthAlertEnabled,
                 Description = request.Description
             });
             return Ok(result);

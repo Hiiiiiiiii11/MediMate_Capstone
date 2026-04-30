@@ -257,10 +257,34 @@ namespace MediMateService.Services.Implementations
             // [RECORDING] Bắt đầu ghi hình ngay khi cả 2 bên đã join vào phòng
             if (session.UserJoined && session.DoctorJoined)
             {
+                var doc = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+                var docUserId = doc?.UserId;
+                var consultSessionId = session.ConsultanSessionId;
+
                 _ = Task.Run(async () =>
                 {
-                    try { await _agoraRecordingService.StartRecordingAsync(sessionId); }
-                    catch { /* Lỗi recording không ảnh hưởng luồng chính */ }
+                    try 
+                    { 
+                        bool started = await _agoraRecordingService.StartRecordingAsync(sessionId); 
+                        if (docUserId.HasValue)
+                        {
+                            if (!started)
+                            {
+                                await _notificationService.SendNotificationAsync(docUserId.Value, "Lỗi ghi hình", "Không thể bắt đầu ghi hình, bạn có thể thử lại.", ConsultationSessionActionTypes.SESSION_RECORDING_ERROR, consultSessionId);
+                            }
+                            else
+                            {
+                                await _notificationService.SendNotificationAsync(docUserId.Value, "Ghi hình", "Đang ghi hình phiên khám.", ConsultationSessionActionTypes.SESSION_RECORDING_STARTED, consultSessionId);
+                            }
+                        }
+                    }
+                    catch 
+                    { 
+                        if (docUserId.HasValue)
+                        {
+                            await _notificationService.SendNotificationAsync(docUserId.Value, "Lỗi ghi hình", "Đã xảy ra lỗi khi kết nối với dịch vụ ghi hình.", ConsultationSessionActionTypes.SESSION_RECORDING_ERROR, consultSessionId);
+                        }
+                    }
                 });
             }
 
@@ -485,6 +509,53 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.CompleteAsync();
 
             return MapSession(session);
+        }
+
+        // ─────────────────────────────────────────────
+        // REQUEST END SESSION & RETRY RECORDING
+        // ─────────────────────────────────────────────
+        public async Task<bool> RequestEndSessionAsync(Guid sessionId, Guid userId)
+        {
+            var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
+            if (session == null) throw new NotFoundException("Không tìm thấy phiên tư vấn.");
+
+            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+            if (doctor == null || doctor.UserId != userId)
+                throw new ForbiddenException("Chỉ bác sĩ phụ trách mới có quyền yêu cầu kết thúc phiên.");
+
+            await _notificationService.SendNotificationAsync(
+                userId: null,
+                title: "Yêu cầu kết thúc",
+                message: "Bác sĩ đã yêu cầu kết thúc phiên khám.",
+                type: ConsultationSessionActionTypes.SESSION_REQUEST_END,
+                referenceId: session.ConsultanSessionId,
+                memberId: session.MemberId
+            );
+
+            return true;
+        }
+
+        public async Task<bool> RetryRecordingAsync(Guid sessionId, Guid userId)
+        {
+            var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
+            if (session == null) throw new NotFoundException("Không tìm thấy phiên tư vấn.");
+
+            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+            if (doctor == null || doctor.UserId != userId)
+                throw new ForbiddenException("Chỉ bác sĩ phụ trách mới có quyền thực hiện lại thao tác ghi hình.");
+
+            bool isStarted = await _agoraRecordingService.StartRecordingAsync(sessionId);
+            if (isStarted)
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId: doctor.UserId,
+                    title: "Bắt đầu ghi hình",
+                    message: "Phiên khám đang được ghi hình lại.",
+                    type: ConsultationSessionActionTypes.SESSION_RECORDING_STARTED,
+                    referenceId: session.ConsultanSessionId
+                );
+            }
+            return isStarted;
         }
 
         // ─────────────────────────────────────────────

@@ -40,5 +40,8 @@ namespace Share.Constants
         public const string SESSION_ENDED = "SESSION_ENDED";
         public const string SESSION_TIMEOUT = "SESSION_TIMEOUT";
         public const string GUARDIAN_SESSION_INVITE = "GUARDIAN_SESSION_INVITE";
+        public const string SESSION_REQUEST_END = "SESSION_REQUEST_END";
+        public const string SESSION_RECORDING_ERROR = "SESSION_RECORDING_ERROR";
+        public const string SESSION_RECORDING_STARTED = "SESSION_RECORDING_STARTED";
     }
 }

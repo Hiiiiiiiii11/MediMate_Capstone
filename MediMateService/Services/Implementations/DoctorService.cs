@@ -13,17 +13,20 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _config;
+        private readonly INotificationService _notificationService;
 
         public DoctorService(
             IDoctorRepository repo, 
             IUnitOfWork unitOfWork,
             IEmailService emailService,
-            IConfiguration config)
+            IConfiguration config,
+            INotificationService notificationService)
         {
             _repo = repo;
             _unitOfWork = unitOfWork;
             _emailService = emailService;
             _config = config;
+            _notificationService = notificationService;
         }
 
         public async Task<List<DoctorDto>> GetPublicDoctorsAsync(string? specialty = null)
@@ -243,6 +246,15 @@ namespace MediMateService.Services.Implementations
             doctor.RejectionReason = null;
 
             await _repo.UpdateDoctorAsync(doctor);
+
+            // Gửi thông báo tới quản lý
+            await _notificationService.SendNotificationToRoleAsync(
+                Roles.DoctorManager,
+                "Hồ sơ bác sĩ mới",
+                $"Bác sĩ {doctor.FullName} vừa nộp hồ sơ chờ duyệt.",
+                "Info"
+            );
+
             return MapToDto(doctor);
         }
 

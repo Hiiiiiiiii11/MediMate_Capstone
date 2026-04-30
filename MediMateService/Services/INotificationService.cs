@@ -12,6 +12,10 @@ namespace MediMateService.Services
     {
         Task<ApiResponse<bool>> SendNotificationAsync(Guid? userId, string title, string message, string type, Guid? referenceId = null, Guid? memberId = null);
 
+        Task<ApiResponse<bool>> SendNotificationToRoleAsync(string roleName, string title, string message, string type, Guid? referenceId = null);
+        
+        Task<ApiResponse<bool>> SendNotificationToUserAsync(Guid userId, string title, string message, string type, Guid? referenceId = null);
+
         Task<ApiResponse<IEnumerable<NotificationDto>>> GetUserNotificationsAsync(Guid? userId = null, Guid? memberId = null);
 
         // 2. Đánh dấu 1 thông báo cụ thể là "Đã đọc"

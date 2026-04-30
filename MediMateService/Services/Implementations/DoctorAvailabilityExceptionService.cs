@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +14,12 @@ namespace MediMateService.Services.Implementations
     public class DoctorAvailabilityExceptionService : IDoctorAvailabilityExceptionService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly INotificationService _notificationService;
 
-        public DoctorAvailabilityExceptionService(IUnitOfWork unitOfWork)
+        public DoctorAvailabilityExceptionService(IUnitOfWork unitOfWork, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<DoctorAvailabilityExceptionDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityExceptionRequest request)
@@ -52,6 +54,13 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<DoctorAvailabilityExceptions>().AddAsync(exception);
             await _unitOfWork.CompleteAsync();
+
+            await _notificationService.SendNotificationToRoleAsync(
+                Roles.DoctorManager,
+                "Yêu cầu thay đổi lịch",
+                $"Bác sĩ {doctor.FullName} vừa gửi một yêu cầu thay đổi lịch làm việc.",
+                "Info"
+            );
 
             return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Gửi yêu cầu thành công.");
         }
@@ -146,13 +155,27 @@ namespace MediMateService.Services.Implementations
             exception.IsAvailableOverride = request.IsAvailableOverride;
 
             // ✅ BỔ SUNG DÒNG NÀY ĐỂ CẬP NHẬT STATUS
-            if (!string.IsNullOrEmpty(request.Status))
+            bool statusChanged = false;
+            if (!string.IsNullOrEmpty(request.Status) && exception.Status != request.Status)
             {
                 exception.Status = request.Status;
+                statusChanged = true;
             }
 
             _unitOfWork.Repository<DoctorAvailabilityExceptions>().Update(exception);
             await _unitOfWork.CompleteAsync();
+
+            if (statusChanged && exception.Doctor != null && exception.Doctor.UserId != currentUserId)
+            {
+                string statusVn = exception.Status == DoctorExceptionStatuses.APPROVED ? "được chấp nhận" :
+                                  exception.Status == DoctorExceptionStatuses.REJECTED ? "bị từ chối" : exception.Status;
+                await _notificationService.SendNotificationToUserAsync(
+                    exception.Doctor.UserId,
+                    "Phản hồi yêu cầu lịch làm việc",
+                    $"Yêu cầu thay đổi lịch của bạn vào {exception.Date:dd/MM/yyyy} đã {statusVn}.",
+                    "Info"
+                );
+            }
 
             return ApiResponse<DoctorAvailabilityExceptionDto>.Ok(MapToDto(exception), "Cập nhật ngoại lệ lịch thành công.");
         }

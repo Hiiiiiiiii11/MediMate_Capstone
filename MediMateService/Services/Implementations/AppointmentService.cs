@@ -324,6 +324,13 @@ namespace MediMateService.Services.Implementations
                     payout.Status = "Cancelled";
                     _unitOfWork.Repository<DoctorPayout>().Update(payout);
                 }
+
+                await _notificationService.SendNotificationToRoleAsync(
+                    Roles.Admin,
+                    "Yêu cầu hoàn tiền mới",
+                    $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} vừa bị hủy và cần được hoàn tiền.",
+                    "Warning"
+                );
             }
 
             // Cập nhật Database
@@ -542,8 +549,8 @@ namespace MediMateService.Services.Implementations
                 TimeSpan currentSlotTime = shift.StartTime;
                 while (currentSlotTime + slotDuration <= shift.EndTime)
                 {
-                    // ✅ LOGIC 1: NẾU LÀ HÔM NAY, BỎ QUA CÁC GIỜ ĐÃ QUA
-                    if (isToday && currentSlotTime < currentTime)
+                    // ✅ LOGIC 1: NẾU LÀ HÔM NAY, BỎ QUA CÁC GIỜ ĐÃ QUA HOẶC QUÁ SÁT GIỜ (10 PHÚT)
+                    if (isToday && currentSlotTime < currentTime.Add(TimeSpan.FromMinutes(10)))
                     {
                         currentSlotTime = currentSlotTime.Add(slotDuration);
                         continue;
@@ -945,6 +952,16 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<Appointments>().Update(appointment);
 
             await _unitOfWork.CompleteAsync();
+
+            if (payerUserId != Guid.Empty)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    payerUserId,
+                    "Hoàn tiền thành công",
+                    $"Số tiền đã thanh toán cho lịch hẹn #{appointmentId.ToString()[..8].ToUpper()} đã được hoàn về thẻ của bạn. Vui lòng kiểm tra tài khoản ngân hàng để xác nhận.",
+                    "Success"
+                );
+            }
 
             return MapAppointment(appointment);
         }

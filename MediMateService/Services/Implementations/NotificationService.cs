@@ -113,6 +113,27 @@ namespace MediMateService.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<bool>> SendNotificationToUserAsync(Guid userId, string title, string message, string type, Guid? referenceId = null)
+        {
+            return await SendNotificationAsync(userId, title, message, type, referenceId);
+        }
+
+        public async Task<ApiResponse<bool>> SendNotificationToRoleAsync(string roleName, string title, string message, string type, Guid? referenceId = null)
+        {
+            var usersInRole = await _unitOfWork.Repository<User>().GetQueryable()
+                .Where(u => u.Role == roleName && u.IsActive)
+                .ToListAsync();
+
+            if (!usersInRole.Any()) return ApiResponse<bool>.Ok(false, $"Không có người dùng nào thuộc nhóm {roleName}.");
+
+            foreach (var user in usersInRole)
+            {
+                await SendNotificationAsync(user.UserId, title, message, type, referenceId);
+            }
+
+            return ApiResponse<bool>.Ok(true, $"Đã gửi thông báo cho {usersInRole.Count} người dùng thuộc nhóm {roleName}.");
+        }
+
         public async Task<ApiResponse<IEnumerable<NotificationDto>>> GetUserNotificationsAsync(Guid? userId = null, Guid? memberId = null)
         {
             var notifications = await _unitOfWork.Repository<Notifications>()

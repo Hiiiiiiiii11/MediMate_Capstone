@@ -189,7 +189,7 @@ namespace MediMateService.Services.Implementations
                 GatewayName = "BankTransfer",
                 GatewayTransactionId = request.BankTransactionCode,
                 TransactionStatus = "Success",
-                TransactionType = TransactionTypes.MoneySent,
+                TransactionType = TransactionTypes.OutClinicPayout,
                 AmountPaid = payout.Amount,
                 GatewayResponse = transferImageUrl,
                 PaidAt = DateTime.Now

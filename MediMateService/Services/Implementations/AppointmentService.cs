@@ -935,7 +935,7 @@ namespace MediMateService.Services.Implementations
                 GatewayName = "Manual",
                 TransactionStatus = "Success", // Đồng nhất với PayOSService
                 AmountPaid = refundPayment.Amount,
-                TransactionType = TransactionTypes.MoneySent,
+                TransactionType = TransactionTypes.OutRefundSession,
                 GatewayResponse = refundImageUrl,
                 PaidAt = DateTime.Now
             };

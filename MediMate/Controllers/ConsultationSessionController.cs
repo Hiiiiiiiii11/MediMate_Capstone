@@ -137,5 +137,29 @@ namespace MediMate.Controllers
                 return Ok(ApiResponse<string>.Ok(null, "Phiên này chưa có bản ghi hình."));
             return Ok(ApiResponse<string>.Ok(url, "Lấy URL video thành công."));
         }
+        // ─────────────────────────────────────────────────────────
+        // POST: Bác sĩ yêu cầu kết thúc phiên
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/request-end")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> RequestEndSession(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            await _consultationService.RequestEndSessionAsync(sessionId, userId);
+            return Ok(ApiResponse<bool>.Ok(true, "Đã gửi yêu cầu kết thúc đến bệnh nhân."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // POST: Bác sĩ thử ghi hình lại nếu bị lỗi
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/retry-recording")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> RetryRecording(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            var started = await _consultationService.RetryRecordingAsync(sessionId, userId);
+            if (started) return Ok(ApiResponse<bool>.Ok(true, "Đã gửi yêu cầu ghi hình lại thành công."));
+            return BadRequest(ApiResponse<bool>.Fail("Không thể ghi hình lại. Vui lòng kiểm tra cấu hình."));
+        }
     }
 }

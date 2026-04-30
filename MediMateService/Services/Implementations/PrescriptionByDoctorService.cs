@@ -98,7 +98,7 @@ namespace MediMateService.Services.Implementations
                     ConsultanSessionId = request.ConsultanSessionId,
                     SenderId = doctorId,
                     Type = SenderType.Doctor,
-                    Content = "Đơn thuốc đã được gửi",
+                    Content = messageContent,  // [FIX] Dùng đúng nội dung đơn thuốc đã xây dựng
                     AttachmentUrl = null,
                     IsRead = false,
                     SendAt = DateTime.Now

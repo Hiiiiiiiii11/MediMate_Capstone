@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,6 +17,10 @@ namespace MediMateRepository.Model
         public DateTime ScheduledAt { get; set; }
         public DateTime SentAt { get; set; }
         public DateTime AcknowledgedAt { get; set; }
+        
+        // Người thực tế đã nhấn nút xác nhận "Đã uống" (có thể là bệnh nhân hoặc người nhà)
+        public Guid? TakenByUserId { get; set; }
+
         public virtual MedicationSchedules Schedule { get; set; }
     }
 }

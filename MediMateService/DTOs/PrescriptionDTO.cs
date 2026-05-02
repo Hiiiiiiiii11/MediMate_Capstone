@@ -52,6 +52,7 @@ namespace MediMateService.DTOs
     public class PrescriptionResponse
     {
         public Guid PrescriptionId { get; set; }
+        public string PrescriptionCode { get; set; }
         public Guid MemberId { get; set; }
         public string DoctorName { get; set; }
         public string HospitalName { get; set; }

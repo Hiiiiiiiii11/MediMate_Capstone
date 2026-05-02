@@ -723,6 +723,7 @@ namespace MediMateService.Services.Implementations
             return new PrescriptionResponse
             {
                 PrescriptionId = p.PrescriptionId,
+                PrescriptionCode = p.PrescriptionCode,
                 MemberId = p.MemberId,
                 DoctorName = p.DoctorName,
                 HospitalName = p.HospitalName,

@@ -254,39 +254,6 @@ namespace MediMateService.Services.Implementations
             await _appointmentRepository.UpdateSessionAsync(session);
             await _unitOfWork.CompleteAsync();
 
-            // [RECORDING] Bắt đầu ghi hình ngay khi cả 2 bên đã join vào phòng
-            if (session.UserJoined && session.DoctorJoined)
-            {
-                var doc = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
-                var docUserId = doc?.UserId;
-                var consultSessionId = session.ConsultanSessionId;
-
-                _ = Task.Run(async () =>
-                {
-                    try 
-                    { 
-                        bool started = await _agoraRecordingService.StartRecordingAsync(sessionId); 
-                        if (docUserId.HasValue)
-                        {
-                            if (!started)
-                            {
-                                await _notificationService.SendNotificationAsync(docUserId.Value, "Lỗi ghi hình", "Không thể bắt đầu ghi hình, bạn có thể thử lại.", ConsultationSessionActionTypes.SESSION_RECORDING_ERROR, consultSessionId);
-                            }
-                            else
-                            {
-                                await _notificationService.SendNotificationAsync(docUserId.Value, "Ghi hình", "Đang ghi hình phiên khám.", ConsultationSessionActionTypes.SESSION_RECORDING_STARTED, consultSessionId);
-                            }
-                        }
-                    }
-                    catch 
-                    { 
-                        if (docUserId.HasValue)
-                        {
-                            await _notificationService.SendNotificationAsync(docUserId.Value, "Lỗi ghi hình", "Đã xảy ra lỗi khi kết nối với dịch vụ ghi hình.", ConsultationSessionActionTypes.SESSION_RECORDING_ERROR, consultSessionId);
-                        }
-                    }
-                });
-            }
 
             return MapSession(session);
         }
@@ -451,15 +418,6 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
-            // ═══════════════════════════════════════════════════════════
-            // [RECORDING] Dừng ghi hình và upload lên Cloudinary
-            // Chạy fire-and-forget để không block response trả về cho User
-            // ═══════════════════════════════════════════════════════════
-            _ = Task.Run(async () =>
-            {
-                try { await _agoraRecordingService.StopAndUploadRecordingAsync(sessionId); }
-                catch { /* Lỗi recording không ảnh hưởng luồng chính */ }
-            });
 
             // Thông báo cho các bên liên quan
             string enderName = isDoctor ? "Bác sĩ" : "Bệnh nhân";
@@ -550,28 +508,7 @@ namespace MediMateService.Services.Implementations
             return true;
         }
 
-        public async Task<bool> RetryRecordingAsync(Guid sessionId, Guid userId)
-        {
-            var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
-            if (session == null) throw new NotFoundException("Không tìm thấy phiên tư vấn.");
 
-            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
-            if (doctor == null || doctor.UserId != userId)
-                throw new ForbiddenException("Chỉ bác sĩ phụ trách mới có quyền thực hiện lại thao tác ghi hình.");
-
-            bool isStarted = await _agoraRecordingService.StartRecordingAsync(sessionId);
-            if (isStarted)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "Bắt đầu ghi hình",
-                    message: "Phiên khám đang được ghi hình lại.",
-                    type: ConsultationSessionActionTypes.SESSION_RECORDING_STARTED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
-            return isStarted;
-        }
 
         // ─────────────────────────────────────────────
         // HELPER: MAP TO DTO

@@ -226,6 +226,8 @@ namespace MediMateService.Services.Implementations
                 DoctorName = p.Doctor?.FullName ?? "Unknown",
                 MemberId = p.MemberId,
                 MemberName = p.Member?.FullName ?? "Unknown",
+                MemberDateOfBirth = p.Member?.DateOfBirth,
+                MemberGender = p.Member?.Gender,
                 Diagnosis = p.Diagnosis,
                 Advice = p.Advice,
                 Medicines = medicinesList,

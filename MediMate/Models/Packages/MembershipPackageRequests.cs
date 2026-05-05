@@ -9,7 +9,8 @@ namespace MediMate.Models.Packages
         public int DurationDays { get; set; }
         public int MemberLimit { get; set; }
         public int OcrLimit { get; set; }
-        public int ConsultantLimit { get; set; }
+        public bool AllowVideoRecordingAccess { get; set; } = false;
+        public bool HealthAlertEnabled { get; set; } = false;
         public string? Description { get; set; }
     }
 
@@ -22,7 +23,8 @@ namespace MediMate.Models.Packages
         public int? DurationDays { get; set; }
         public int? MemberLimit { get; set; }
         public int? OcrLimit { get; set; }
-        public int? ConsultantLimit { get; set; }
+        public bool? AllowVideoRecordingAccess { get; set; } = false;
+        public bool? HealthAlertEnabled { get; set; } = false;
         public string? Description { get; set; }
     }
 }

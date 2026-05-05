@@ -75,10 +75,10 @@ namespace MediMateService.Services.Implementations
 
             // ─── Bước 3: Xây prompt ───
             var systemPrompt =
-                "Bạn là trợ lý y tế của ứng dụng MediMate. Nhiệm vụ của bạn là GIẢI THÍCH tương tác thuốc " +
-                "một cách dễ hiểu cho người dùng phổ thông bằng tiếng Việt. " +
-                "TUYỆT ĐỐI KHÔNG đưa ra lời khuyên thay đổi liều lượng, thay thuốc, hoặc ngừng dùng thuốc. " +
-                "Chỉ giải thích TẠI SAO có tương tác và HẬU QUẢ có thể xảy ra.";
+                "Bạn là trợ lý y tế của ứng dụng MediMate. Nhiệm vụ của bạn là giải thích tương tác thuốc " +
+                "một cách ngắn gọn, súc tích và dễ hiểu cho người dùng phổ thông bằng tiếng Việt (tối đa 2-3 câu). " +
+                "Chỉ tập trung vào cơ chế và ảnh hưởng chính của tương tác. KHÔNG suy diễn lan man quá sâu về tác dụng phụ. " +
+                "TUYỆT ĐỐI KHÔNG đưa ra lời khuyên thay đổi liều lượng, thay thuốc, hoặc ngừng dùng thuốc.";
 
             var userPrompt = $@"
 {diagnosisContext}
@@ -89,8 +89,9 @@ Thuốc mới cần thêm: {request.NewDrugName}
 Dữ liệu tương tác từ cơ sở dữ liệu DrugBank:
 {ragContext}
 
-Hãy giải thích ngắn gọn (3-5 câu) cho bệnh nhân hiểu tại sao {request.NewDrugName} có thể gây nguy hiểm khi dùng cùng các thuốc hiện tại, dựa trên chẩn đoán bệnh và thông tin tương tác ở trên.
-Không đưa lời khuyên thay đổi thuốc hay liều lượng.";
+Dựa vào thông tin trên, hãy giải thích thật ngắn gọn (khoảng 2 câu) hệ quả chính của tương tác thuốc này.
+Cuối cùng, luôn luôn thêm ĐÚNG MỘT CÂU chuẩn này vào cuối cùng: 'Bạn nên thảo luận với bác sĩ về các rủi ro và lợi ích khi sử dụng kết hợp các thuốc này.'
+Tuyệt đối không tự ý thêm các lời khuyên y tế nào khác.";
 
             // ─── Bước 4: Gọi Groq API ───
             var aiResponse = await CallGroqAsync(systemPrompt, userPrompt);

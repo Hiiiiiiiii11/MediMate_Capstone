@@ -91,8 +91,6 @@ namespace MediMate
 
             builder.Services.AddScoped<IDoctorRepository, DoctorRepository>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
-            builder.Services.AddScoped<IRatingRepository, RatingRepository>();
-            builder.Services.AddScoped<IRatingService, RatingService>();
             builder.Services.AddScoped<IAppointmentRepository, AppointmentRepository>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IConsultationService, ConsultationService>();
@@ -103,10 +101,6 @@ namespace MediMate
             builder.Services.AddScoped<IDoctorDocumentService, DoctorDocumentService>();
             builder.Services.AddScoped<IDoctorAvailabilityExceptionService, DoctorAvailabilityExceptionService>();
             builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
-            builder.Services.AddScoped<IRagBaseCollectionService, RagBaseCollectionService>();
-            builder.Services.AddScoped<IRagBaseConfigService, RagBaseConfigService>();
-            builder.Services.AddScoped<IRagBaseDocumentService, RagBaseDocumentService>();
-            builder.Services.AddScoped<IRagBaseEmbeddingService, RagBaseEmbeddingService>();
             builder.Services.AddScoped<IPayOSService, PayOSService>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
             builder.Services.AddScoped<ITransactionService, TransactionService>();
@@ -120,7 +114,9 @@ namespace MediMate
             builder.Services.AddScoped<IDrugInteractionAIService, DrugInteractionAIService>();
             builder.Services.AddScoped<IMedicationStatusJobService, MedicationStatusJobService>();
             builder.Services.AddScoped<IVersionService, VersionService>();
-            builder.Services.AddScoped<IDoctorContractService, DoctorContractService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<IPayoutService, PayoutService>();
+            builder.Services.AddScoped<IAgoraRecordingService, AgoraRecordingService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();
 

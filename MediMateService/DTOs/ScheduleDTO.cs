@@ -69,6 +69,10 @@ namespace MediMateService.DTOs
         public DateTime ReminderTime { get; set; }
         public DateTime EndTime { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        // Audit trail: ai đã xác nhận uống thuốc
+        public Guid? TakenByUserId { get; set; }
+        public string? TakenByName { get; set; }
     }
 
     public class ScheduleDetailResponse : ScheduleResponse

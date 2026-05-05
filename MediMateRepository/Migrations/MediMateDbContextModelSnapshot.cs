@@ -87,6 +87,15 @@ namespace MediMateRepository.Migrations
                     b.Property<string>("CancelReason")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("CheckInTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("CheckOutTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid?>("ClinicId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -96,6 +105,10 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -103,6 +116,8 @@ namespace MediMateRepository.Migrations
                     b.HasKey("AppointmentId");
 
                     b.HasIndex("AvailabilityId");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("DoctorId");
 
@@ -146,62 +161,136 @@ namespace MediMateRepository.Migrations
                     b.ToTable("ChatDoctorMessages");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotMessages", b =>
+            modelBuilder.Entity("MediMateRepository.Model.ClinicContract", b =>
                 {
-                    b.Property<Guid>("BotMessageId")
+                    b.Property<Guid>("ContractId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BotSessionId")
+                    b.Property<Guid>("ClinicId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Content")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("FileUrl")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("MetadataJson")
+                    b.Property<string>("Note")
                         .HasColumnType("text");
 
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("timestamp without time zone");
 
-                    b.HasKey("BotMessageId");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.HasIndex("BotSessionId");
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
 
-                    b.ToTable("ChatbotMessages");
+                    b.HasKey("ContractId");
+
+                    b.HasIndex("ClinicId");
+
+                    b.ToTable("ClinicContracts");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
+            modelBuilder.Entity("MediMateRepository.Model.ClinicDoctors", b =>
                 {
-                    b.Property<Guid>("BotSessionId")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ConsultationFee")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Specialty")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
+
+                    b.HasIndex("DoctorId");
+
+                    b.ToTable("ClinicDoctors");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.Clinics", b =>
+                {
+                    b.Property<Guid>("ClinicId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("AdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BankAccountHolder")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankAccountNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("LastMessageAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SessionTitle")
+                    b.Property<string>("LicenseUrl")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("StartAt")
+                    b.Property<string>("LogoUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.HasKey("BotSessionId");
+                    b.HasKey("ClinicId");
 
-                    b.HasIndex("MemberId");
+                    b.HasIndex("AdminId");
 
-                    b.ToTable("ChatbotSessions");
+                    b.ToTable("Clinics");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.ConsultationSessions", b =>
@@ -210,7 +299,16 @@ namespace MediMateRepository.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AgoraRecordingResourceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AgoraSid")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AppointmentsAppointmentId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("DoctorId")
@@ -225,12 +323,6 @@ namespace MediMateRepository.Migrations
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<bool>("GuardianJoined")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("GuardianUserId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
 
@@ -239,6 +331,9 @@ namespace MediMateRepository.Migrations
 
                     b.Property<string>("RecordUrl")
                         .HasColumnType("text");
+
+                    b.Property<int?>("RecordingDuration")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp without time zone");
@@ -261,9 +356,9 @@ namespace MediMateRepository.Migrations
                     b.HasIndex("AppointmentId")
                         .IsUnique();
 
-                    b.HasIndex("DoctorId");
+                    b.HasIndex("AppointmentsAppointmentId");
 
-                    b.HasIndex("GuardianUserId");
+                    b.HasIndex("DoctorId");
 
                     b.HasIndex("MemberId");
 
@@ -367,40 +462,6 @@ namespace MediMateRepository.Migrations
                     b.ToTable("DoctorBankAccounts");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.DoctorContract", b =>
-                {
-                    b.Property<Guid>("ContractId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("EndDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("StartDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("ContractId");
-
-                    b.ToTable("DoctorContracts");
-                });
-
             modelBuilder.Entity("MediMateRepository.Model.DoctorDocument", b =>
                 {
                     b.Property<Guid>("DocumentId")
@@ -452,17 +513,23 @@ namespace MediMateRepository.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<Guid>("ConsultationId")
+                    b.Property<Guid?>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConsultationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<Guid>("RateId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ReportFileUrl")
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -473,41 +540,13 @@ namespace MediMateRepository.Migrations
 
                     b.HasKey("PayoutId");
 
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("ConsultationId");
 
-                    b.HasIndex("RateId");
-
                     b.ToTable("DoctorPayouts");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.DoctorPayoutRate", b =>
-                {
-                    b.Property<Guid>("RateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("AmountPerSession")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("ConsultationType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateOnly?>("EffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("EffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("RateId");
-
-                    b.ToTable("DoctorPayoutRates");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
@@ -679,9 +718,6 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("PackageId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("RemainingConsultantCount")
-                        .HasColumnType("integer");
-
                     b.Property<int>("RemainingOcrCount")
                         .HasColumnType("integer");
 
@@ -851,6 +887,9 @@ namespace MediMateRepository.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("TakenByUserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ReminderId");
 
                     b.HasIndex("ScheduleId");
@@ -936,9 +975,6 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid?>("FamilyId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("FamilyId1")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("FcmToken")
                         .HasColumnType("text");
 
@@ -975,8 +1011,6 @@ namespace MediMateRepository.Migrations
 
                     b.HasIndex("FamilyId");
 
-                    b.HasIndex("FamilyId1");
-
                     b.HasIndex("NotificationSettingSettingId");
 
                     b.HasIndex("UserId");
@@ -990,8 +1024,8 @@ namespace MediMateRepository.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ConsultantLimit")
-                        .HasColumnType("integer");
+                    b.Property<bool>("AllowVideoRecordingAccess")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Currency")
                         .IsRequired()
@@ -1002,6 +1036,9 @@ namespace MediMateRepository.Migrations
 
                     b.Property<int>("DurationDays")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("HealthAlertEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1124,6 +1161,9 @@ namespace MediMateRepository.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -1134,13 +1174,15 @@ namespace MediMateRepository.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("SubscriptionId")
+                    b.Property<Guid?>("SubscriptionId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("PaymentId");
+
+                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("SubscriptionId");
 
@@ -1300,11 +1342,21 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MedicinesList")
                         .HasColumnType("text");
 
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
 
                     b.HasKey("DigitalPrescriptionId");
 
@@ -1317,211 +1369,36 @@ namespace MediMateRepository.Migrations
                     b.ToTable("PrescriptionsByDoctor");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseCollection", b =>
+            modelBuilder.Entity("MediMateRepository.Model.SubscriptionUsageLogs", b =>
                 {
-                    b.Property<Guid>("CollectionId")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Amount")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("CollectionId");
-
-                    b.ToTable("RagBaseCollections");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseConfig", b =>
-                {
-                    b.Property<Guid>("ConfigId")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid?>("ReferenceId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ChunkOverlap")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ChunkSize")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ContextWindow")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EmbeddingModel")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsUseApi")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LLMModel")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("MaxTokens")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PromptTemplate")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResponseType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<float>("Temperature")
-                        .HasColumnType("real");
-
-                    b.Property<int>("TopK")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("ConfigId");
-
-                    b.ToTable("RagBaseConfigs");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseDocument", b =>
-                {
-                    b.Property<Guid>("RagDocumentId")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("SubscriptionId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("CheckSum")
+                    b.Property<string>("UsageType")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("CollectionId")
-                        .HasColumnType("uuid");
+                    b.HasKey("Id");
 
-                    b.Property<DateTime>("CreateAt")
-                        .HasColumnType("timestamp without time zone");
+                    b.HasIndex("SubscriptionId");
 
-                    b.Property<string>("DocName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("FileSize")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("RagDocumentId");
-
-                    b.HasIndex("CollectionId");
-
-                    b.ToTable("RagBaseDocuments");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseEmbedding", b =>
-                {
-                    b.Property<Guid>("EmbeddingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ChunkSize")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.PrimitiveCollection<float[]>("Embedding")
-                        .IsRequired()
-                        .HasColumnType("real[]");
-
-                    b.Property<int>("Level")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Metadata")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("NodeId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParentNodeId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("RagDocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("EmbeddingId");
-
-                    b.HasIndex("RagDocumentId");
-
-                    b.ToTable("RagBaseEmbeddings");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Ratings", b =>
-                {
-                    b.Property<Guid>("RatingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Comment")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ConsultanSessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ConsultationSessionsConsultanSessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<Guid>("DoctorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ImageUrl")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("MemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Score")
-                        .HasColumnType("integer");
-
-                    b.HasKey("RatingId");
-
-                    b.HasIndex("ConsultanSessionId");
-
-                    b.HasIndex("ConsultationSessionsConsultanSessionId");
-
-                    b.HasIndex("DoctorId");
-
-                    b.HasIndex("MemberId");
-
-                    b.ToTable("Ratings");
+                    b.ToTable("SubscriptionUsageLogs");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Transactions", b =>
@@ -1643,6 +1520,41 @@ namespace MediMateRepository.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("MediMateRepository.Model.UserBankAccount", b =>
+                {
+                    b.Property<Guid>("BankAccountId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountHolder")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("BankAccountId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserBankAccounts");
+                });
+
             modelBuilder.Entity("MediMateRepository.Model.Versions", b =>
                 {
                     b.Property<Guid>("VersionId")
@@ -1714,6 +1626,11 @@ namespace MediMateRepository.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MediMateRepository.Model.Clinics", "Clinic")
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorId")
@@ -1727,6 +1644,8 @@ namespace MediMateRepository.Migrations
                         .IsRequired();
 
                     b.Navigation("Availability");
+
+                    b.Navigation("Clinic");
 
                     b.Navigation("Doctor");
 
@@ -1744,26 +1663,43 @@ namespace MediMateRepository.Migrations
                     b.Navigation("ConsultantSession");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotMessages", b =>
+            modelBuilder.Entity("MediMateRepository.Model.ClinicContract", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.ChatbotSession", "Session")
-                        .WithMany("Messages")
-                        .HasForeignKey("BotSessionId")
+                    b.HasOne("MediMateRepository.Model.Clinics", "Clinic")
+                        .WithMany("ClinicContracts")
+                        .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Session");
+                    b.Navigation("Clinic");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
+            modelBuilder.Entity("MediMateRepository.Model.ClinicDoctors", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
+                    b.HasOne("MediMateRepository.Model.Clinics", "Clinic")
+                        .WithMany("ClinicDoctors")
+                        .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Member");
+                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Clinic");
+
+                    b.Navigation("Doctor");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.Clinics", b =>
+                {
+                    b.HasOne("MediMateRepository.Model.User", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId");
+
+                    b.Navigation("Admin");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.ConsultationSessions", b =>
@@ -1774,15 +1710,15 @@ namespace MediMateRepository.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MediMateRepository.Model.Appointments", null)
+                        .WithMany("ConsultationSessions")
+                        .HasForeignKey("AppointmentsAppointmentId");
+
                     b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
                         .WithMany()
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.User", "Guardian")
-                        .WithMany()
-                        .HasForeignKey("GuardianUserId");
 
                     b.HasOne("MediMateRepository.Model.Members", "Member")
                         .WithMany()
@@ -1793,8 +1729,6 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Appointment");
 
                     b.Navigation("Doctor");
-
-                    b.Navigation("Guardian");
 
                     b.Navigation("Member");
                 });
@@ -1845,21 +1779,26 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.DoctorPayout", b =>
                 {
+                    b.HasOne("MediMateRepository.Model.Appointments", "Appointment")
+                        .WithMany("DoctorPayouts")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MediMateRepository.Model.Clinics", "Clinic")
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultationSession")
                         .WithMany()
                         .HasForeignKey("ConsultationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("MediMateRepository.Model.DoctorPayoutRate", "Rate")
-                        .WithMany()
-                        .HasForeignKey("RateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.Navigation("Appointment");
+
+                    b.Navigation("Clinic");
 
                     b.Navigation("ConsultationSession");
-
-                    b.Navigation("Rate");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>
@@ -2020,14 +1959,10 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Members", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.Families", null)
+                    b.HasOne("MediMateRepository.Model.Families", "Family")
                         .WithMany("FamilyMembers")
                         .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("MediMateRepository.Model.Families", "Family")
-                        .WithMany()
-                        .HasForeignKey("FamilyId1");
 
                     b.HasOne("MediMateRepository.Model.NotificationSetting", "NotificationSetting")
                         .WithMany()
@@ -2070,17 +2005,23 @@ namespace MediMateRepository.Migrations
 
             modelBuilder.Entity("MediMateRepository.Model.Payments", b =>
                 {
+                    b.HasOne("MediMateRepository.Model.Appointments", "Appointment")
+                        .WithMany("Payments")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MediMateRepository.Model.FamilySubscriptions", "Subscription")
                         .WithMany()
                         .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("MediMateRepository.Model.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Appointment");
 
                     b.Navigation("Subscription");
 
@@ -2147,57 +2088,15 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseDocument", b =>
+            modelBuilder.Entity("MediMateRepository.Model.SubscriptionUsageLogs", b =>
                 {
-                    b.HasOne("MediMateRepository.Model.RagBaseCollection", "RagBaseCollection")
+                    b.HasOne("MediMateRepository.Model.FamilySubscriptions", "Subscription")
                         .WithMany()
-                        .HasForeignKey("CollectionId")
+                        .HasForeignKey("SubscriptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("RagBaseCollection");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.RagBaseEmbedding", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.RagBaseDocument", "RagBaseDocument")
-                        .WithMany()
-                        .HasForeignKey("RagDocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("RagBaseDocument");
-                });
-
-            modelBuilder.Entity("MediMateRepository.Model.Ratings", b =>
-                {
-                    b.HasOne("MediMateRepository.Model.ConsultationSessions", "ConsultationSession")
-                        .WithMany()
-                        .HasForeignKey("ConsultanSessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.ConsultationSessions", null)
-                        .WithMany("Ratings")
-                        .HasForeignKey("ConsultationSessionsConsultanSessionId");
-
-                    b.HasOne("MediMateRepository.Model.Doctors", "Doctor")
-                        .WithMany()
-                        .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("MediMateRepository.Model.Members", "Member")
-                        .WithMany()
-                        .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("ConsultationSession");
-
-                    b.Navigation("Doctor");
-
-                    b.Navigation("Member");
+                    b.Navigation("Subscription");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Transactions", b =>
@@ -2217,16 +2116,36 @@ namespace MediMateRepository.Migrations
                     b.Navigation("Payout");
                 });
 
-            modelBuilder.Entity("MediMateRepository.Model.ChatbotSession", b =>
+            modelBuilder.Entity("MediMateRepository.Model.UserBankAccount", b =>
                 {
-                    b.Navigation("Messages");
+                    b.HasOne("MediMateRepository.Model.User", "User")
+                        .WithOne()
+                        .HasForeignKey("MediMateRepository.Model.UserBankAccount", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.Appointments", b =>
+                {
+                    b.Navigation("ConsultationSessions");
+
+                    b.Navigation("DoctorPayouts");
+
+                    b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("MediMateRepository.Model.Clinics", b =>
+                {
+                    b.Navigation("ClinicContracts");
+
+                    b.Navigation("ClinicDoctors");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.ConsultationSessions", b =>
                 {
                     b.Navigation("Messages");
-
-                    b.Navigation("Ratings");
                 });
 
             modelBuilder.Entity("MediMateRepository.Model.Doctors", b =>

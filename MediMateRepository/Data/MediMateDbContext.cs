@@ -23,8 +23,7 @@ namespace MediMateRepository.Data
         public DbSet<MedicationReminders> MedicationReminders { get; set; }
         public DbSet<NotificationSetting> NotificationSettings { get; set; }
         public DbSet<ActivityLogs> ActivityLogs { get; set; }
-        public DbSet<ChatbotSession> ChatbotSessions { get; set; }
-        public DbSet<ChatbotMessages> ChatbotMessages { get; set; }
+
         // Doctor Booking
         public DbSet<Doctors> Doctors { get; set; }
         public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
@@ -33,27 +32,26 @@ namespace MediMateRepository.Data
         public DbSet<DoctorDocument> DoctorDocuments { get; set; }
 
         public DbSet<PrescriptionsByDoctor> PrescriptionsByDoctor { get; set; }
-        public DbSet<Ratings> Ratings { get; set; }
         // Payment
         public DbSet<MembershipPackages> MembershipPackages { get; set; }
         public DbSet<FamilySubscriptions> FamilySubscriptions { get; set; }
         public DbSet<Payments> Payments { get; set; }
         public DbSet<Transactions> Transactions { get; set; }
         public DbSet<DoctorPayout> DoctorPayouts { get; set; }
-        public DbSet<DoctorPayoutRate> DoctorPayoutRates { get; set; }
         public DbSet<ConsultationSessions> ConsultationSessions { get; set; }
         public DbSet<ChatDoctorMessages> ChatDoctorMessages { get; set; }
 
-        public DbSet<RagBaseCollection> RagBaseCollections { get; set; } // THÊM MỚI
-        public DbSet<RagBaseConfig> RagBaseConfigs { get; set; }         // THÊM MỚI
-        public DbSet<RagBaseDocument> RagBaseDocuments { get; set; }     // THÊM MỚI
-        public DbSet<RagBaseEmbedding> RagBaseEmbeddings { get; set; }
+
         public DbSet<Notifications> Notifications { get; set; }
         public DbSet<Versions> Versions { get; set; }
 
         public DbSet<Drug> Drugs { get; set; }
         public DbSet<DrugInteraction> DrugInteractions { get; set; }
-        public DbSet<DoctorContract> DoctorContracts { get; set; }
+        public DbSet<ClinicContract> ClinicContracts { get; set; }
+        public DbSet<ClinicDoctors> ClinicDoctors { get; set; }
+        public DbSet<Clinics> Clinics { get; set; }
+        public DbSet<SubscriptionUsageLogs> SubscriptionUsageLogs { get; set; }
+        public DbSet<UserBankAccount> UserBankAccounts { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -75,15 +73,13 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<MedicationReminders>().HasKey(mr => mr.ReminderId);
             modelBuilder.Entity<NotificationSetting>().HasKey(ns => ns.SettingId);
             modelBuilder.Entity<ActivityLogs>().HasKey(al => al.LogId);
-            modelBuilder.Entity<ChatbotSession>().HasKey(cs => cs.BotSessionId);
-            modelBuilder.Entity<ChatbotMessages>().HasKey(cm => cm.BotMessageId);
+
             // Doctor
             modelBuilder.Entity<Doctors>().HasKey(d => d.DoctorId);
             modelBuilder.Entity<DoctorAvailability>().HasKey(da => da.DoctorAvailabilityId);
             modelBuilder.Entity<DoctorAvailabilityExceptions>().HasKey(da => da.ExceptionId);
             modelBuilder.Entity<Appointments>().HasKey(a => a.AppointmentId);
             modelBuilder.Entity<PrescriptionsByDoctor>().HasKey(pd => pd.DigitalPrescriptionId);
-            modelBuilder.Entity<Ratings>().HasKey(r => r.RatingId);
             modelBuilder.Entity<DoctorBankAccount>().HasKey(dba => dba.BankAccountId);
             modelBuilder.Entity<DoctorDocument>().HasKey(dd => dd.DocumentId);
             // Payment
@@ -93,20 +89,19 @@ namespace MediMateRepository.Data
             modelBuilder.Entity<Transactions>().HasKey(t => t.TransactionId);
             modelBuilder.Entity<Transactions>().HasIndex(t => t.TransactionCode).IsUnique();
             modelBuilder.Entity<DoctorPayout>().HasKey(dp => dp.PayoutId);
-            modelBuilder.Entity<DoctorPayoutRate>().HasKey(dpr => dpr.RateId);
             modelBuilder.Entity<ConsultationSessions>().HasKey(cs => cs.ConsultanSessionId);
             modelBuilder.Entity<ChatDoctorMessages>().HasKey(cm => cm.ChatDoctorMessageId);
 
-            modelBuilder.Entity<RagBaseCollection>().HasKey(rc => rc.CollectionId);
-            modelBuilder.Entity<RagBaseConfig>().HasKey(rc => rc.ConfigId);
-            modelBuilder.Entity<RagBaseDocument>().HasKey(rd => rd.RagDocumentId);
-            modelBuilder.Entity<RagBaseEmbedding>().HasKey(re => re.EmbeddingId);
+
             modelBuilder.Entity<Notifications>().HasKey(re => re.NotificationId);
             modelBuilder.Entity<Versions>().HasKey(v => v.VersionId);
 
             modelBuilder.Entity<Drug>().HasKey(d => d.DrugId);
             modelBuilder.Entity<DrugInteraction>().HasKey(di => di.InteractionId);
-            modelBuilder.Entity<DoctorContract>().HasKey(dc => dc.ContractId);
+            modelBuilder.Entity<ClinicContract>().HasKey(cc => cc.ContractId);
+            modelBuilder.Entity<ClinicDoctors>().HasKey(cd => cd.Id);
+            modelBuilder.Entity<Clinics>().HasKey(c => c.ClinicId);
+            modelBuilder.Entity<SubscriptionUsageLogs>().HasKey(s => s.Id);
 
             // --- USER CONFIGURATION ---
             modelBuilder.Entity<User>()
@@ -126,7 +121,7 @@ namespace MediMateRepository.Data
 
             // Quan h? 1-N: Family -> Members
             modelBuilder.Entity<Members>()
-                .HasOne<Families>() // Member thu?c v? 1 Family (dùng shadow navigation ho?c thêm prop Family vào Member n?u c?n)
+                .HasOne(m => m.Family) // Sử dụng navigation property có sẵn
                 .WithMany(f => f.FamilyMembers) // Family có nhi?u Member
                 .HasForeignKey(m => m.FamilyId)
                 .OnDelete(DeleteBehavior.Cascade); // Xóa Family -> Xóa h?t Member
@@ -250,18 +245,6 @@ namespace MediMateRepository.Data
                 .HasForeignKey(al => al.MemberId)
                 .OnDelete(DeleteBehavior.NoAction); // QUAN TRỌNG: Dùng NoAction để tránh lỗi vòng lặp Cascade (Đụng độ với lệnh Xóa Family ở trên).
                                                     // Nếu Member bị xóa, Log vẫn còn giữ lại để chủ hộ biết "Ai đó đã từng làm gì", nhưng ta phải tự xử lý hiển thị MemberId bị null/mất tích trên UI.
-            modelBuilder.Entity<ChatbotSession>()
-                .HasOne(cs => cs.Member)
-                .WithMany() // Nếu bảng Members không có list Sessions thì để trống
-                .HasForeignKey(cs => cs.MemberId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Member -> Xóa tất cả các phiên chat của họ
-
-            // 2. Quan hệ 1-N: ChatbotSession -> ChatbotMessages
-            modelBuilder.Entity<ChatbotMessages>()
-                .HasOne(cm => cm.Session)
-                .WithMany(cs => cs.Messages) // Map ngược lại list Messages trong ChatbotSession
-                .HasForeignKey(cm => cm.BotSessionId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Session -> Xóa sạch tin nhắn trong session đó
 
             // ==========================================
             // DOCTOR BOOKING RELATIONSHIPS
@@ -306,24 +289,6 @@ namespace MediMateRepository.Data
                 .WithMany()
                 .HasForeignKey(pd => pd.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            // ConsultationSessions 1-N Ratings
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.ConsultationSession)
-                .WithMany()
-                .HasForeignKey(r => r.ConsultanSessionId)
-                .OnDelete(DeleteBehavior.Cascade);
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.Doctor)
-                .WithMany()
-                .HasForeignKey(r => r.DoctorId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<Ratings>()
-                .HasOne(r => r.Member)
-                .WithMany()
-                .HasForeignKey(r => r.MemberId)
-                .OnDelete(DeleteBehavior.NoAction);
 
             // Doctors 1-1 Users
             modelBuilder.Entity<Doctors>()
@@ -375,6 +340,23 @@ namespace MediMateRepository.Data
                 .HasOne(p => p.Subscription)
                 .WithMany()
                 .HasForeignKey(p => p.SubscriptionId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments 1-N Payments
+            modelBuilder.Entity<Payments>()
+                .HasOne(p => p.Appointment)
+                .WithMany(a => a.Payments)
+                .HasForeignKey(p => p.AppointmentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments 1-N DoctorPayouts
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.Appointment)
+                .WithMany(a => a.DoctorPayouts)
+                .HasForeignKey(dp => dp.AppointmentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Payments 1-N Transactions (nullable FK)
@@ -385,12 +367,6 @@ namespace MediMateRepository.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // DoctorPayoutRate 1-N DoctorPayout
-            modelBuilder.Entity<DoctorPayout>()
-                .HasOne(dp => dp.Rate)
-                .WithMany()
-                .HasForeignKey(dp => dp.RateId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             // ConsultationSessions 1-N DoctorPayout
             modelBuilder.Entity<DoctorPayout>()
@@ -433,19 +409,7 @@ namespace MediMateRepository.Data
                 .HasForeignKey(m => m.ConsultanSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // 1. Collection 1-N Documents
-            modelBuilder.Entity<RagBaseDocument>()
-                .HasOne(rd => rd.RagBaseCollection)
-                .WithMany() // Nếu Collection có list Documents thì map vào đây, vd: .WithMany(c => c.Documents)
-                .HasForeignKey(rd => rd.CollectionId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa Collection -> Xóa sạch các tài liệu bên trong
 
-            // 2. Document 1-N Embeddings
-            modelBuilder.Entity<RagBaseEmbedding>()
-                .HasOne(re => re.RagBaseDocument)
-                .WithMany() // Tương tự, nếu Document có list Embeddings thì map vào
-                .HasForeignKey(re => re.RagDocumentId)
-                .OnDelete(DeleteBehavior.Cascade);
 
             // Drug - DrugInteractions
             modelBuilder.Entity<DrugInteraction>()
@@ -457,6 +421,55 @@ namespace MediMateRepository.Data
         .HasOne(d => d.DoctorBankAccount)
         .WithOne(b => b.Doctor)
         .HasForeignKey<DoctorBankAccount>(b => b.DoctorId);
+
+            // ClinicContracts (Admin - Phòng khám)
+            modelBuilder.Entity<ClinicContract>()
+                .HasOne(cc => cc.Clinic)
+                .WithMany(c => c.ClinicContracts)
+                .HasForeignKey(cc => cc.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ClinicDoctors (Phòng khám - Bác sĩ)
+            modelBuilder.Entity<ClinicDoctors>()
+                .HasOne(cd => cd.Doctor)
+                .WithMany()
+                .HasForeignKey(cd => cd.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ClinicDoctors>()
+                .HasOne(cd => cd.Clinic)
+                .WithMany(c => c.ClinicDoctors)
+                .HasForeignKey(cd => cd.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Appointments - Clinic
+            modelBuilder.Entity<Appointments>()
+                .HasOne(a => a.Clinic)
+                .WithMany()
+                .HasForeignKey(a => a.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // DoctorPayout - Clinic
+            modelBuilder.Entity<DoctorPayout>()
+                .HasOne(dp => dp.Clinic)
+                .WithMany()
+                .HasForeignKey(dp => dp.ClinicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // UserBankAccount - User (1-to-1: mỗi User có tối đa 1 tài khoản ngân hàng)
+            modelBuilder.Entity<UserBankAccount>()
+                .HasKey(uba => uba.BankAccountId);
+
+            modelBuilder.Entity<UserBankAccount>()
+                .HasOne(uba => uba.User)
+                .WithOne()
+                .HasForeignKey<UserBankAccount>(uba => uba.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Index đảm bảo 1 User chỉ có 1 bank account
+            modelBuilder.Entity<UserBankAccount>()
+                .HasIndex(uba => uba.UserId)
+                .IsUnique();
         }
 
     }

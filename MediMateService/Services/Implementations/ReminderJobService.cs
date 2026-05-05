@@ -64,7 +64,7 @@ namespace MediMateService.Services.Implementations
                 // 1. Trường hợp: Chưa từng gửi gì cả (Bị rớt do server restart ngay lúc giờ vàng)
                 if (!isSent)
                 {
-                    await NotifyReminderTimeAsync(reminder.ReminderId, 1);
+                    await NotifyReminderTimeAsync(reminder.ReminderId, 5);
                     continue;
                 }
 
@@ -385,21 +385,6 @@ namespace MediMateService.Services.Implementations
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(appointment.DoctorId);
             if (member == null || doctor == null) return;
 
-            // ── Xác định Guardian ──────────────────────────────────────────
-            // Nếu member không có tài khoản (dependent) → chủ gia đình là guardian
-            Guid? guardianUserId = null;
-            string? guardianFullName = null;
-            if (member.UserId == null && member.FamilyId.HasValue)
-            {
-                var family = await _unitOfWork.Repository<Families>().GetByIdAsync(member.FamilyId.Value);
-                guardianUserId = family?.CreateBy;
-                if (guardianUserId.HasValue)
-                {
-                    var guardianUser = await _unitOfWork.Repository<User>().GetByIdAsync(guardianUserId.Value);
-                    guardianFullName = guardianUser?.FullName ?? "Người giám hộ";
-                }
-            }
-
             var session = new ConsultationSessions
             {
                 ConsultanSessionId = Guid.NewGuid(),
@@ -411,8 +396,6 @@ namespace MediMateService.Services.Implementations
                 Status = ConsultationSessionConstants.PROCESSING,
                 UserJoined = false,
                 DoctorJoined = false,
-                GuardianUserId = guardianUserId,
-                GuardianJoined = false,
                 Note = null,
                 DoctorNote = null
             };
@@ -444,51 +427,14 @@ namespace MediMateService.Services.Implementations
                 memberId: member.MemberId
             );
 
-            // ── Thông báo Guardian ─────────────────────────────────────────
-            if (guardianUserId.HasValue)
-            {
-                var guardianMessage = $"{member.FullName} đang vào khám với Bác sĩ {doctor.FullName} lúc {timeString}. Bạn có muốn tham gia theo dõi không?";
-
-                // Notification (Firebase - kể cả khi app đóng)
-                await _notificationService.SendNotificationAsync(
-                    userId: guardianUserId.Value,
-                    title: "👨‍👩‍👦 Phòng khám đã mở!",
-                    message: guardianMessage,
-                    type: ConsultationSessionActionTypes.GUARDIAN_SESSION_INVITE,
-                    referenceId: session.ConsultanSessionId
-                );
-
-                // SignalR (real-time khi app đang mở → hiện popup ngay)
-                await _hubContext.Clients.Group($"User_{guardianUserId}")
-                    .SendAsync("GuardianSessionInvite", new
-                    {
-                        sessionId        = session.ConsultanSessionId,
-                        memberName       = member.FullName,
-                        memberAvatarUrl  = member.AvatarUrl,
-                        doctorName       = doctor.FullName,
-                        scheduledTime    = timeString
-                    });
-
-                // Thông báo cho bác sĩ biết sẽ có người giám hộ
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "🔔 Phòng khám đã mở!",
-                    message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Lưu ý: {guardianFullName} (người giám hộ) có thể tham gia theo dõi.",
-                    type: ConsultationSessionActionTypes.SESSION_STARTED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
-            else
-            {
-                // Member bình thường → thông báo bác sĩ như cũ
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "🔔 Phòng khám đã mở!",
-                    message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
-                    type: ConsultationSessionActionTypes.SESSION_STARTED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
+            // Member bình thường → thông báo bác sĩ như cũ
+            await _notificationService.SendNotificationAsync(
+                userId: doctor.UserId,
+                title: "🔔 Phòng khám đã mở!",
+                message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
+                type: ConsultationSessionActionTypes.SESSION_STARTED,
+                referenceId: session.ConsultanSessionId
+            );
 
             _backgroundJobClient.Schedule<IReminderJobService>(
                 job => job.AutoEndExpiredSessionAsync(session.ConsultanSessionId),
@@ -523,24 +469,35 @@ namespace MediMateService.Services.Implementations
                 _unitOfWork.Repository<Appointments>().Update(appointment);
                 if (session.DoctorJoined)
                 {
-                    var activeRate = await _unitOfWork.Repository<DoctorPayoutRate>().GetQueryable()
-                        .Where(r => r.IsActive)
-                        .OrderByDescending(r => r.CreatedAt)
-                        .FirstOrDefaultAsync();
+                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
 
-                    if (activeRate != null)
+                    if (payout != null)
                     {
-                        var payout = new DoctorPayout
-                        {
-                            PayoutId = Guid.NewGuid(),
-                            ConsultationId = session.ConsultanSessionId,
-                            RateId = activeRate.RateId,
-                            Amount = activeRate.AmountPerSession,
-                            Status = "Pending",
-                            CalculatedAt = DateTime.Now
-                        };
+                        payout.ConsultationId = session.ConsultanSessionId;
+                        payout.Status = "ReadyToPay";
+                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
 
-                        await _unitOfWork.Repository<DoctorPayout>().AddAsync(payout);
+                        // Query bác sĩ
+                        var docInfo = await _unitOfWork.Repository<Doctors>().GetQueryable()
+                            .Include(d => d.User)
+                            .FirstOrDefaultAsync(d => d.DoctorId == session.DoctorId);
+
+                        // Query Clinic thông qua ClinicDoctors
+                        var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
+                            .Include(cd => cd.Clinic)
+                            .FirstOrDefaultAsync(cd => cd.DoctorId == session.DoctorId && cd.Status == "Active");
+
+                        string docName = docInfo?.User?.FullName ?? "Unknown";
+                        string clinicName = clinicDoctor?.Clinic?.Name ?? "Phòng khám";
+
+                        // Thêm thông báo Admin
+                        await _notificationService.SendNotificationToRoleAsync(
+                            Roles.Admin,
+                            "Yêu cầu thanh toán mới",
+                            $"Bác sĩ {docName} thuộc {clinicName} vừa hoàn tất phiên khám {appointment.AppointmentId.ToString()[..8].ToUpper()} và có giao dịch cần thanh toán.",
+                            "Warning"
+                        );
                     }
                 }
             }
@@ -605,21 +562,27 @@ namespace MediMateService.Services.Implementations
                 appointment.CancelReason = "Hệ thống tự động hủy do bác sĩ không xác nhận kịp thời (quá hạn duyệt).";
                 _unitOfWork.Repository<Appointments>().Update(appointment);
 
-                // 3. Hoàn lại lượt khám cho gói dịch vụ của gia đình
                 var member = appointment.Member;
-                if (member?.FamilyId != null)
-                {
-                    var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                    var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
-                        .FindAsync(s => s.FamilyId == member.FamilyId
-                                        && s.Status == "Active"
-                                        && s.EndDate >= currentDate)).FirstOrDefault();
 
-                    if (activeSubscription != null)
+                // 3. Nếu đã thanh toán bằng tiền -> Cập nhật trạng thái chờ hoàn tiền và hủy Payout
+                if (appointment.PaymentStatus == "Paid")
+                {
+                    appointment.PaymentStatus = "Refunded";
+                    
+                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId && p.Status == "Hold" && p.Amount > 0);
+                    if (payout != null)
                     {
-                        activeSubscription.RemainingConsultantCount += 1; // Hoàn lại 1 lượt
-                        _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
+                        payout.Status = "Cancelled";
+                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
                     }
+
+                    await _notificationService.SendNotificationToRoleAsync(
+                        Roles.Admin,
+                        "Yêu cầu hoàn tiền mới",
+                        $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} vừa bị hủy tự động do hết hạn duyệt và cần được hoàn tiền.",
+                        "Warning"
+                    );
                 }
 
                 // 4. Chuẩn bị thông tin thông báo
@@ -643,10 +606,29 @@ namespace MediMateService.Services.Implementations
                     await _notificationService.SendNotificationAsync(
                         userId: headUserId.Value,
                         title: "❌ Lịch hẹn đã bị hủy tự động",
-                        message: $"Lịch hẹn cho {patientName} vào {timeStr} ngày {dateStr} đã bị hủy do bác sĩ không xác nhận kịp thời. Lượt khám đã được hoàn lại.",
+                        message: $"Lịch hẹn cho {patientName} vào {timeStr} ngày {dateStr} đã bị hủy do bác sĩ không xác nhận kịp thời. Số tiền đặt lịch sẽ được hoàn lại trong 1-2 ngày làm việc. Vui lòng liên hệ bộ phận hỗ trợ nếu có thắc mắc.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId
                     );
+
+                    if (appointment.PaymentStatus == "Refunded")
+                    {
+                        bool userHasBankAccount = await _unitOfWork.Repository<UserBankAccount>().GetQueryable()
+                            .AnyAsync(b => b.UserId == headUserId.Value);
+
+                        if (!userHasBankAccount)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId: headUserId.Value,
+                                title: "⚠️ Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
+                                message: "Lịch hẹn bị hủy tự động và hệ thống sẽ hoàn tiền cho bạn. " +
+                                         "Tuy nhiên, bạn chưa cập nhật thông tin ngân hàng. " +
+                                         "Vui lòng vào Cài đặt → Tài khoản ngân hàng để thêm thông tin nhận hoàn tiền.",
+                                type: "BANKING_INFO_MISSING",
+                                referenceId: appointment.AppointmentId
+                            );
+                        }
+                    }
 
                     // SignalR: Cập nhật UI ngay lập tức cho Manager
                     await _hubContext.Clients.Group($"User_{headUserId.Value}").SendAsync("AppointmentStatusUpdated", new

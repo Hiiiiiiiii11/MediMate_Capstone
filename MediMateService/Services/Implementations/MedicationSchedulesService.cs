@@ -65,7 +65,16 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
+            // Preload dictionary TakenByUserId -> FullName
+            var takenUserIds = reminders.Where(r => r.TakenByUserId.HasValue)
+                                        .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
+            var takenByMembers = takenUserIds.Any()
+                ? (await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value)))
+                    .ToDictionary(m => m.UserId!.Value, m => m.FullName)
+                : new Dictionary<Guid, string>();
+
+            var response = reminders.OrderBy(r => r.ReminderTime)
+                                    .Select(r => MapToReminderDailyResponse(r, takenByMembers));
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
 
@@ -176,9 +185,19 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
+            // Preload dictionary TakenByUserId -> FullName
+            var takenUserIds = reminders.Where(r => r.TakenByUserId.HasValue)
+                                        .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
+            var takenByMembers = takenUserIds.Any()
+                ? (await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value)))
+                    .ToDictionary(m => m.UserId!.Value, m => m.FullName)
+                : new Dictionary<Guid, string>();
+
+            var response = reminders.OrderBy(r => r.ReminderTime)
+                                    .Select(r => MapToReminderDailyResponse(r, takenByMembers));
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
+
 
         // =======================================================
         // CẬP NHẬT LỊCH (UPDATE)
@@ -719,8 +738,14 @@ namespace MediMateService.Services.Implementations
         }
 
 
-        private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
+        private ReminderDailyResponse MapToReminderDailyResponse(
+            MedicationReminders r,
+            Dictionary<Guid, string> takenByLookup = null)
         {
+            string takenByName = null;
+            if (r.TakenByUserId.HasValue && takenByLookup != null)
+                takenByLookup.TryGetValue(r.TakenByUserId.Value, out takenByName);
+
             return new ReminderDailyResponse
             {
                 ReminderId = r.ReminderId,
@@ -731,6 +756,8 @@ namespace MediMateService.Services.Implementations
                 ReminderTime = r.ReminderTime,
                 EndTime = r.EndTime,
                 Status = r.Status,
+                TakenByUserId = r.TakenByUserId,
+                TakenByName = takenByName,
                 Medicines = r.Schedule.ScheduleDetails?
                     .Where(d => d.StartDate.Date <= r.ReminderDate.Date && d.EndDate.Date >= r.ReminderDate.Date)
                     .Select(d => new ScheduleDetailItemResponse

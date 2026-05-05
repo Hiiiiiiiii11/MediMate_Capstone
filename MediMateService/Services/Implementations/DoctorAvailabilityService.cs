@@ -13,10 +13,12 @@ namespace MediMateService.Services.Implementations
     public class DoctorAvailabilityService : IDoctorAvailabilityService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly INotificationService _notificationService;
 
-        public DoctorAvailabilityService(IUnitOfWork unitOfWork)
+        public DoctorAvailabilityService(IUnitOfWork unitOfWork, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<DoctorAvailabilityDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityRequest request)
@@ -61,6 +63,16 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<DoctorAvailability>().AddAsync(availability);
             await _unitOfWork.CompleteAsync();
+
+            if (doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    doctor.UserId,
+                    "Lịch làm việc mới",
+                    $"Quản lý vừa thêm lịch làm việc mới cho bạn vào {request.DayOfWeek} ({request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
 
             return ApiResponse<DoctorAvailabilityDto>.Ok(MapToDto(availability), "Thêm khung giờ làm việc thành công.");
         }
@@ -110,6 +122,16 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<DoctorAvailability>().Update(availability);
             await _unitOfWork.CompleteAsync();
 
+            if (availability.Doctor != null && availability.Doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    availability.Doctor.UserId,
+                    "Cập nhật lịch làm việc",
+                    $"Quản lý vừa cập nhật lịch làm việc của bạn vào {request.DayOfWeek} ({request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
+
             return ApiResponse<DoctorAvailabilityDto>.Ok(MapToDto(availability), "Cập nhật lịch làm việc thành công.");
         }
 
@@ -139,6 +161,18 @@ namespace MediMateService.Services.Implementations
             // Nếu chưa từng có ai đặt lịch vào khung giờ này -> Xóa cứng an toàn
             _unitOfWork.Repository<DoctorAvailability>().Remove(availability);
             await _unitOfWork.CompleteAsync();
+
+            // Lấy thông tin bác sĩ để gửi thông báo (NẾU currentUserId khác doctor.UserId)
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(availability.DoctorId);
+            if (doctor != null && doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    doctor.UserId,
+                    "Hủy lịch làm việc",
+                    $"Quản lý vừa hủy lịch làm việc của bạn vào {availability.DayOfWeek} ({availability.StartTime:hh\\:mm} - {availability.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
 
             return ApiResponse<bool>.Ok(true, "Xóa khung giờ làm việc thành công.");
         }

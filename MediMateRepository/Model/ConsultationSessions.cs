@@ -14,7 +14,10 @@ namespace MediMateRepository.Model
         public Guid MemberId { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
-        public string? RecordUrl { get; set; }
+        public string? RecordUrl { get; set; }         // URL video trên Cloudinary
+        public int? RecordingDuration { get; set; }     // Thời lượng ghi hình (giây)
+        public string? AgoraRecordingResourceId { get; set; } // Dùng để stop recording
+        public string? AgoraSid { get; set; }           // Agora Cloud Recording SID
         public string Status { get; set; } = "Processing";
         public int UnreadCountDoctor { get; set; } = 0;
         public int UnreadCountMember { get; set; } = 0;
@@ -22,12 +25,6 @@ namespace MediMateRepository.Model
         // Tracking join status (event-driven → InProgress khi cả 2 join)
         public bool UserJoined { get; set; } = false;
         public bool DoctorJoined { get; set; } = false;
-
-        // ─── Guardian (Người giám hộ) ─────────────────────────────────────
-        // Được set khi member.UserId == null (dependent member)
-        // GuardianUserId = Family.CreateBy của gia đình member đó
-        public Guid? GuardianUserId { get; set; }
-        public bool GuardianJoined { get; set; } = false;
 
         // Ghi chú hệ thống: trễ giờ, khách huỷ no-show, v.v.
         public string? Note { get; set; }
@@ -39,7 +36,5 @@ namespace MediMateRepository.Model
         public virtual ICollection<ChatDoctorMessages> Messages { get; set; } = new List<ChatDoctorMessages>();
         public virtual Members Member { get; set; } = null!;
         public virtual Doctors Doctor { get; set; } = null!;
-        public virtual ICollection<Ratings> Ratings { get; set; } = new List<Ratings>();
-        public virtual User? Guardian { get; set; }
     }
 }

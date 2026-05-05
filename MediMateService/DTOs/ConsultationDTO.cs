@@ -7,7 +7,7 @@ namespace MediMateService.DTOs
         public Guid DoctorId { get; set; }
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
-        public string? MemberAvatar { get; set; } // Bổ sung thêm avatar bệnh nhân
+        public string? MemberAvatar { get; set; }
 
         // --- THÔNG TIN BỔ SUNG TỪ APPOINTMENT ---
         public DateTime AppointmentDate { get; set; }
@@ -27,6 +27,10 @@ namespace MediMateService.DTOs
 
         public string? Note { get; set; }
         public string? DoctorNote { get; set; }
+
+        // --- KẾT QUẢ PHIÊN ---
+        public string? RecordingUrl { get; set; }         // URL video ghi hình (Agora → Cloudinary)
+        public Guid? PrescriptionId { get; set; }         // Đơn thuốc bác sĩ gắn vào session
     }
 
     public class EndConsultationDto
@@ -57,14 +61,5 @@ namespace MediMateService.DTOs
         // Không cần body, nhưng để dto cho nhất quán
     }
 
-    /// <summary>Response khi Guardian (người giám hộ) tham gia cuộc gọi 3 bên</summary>
-    public class GuardianJoinResponse
-    {
-        public string Token { get; set; } = string.Empty;
-        public uint Uid { get; set; }
-        public string ChannelName { get; set; } = string.Empty;
-        public Guid SessionId { get; set; }
-        public string MemberName { get; set; } = string.Empty;
-        public string DoctorName { get; set; } = string.Empty;
-    }
+
 }

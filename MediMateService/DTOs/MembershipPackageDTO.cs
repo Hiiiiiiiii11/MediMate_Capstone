@@ -10,9 +10,10 @@ namespace MediMateService.DTOs
         public int DurationDays { get; set; }
         public int MemberLimit { get; set; }
         public int OcrLimit { get; set; }
-        public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
         public int ActiveSubscriberCount { get; set; }
+        public bool AllowVideoRecordingAccess { get; set; }
+        public bool HealthAlertEnabled { get; set; }
     }
 
     public class CreateMembershipPackageDto
@@ -24,8 +25,9 @@ namespace MediMateService.DTOs
         public int DurationDays { get; set; }
         public int MemberLimit { get; set; }
         public int OcrLimit { get; set; }
-        public int ConsultantLimit { get; set; }
         public string? Description { get; set; }
+        public bool AllowVideoRecordingAccess { get; set; } = false;
+        public bool HealthAlertEnabled { get; set; } = false;
     }
 
     public class UpdateMembershipPackageDto
@@ -37,7 +39,8 @@ namespace MediMateService.DTOs
         public int? DurationDays { get; set; }
         public int? MemberLimit { get; set; }
         public int? OcrLimit { get; set; }
-        public int? ConsultantLimit { get; set; }
         public string? Description { get; set; }
+        public bool? AllowVideoRecordingAccess { get; set; }
+        public bool? HealthAlertEnabled { get; set; }
     }
 }

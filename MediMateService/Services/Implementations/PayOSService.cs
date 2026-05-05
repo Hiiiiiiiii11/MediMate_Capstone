@@ -107,7 +107,7 @@ public class PayOSService : IPayOSService
                 GatewayName = "PayOS",
                 GatewayTransactionId = orderCode.ToString(),
                 TransactionStatus = "Pending",
-                TransactionType = TransactionTypes.MoneyReceived,
+                TransactionType = TransactionTypes.InPackagePurchase,
                 AmountPaid = 0 // Will update on success
             };
             await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
@@ -200,7 +200,7 @@ public class PayOSService : IPayOSService
                 GatewayName = "PayOS",
                 GatewayTransactionId = orderCode.ToString(),
                 TransactionStatus = "Pending",
-                TransactionType = TransactionTypes.MoneyReceived,
+                TransactionType = TransactionTypes.InSessionPayment,
                 AmountPaid = 0 // Will update on success
             };
             await _unitOfWork.Repository<Transactions>().AddAsync(transaction);

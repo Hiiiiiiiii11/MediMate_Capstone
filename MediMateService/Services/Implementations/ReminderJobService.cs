@@ -477,6 +477,27 @@ namespace MediMateService.Services.Implementations
                         payout.ConsultationId = session.ConsultanSessionId;
                         payout.Status = "ReadyToPay";
                         _unitOfWork.Repository<DoctorPayout>().Update(payout);
+
+                        // Query bác sĩ
+                        var docInfo = await _unitOfWork.Repository<Doctors>().GetQueryable()
+                            .Include(d => d.User)
+                            .FirstOrDefaultAsync(d => d.DoctorId == session.DoctorId);
+
+                        // Query Clinic thông qua ClinicDoctors
+                        var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
+                            .Include(cd => cd.Clinic)
+                            .FirstOrDefaultAsync(cd => cd.DoctorId == session.DoctorId && cd.Status == "Active");
+
+                        string docName = docInfo?.User?.FullName ?? "Unknown";
+                        string clinicName = clinicDoctor?.Clinic?.Name ?? "Phòng khám";
+
+                        // Thêm thông báo Admin
+                        await _notificationService.SendNotificationToRoleAsync(
+                            Roles.Admin,
+                            "Yêu cầu thanh toán mới",
+                            $"Bác sĩ {docName} thuộc {clinicName} vừa hoàn tất phiên khám {appointment.AppointmentId.ToString()[..8].ToUpper()} và có giao dịch cần thanh toán.",
+                            "Warning"
+                        );
                     }
                 }
             }

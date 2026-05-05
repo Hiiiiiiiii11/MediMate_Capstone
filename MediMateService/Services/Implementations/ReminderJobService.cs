@@ -541,20 +541,27 @@ namespace MediMateService.Services.Implementations
                 appointment.CancelReason = "Hệ thống tự động hủy do bác sĩ không xác nhận kịp thời (quá hạn duyệt).";
                 _unitOfWork.Repository<Appointments>().Update(appointment);
 
-                // 3. Hoàn lại lượt khám cho gói dịch vụ của gia đình
                 var member = appointment.Member;
-                if (member?.FamilyId != null)
-                {
-                    var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                    var activeSubscription = (await _unitOfWork.Repository<FamilySubscriptions>()
-                        .FindAsync(s => s.FamilyId == member.FamilyId
-                                        && s.Status == "Active"
-                                        && s.EndDate >= currentDate)).FirstOrDefault();
 
-                    if (activeSubscription != null)
+                // 3. Nếu đã thanh toán bằng tiền -> Cập nhật trạng thái chờ hoàn tiền và hủy Payout
+                if (appointment.PaymentStatus == "Paid")
+                {
+                    appointment.PaymentStatus = "Refunded";
+                    
+                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId && p.Status == "Hold" && p.Amount > 0);
+                    if (payout != null)
                     {
-                        _unitOfWork.Repository<FamilySubscriptions>().Update(activeSubscription);
+                        payout.Status = "Cancelled";
+                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
                     }
+
+                    await _notificationService.SendNotificationToRoleAsync(
+                        Roles.Admin,
+                        "Yêu cầu hoàn tiền mới",
+                        $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} vừa bị hủy tự động do hết hạn duyệt và cần được hoàn tiền.",
+                        "Warning"
+                    );
                 }
 
                 // 4. Chuẩn bị thông tin thông báo
@@ -578,10 +585,29 @@ namespace MediMateService.Services.Implementations
                     await _notificationService.SendNotificationAsync(
                         userId: headUserId.Value,
                         title: "❌ Lịch hẹn đã bị hủy tự động",
-                        message: $"Lịch hẹn cho {patientName} vào {timeStr} ngày {dateStr} đã bị hủy do bác sĩ không xác nhận kịp thời. Lượt khám đã được hoàn lại.",
+                        message: $"Lịch hẹn cho {patientName} vào {timeStr} ngày {dateStr} đã bị hủy do bác sĩ không xác nhận kịp thời. Số tiền đặt lịch sẽ được hoàn lại trong 1-2 ngày làm việc. Vui lòng liên hệ bộ phận hỗ trợ nếu có thắc mắc.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId
                     );
+
+                    if (appointment.PaymentStatus == "Refunded")
+                    {
+                        bool userHasBankAccount = await _unitOfWork.Repository<UserBankAccount>().GetQueryable()
+                            .AnyAsync(b => b.UserId == headUserId.Value);
+
+                        if (!userHasBankAccount)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId: headUserId.Value,
+                                title: "⚠️ Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
+                                message: "Lịch hẹn bị hủy tự động và hệ thống sẽ hoàn tiền cho bạn. " +
+                                         "Tuy nhiên, bạn chưa cập nhật thông tin ngân hàng. " +
+                                         "Vui lòng vào Cài đặt → Tài khoản ngân hàng để thêm thông tin nhận hoàn tiền.",
+                                type: "BANKING_INFO_MISSING",
+                                referenceId: appointment.AppointmentId
+                            );
+                        }
+                    }
 
                     // SignalR: Cập nhật UI ngay lập tức cho Manager
                     await _hubContext.Clients.Group($"User_{headUserId.Value}").SendAsync("AppointmentStatusUpdated", new

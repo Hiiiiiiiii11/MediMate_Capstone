@@ -25,6 +25,5 @@ namespace MediMateService.Services
         Task<ConsultationSessionDto> AttachPrescriptionAsync(Guid sessionId, Guid userId, AttachPrescriptionDto request);
 
         Task<bool> RequestEndSessionAsync(Guid sessionId, Guid userId);
-        Task<bool> RetryRecordingAsync(Guid sessionId, Guid userId);
     }
 }

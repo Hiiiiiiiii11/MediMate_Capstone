@@ -227,6 +227,8 @@ namespace MediMateService.DTOs
         public string DoctorName { get; set; } = string.Empty; // Tên bác sĩ kê đơn
         public Guid MemberId { get; set; }
         public string MemberName { get; set; } = string.Empty; // Tên bệnh nhân
+        public DateTime? MemberDateOfBirth { get; set; }        // Ngày sinh bệnh nhân
+        public string? MemberGender { get; set; }               // Giới tính bệnh nhân
         public string? Diagnosis { get; set; }
         public string? Advice { get; set; }
         public List<DigitalMedicineItemDto> Medicines { get; set; } = new(); // Danh sách thuốc (đã parse từ JSON)

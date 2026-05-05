@@ -149,17 +149,24 @@ namespace MediMate.Controllers
             return Ok(ApiResponse<bool>.Ok(true, "Đã gửi yêu cầu kết thúc đến bệnh nhân."));
         }
 
+
         // ─────────────────────────────────────────────────────────
-        // POST: Bác sĩ thử ghi hình lại nếu bị lỗi
+        // POST: Upload video từ Web/App lên Cloudinary
         // ─────────────────────────────────────────────────────────
-        [HttpPost("{sessionId}/retry-recording")]
-        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-        public async Task<IActionResult> RetryRecording(Guid sessionId)
+        [HttpPost("{sessionId}/upload-recording")]
+        [ProducesResponseType(typeof(ApiResponse<string>), 200)]
+        public async Task<IActionResult> UploadRecording(Guid sessionId, IFormFile file)
         {
-            var userId = _currentUserService.UserId;
-            var started = await _consultationService.RetryRecordingAsync(sessionId, userId);
-            if (started) return Ok(ApiResponse<bool>.Ok(true, "Đã gửi yêu cầu ghi hình lại thành công."));
-            return BadRequest(ApiResponse<bool>.Fail("Không thể ghi hình lại. Vui lòng kiểm tra cấu hình."));
+            if (file == null || file.Length == 0)
+                return BadRequest(ApiResponse<string>.Fail("File video không hợp lệ."));
+
+            using var stream = file.OpenReadStream();
+            var url = await _agoraRecordingService.UploadManualRecordingAsync(sessionId, stream);
+
+            if (string.IsNullOrEmpty(url))
+                return BadRequest(ApiResponse<string>.Fail("Không thể upload video. Vui lòng kiểm tra cấu hình Cloudinary."));
+
+            return Ok(ApiResponse<string>.Ok(url, "Upload video thành công."));
         }
     }
 }

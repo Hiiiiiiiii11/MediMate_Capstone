@@ -59,6 +59,13 @@ namespace MediMateService.Services.Implementations
                 // Cập nhật trạng thái của Reminder
                 reminder.Status = request.Status;
                 reminder.AcknowledgedAt = now;
+
+                // Lưu người đã xác nhận (nếu có truyền TakenByUserId)
+                if (request.TakenByUserId.HasValue)
+                    reminder.TakenByUserId = request.TakenByUserId.Value;
+                else
+                    reminder.TakenByUserId = currentUserId; // Mặc định là người đang đăng nhập
+
                 _unitOfWork.Repository<MedicationReminders>().Update(reminder);
 
                 // Tạo bản ghi Log
@@ -81,6 +88,16 @@ namespace MediMateService.Services.Implementations
 
                 await transaction.CommitAsync();
 
+                // Lookup tên người xác nhận
+                string takenByName = null;
+                var takenByUserId = reminder.TakenByUserId;
+                if (takenByUserId.HasValue)
+                {
+                    var takenByMember = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.UserId == takenByUserId.Value)).FirstOrDefault();
+                    takenByName = takenByMember?.FullName;
+                }
+
                 var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
                     .FindAsync(d => d.ScheduleId == schedule.ScheduleId 
                                      && d.StartDate.Date <= reminder.ReminderDate.Date 
@@ -97,8 +114,8 @@ namespace MediMateService.Services.Implementations
                     Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
                 }).ToList();
 
-                // Đã sửa cách gọi hàm Map (gọi như hàm bình thường)
-                var responseDto = MapToResponse(log, medicineName, member.FullName, medicinesList);
+                // Map response kèm thông tin người xác nhận
+                var responseDto = MapToResponse(log, medicineName, member.FullName, medicinesList, takenByUserId, takenByName);
 
                 // SignalR Update: Broadcast cho toàn gia đình
                 if (member.FamilyId.HasValue) 
@@ -324,8 +341,14 @@ namespace MediMateService.Services.Implementations
             return ApiResponse<FamilyAdherenceDashboard>.Ok(dashboard, "Lấy dashboard thành công.");
         }
 
-        // --- 4. HÀM MAP NỘI BỘ (Đã bỏ chữ "this") ---
-        private MedicationLogResponse MapToResponse(MedicationLogs log, string medicineName, string memberName = "", List<LogMedicineDetail> medicines = null)
+        // --- 4. HÀM MAP NỘI BỘ ---
+        private MedicationLogResponse MapToResponse(
+            MedicationLogs log,
+            string medicineName,
+            string memberName = "",
+            List<LogMedicineDetail> medicines = null,
+            Guid? takenByUserId = null,
+            string takenByName = null)
         {
             if (log == null) return null;
 
@@ -337,6 +360,8 @@ namespace MediMateService.Services.Implementations
                 ReminderId = log.ReminderId,
                 MedicineName = medicineName,
                 MemberName = memberName,
+                TakenByUserId = takenByUserId,
+                TakenByName = takenByName,
                 Medicines = medicines ?? new List<LogMedicineDetail>(),
                 LogDate = log.LogDate,
                 ScheduledTime = log.ScheduledTime,

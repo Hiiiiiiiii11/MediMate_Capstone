@@ -230,7 +230,10 @@ namespace MediMateService.DTOs
         public string? Diagnosis { get; set; }
         public string? Advice { get; set; }
         public List<DigitalMedicineItemDto> Medicines { get; set; } = new(); // Danh sách thuốc (đã parse từ JSON)
+        public string Status { get; set; } = "Active";
+        public bool IsLocked { get; set; } = false;
         public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     public class CreatePrescriptionByDoctorRequest
@@ -244,8 +247,9 @@ namespace MediMateService.DTOs
 
     public class UpdatePrescriptionByDoctorRequest
     {
-        public string Diagnosis { get; set; } = string.Empty;
-        public string Advice { get; set; } = string.Empty;
-        public List<DigitalMedicineItemDto> Medicines { get; set; } = new();
+        public string? Diagnosis { get; set; }
+        public string? Advice { get; set; }
+        public List<DigitalMedicineItemDto>? Medicines { get; set; }
+        public string? Status { get; set; }
     }
 }

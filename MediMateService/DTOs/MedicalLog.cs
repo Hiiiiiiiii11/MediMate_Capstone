@@ -19,6 +19,9 @@ namespace MediMateService.DTOs
         public DateTime? ActualTime { get; set; } // Nếu không gửi, mặc định lấy giờ Server
 
         public string? Notes { get; set; } // VD: "Uống thuốc hơi buồn nôn", "Quên mang thuốc đi làm"
+
+        // Người thực hiện xác nhận (có thể là chủ hộ xác nhận cho thành viên)
+        public Guid? TakenByUserId { get; set; }
     }
 
     public class LogMedicineDetail
@@ -38,8 +41,12 @@ namespace MediMateService.DTOs
 
         public List<LogMedicineDetail> Medicines { get; set; } = new();
 
-        // MỚI: Thêm trường này để hiển thị tên người uống trên UI
+        // Tên người uống thuốc (thành viên)
         public string MemberName { get; set; } = string.Empty;
+
+        // Thông tin người đã xác nhận uống (có thể là người khác trong gia đình)
+        public Guid? TakenByUserId { get; set; }
+        public string? TakenByName { get; set; }
 
         public DateTime LogDate { get; set; }
         public DateTime ScheduledTime { get; set; }

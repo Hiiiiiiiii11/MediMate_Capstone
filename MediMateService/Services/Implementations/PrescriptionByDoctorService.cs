@@ -161,13 +161,33 @@ namespace MediMateService.Services.Implementations
             if (prescription == null)
                 return ApiResponse<PrescriptionByDoctorDto>.Fail("Không tìm thấy đơn thuốc.", 404);
 
+            if (prescription.IsLocked)
+                return ApiResponse<PrescriptionByDoctorDto>.Fail("Đơn thuốc này đã bị khóa và không thể chỉnh sửa.", 400);
+
             // Chỉ bác sĩ kê đơn mới được sửa
             if (prescription.Doctor == null || prescription.Doctor.UserId != currentUserId)
                 return ApiResponse<PrescriptionByDoctorDto>.Fail("Bạn không có quyền sửa đơn thuốc này.", 403);
 
-            prescription.Diagnosis = request.Diagnosis;
-            prescription.Advice = request.Advice;
-            prescription.MedicinesList = JsonSerializer.Serialize(request.Medicines);
+            // Cập nhật từng trường nếu được truyền lên
+            if (request.Diagnosis != null)
+                prescription.Diagnosis = request.Diagnosis;
+                
+            if (request.Advice != null)
+                prescription.Advice = request.Advice;
+                
+            if (request.Medicines != null)
+                prescription.MedicinesList = JsonSerializer.Serialize(request.Medicines);
+
+            if (!string.IsNullOrEmpty(request.Status))
+            {
+                prescription.Status = request.Status;
+                if (request.Status == "Completed" || request.Status == "Cancelled")
+                {
+                    prescription.IsLocked = true;
+                }
+            }
+
+            prescription.UpdatedAt = DateTime.Now;
 
             _unitOfWork.Repository<PrescriptionsByDoctor>().Update(prescription);
             await _unitOfWork.CompleteAsync();
@@ -209,7 +229,10 @@ namespace MediMateService.Services.Implementations
                 Diagnosis = p.Diagnosis,
                 Advice = p.Advice,
                 Medicines = medicinesList,
-                CreatedAt = p.CreatedAt
+                Status = p.Status,
+                IsLocked = p.IsLocked,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
             };
         }
     }

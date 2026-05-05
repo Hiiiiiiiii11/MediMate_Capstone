@@ -3,6 +3,7 @@ using System;
 using MediMateRepository.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MediMateRepository.Migrations
 {
     [DbContext(typeof(MediMateDbContext))]
-    partial class MediMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260503030609_Addloguser")]
+    partial class Addloguser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1342,21 +1345,11 @@ namespace MediMateRepository.Migrations
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("IsLocked")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("MedicinesList")
                         .HasColumnType("text");
 
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
 
                     b.HasKey("DigitalPrescriptionId");
 

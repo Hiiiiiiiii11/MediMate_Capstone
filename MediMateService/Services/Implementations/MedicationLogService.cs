@@ -56,6 +56,11 @@ namespace MediMateService.Services.Implementations
 
                 var now = DateTime.Now;
 
+                // Fix timezone: convert UTC về Local nếu client gửi UTC
+                var localActualTime = (request.ActualTime.HasValue && request.ActualTime.Value.Kind == DateTimeKind.Utc)
+                    ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime.Value, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
+                    : request.ActualTime;
+
                 // Cập nhật trạng thái của Reminder
                 reminder.Status = request.Status;
                 reminder.AcknowledgedAt = now;
@@ -77,7 +82,7 @@ namespace MediMateService.Services.Implementations
                     ReminderId = reminder.ReminderId,
                     LogDate = reminder.ReminderDate,
                     ScheduledTime = reminder.ReminderDate.Date.Add(reminder.ReminderTime.TimeOfDay),
-                    ActualTime = request.ActualTime ?? now,
+                    ActualTime = localActualTime ?? now,
                     Status = request.Status,
                     Notes = request.Notes ?? string.Empty,
                     CreatedAt = now

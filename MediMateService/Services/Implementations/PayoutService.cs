@@ -167,8 +167,9 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
-            // Gửi Email thông báo cho Clinic Admin
-            if (clinic?.Admin?.Email != null)
+            // Gửi Email thông báo cho Clinic
+            var targetEmail = clinic?.Email ?? clinic?.Admin?.Email;
+            if (!string.IsNullOrEmpty(targetEmail))
             {
                 var subject = $"[MediMate] Thông báo Tất toán Công nợ - {now:dd/MM/yyyy}";
                 var emailBody = $@"
@@ -183,8 +184,8 @@ namespace MediMateService.Services.Implementations
                     <p>Trân trọng,<br>Đội ngũ MediMate</p>
                 ";
 
-                // Chạy background task để tránh block request API nếu mail server phản hồi chậm
-                _ = Task.Run(() => _emailService.SendEmailAsync(clinic.Admin.Email, subject, emailBody));
+                // Await trực tiếp để đảm bảo service không bị dispose trước khi chạy xong
+                await _emailService.SendEmailAsync(targetEmail, subject, emailBody);
             }
 
             return pendingPayouts.Count;

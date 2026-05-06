@@ -92,6 +92,11 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<MedicationReminders>().Update(reminder);
 
             // 3.2 Sinh ra Log lưu lịch sử
+            // Fix timezone: convert UTC về Local nếu client gửi UTC
+            var localActualTime = request.ActualTime.Kind == DateTimeKind.Utc
+                ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
+                : request.ActualTime;
+
             var log = new MedicationLogs
             {
                 LogId = Guid.NewGuid(),
@@ -100,7 +105,7 @@ namespace MediMateService.Services.Implementations
                 ReminderId = reminder.ReminderId,
                 LogDate = DateTime.Now.Date,
                 ScheduledTime = reminder.ReminderTime,
-                ActualTime = request.ActualTime,
+                ActualTime = localActualTime,
                 Status = request.Status,
                 Notes = request.Notes,
                 CreatedAt = DateTime.Now

@@ -285,7 +285,20 @@ namespace MediMateService.Services.Implementations
             var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
 
             // Quyền: Hoặc là chính MemberId đó, hoặc là chủ sở hữu (UserId) của Member đó
-            bool canMark = session.MemberId == userId || (patientMember != null && patientMember.UserId == userId);
+            bool canMark = false;
+            if (patientMember != null)
+            {
+                if (patientMember.UserId == userId || patientMember.MemberId == userId)
+                {
+                    canMark = true;
+                }
+                else if (patientMember.FamilyId.HasValue)
+                {
+                    canMark = await _unitOfWork.Repository<MediMateRepository.Model.Members>()
+                        .GetQueryable()
+                        .AnyAsync(m => m.FamilyId == patientMember.FamilyId && (m.UserId == userId || m.MemberId == userId));
+                }
+            }
 
             if (!canMark) throw new ForbiddenException("Bạn không có quyền thực hiện hành động này.");
 
@@ -307,11 +320,27 @@ namespace MediMateService.Services.Implementations
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
 
-            // Chỉ bệnh nhân mới được cancel no-show
+            // Chỉ bệnh nhân hoặc chủ hộ mới được cancel no-show
             var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
-            if (session.MemberId != userId)
+            bool canCancel = false;
+            
+            if (member != null)
             {
-                throw new ForbiddenException("Chỉ hồ sơ bệnh nhân trực tiếp mới được huỷ phiên do bác sĩ không đến.");
+                if (member.UserId == userId || member.MemberId == userId)
+                {
+                    canCancel = true;
+                }
+                else if (member.FamilyId.HasValue)
+                {
+                    canCancel = await _unitOfWork.Repository<MediMateRepository.Model.Members>()
+                        .GetQueryable()
+                        .AnyAsync(m => m.FamilyId == member.FamilyId && (m.UserId == userId || m.MemberId == userId));
+                }
+            }
+
+            if (!canCancel)
+            {
+                throw new ForbiddenException("Chỉ hồ sơ bệnh nhân trực tiếp hoặc chủ hộ gia đình mới được huỷ phiên do bác sĩ không đến.");
             }
 
             if (session.Status == ConsultationSessionConstants.ENDED)
@@ -381,7 +410,21 @@ namespace MediMateService.Services.Implementations
             bool isDoctor = doctor != null && doctor.UserId == userId;
 
             var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
-            bool isPatient = patientMember != null && patientMember.UserId == userId;
+            bool isPatient = false;
+            
+            if (patientMember != null)
+            {
+                if (patientMember.UserId == userId || patientMember.MemberId == userId)
+                {
+                    isPatient = true;
+                }
+                else if (patientMember.FamilyId.HasValue)
+                {
+                    isPatient = await _unitOfWork.Repository<MediMateRepository.Model.Members>()
+                        .GetQueryable()
+                        .AnyAsync(m => m.FamilyId == patientMember.FamilyId && (m.UserId == userId || m.MemberId == userId));
+                }
+            }
 
             if (!isDoctor && !isPatient)
             {

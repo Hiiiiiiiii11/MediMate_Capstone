@@ -124,9 +124,15 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────────────────────────
         public async Task<int> ProcessClinicPayoutAsync(Guid clinicId, ProcessPayoutDto dto)
         {
+            // Lấy Clinic riêng để tránh EF Core track duplicate qua Include
+            var clinic = await _unitOfWork.Repository<Clinics>()
+                .GetQueryable()
+                .Include(c => c.Admin)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ClinicId == clinicId);
+
+            // Lấy các payout đang chờ, KHÔNG include Clinic để tránh conflict tracking
             var pendingPayouts = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
-                .Include(p => p.Clinic)
-                .ThenInclude(c => c.Admin)
                 .Where(p => p.ClinicId == clinicId && p.Status == "ReadyToPay")
                 .ToListAsync();
 
@@ -148,7 +154,6 @@ namespace MediMateService.Services.Implementations
 
             var now = DateTime.Now;
             decimal totalAmount = 0;
-            var clinic = pendingPayouts.First().Clinic;
 
             foreach (var payout in pendingPayouts)
             {

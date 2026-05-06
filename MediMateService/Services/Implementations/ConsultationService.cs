@@ -168,11 +168,27 @@ namespace MediMateService.Services.Implementations
 
                 session.DoctorJoined = true;
             }
-            else if (normalizedRole == "user")
+            else if (normalizedRole == "user" || normalizedRole == "member")
             {
                 var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
-                if (member == null || member.UserId != userId)
-                    throw new ForbiddenException("Bạn không phải bệnh nhân của phiên này.");
+                bool isPatientOrHead = false;
+
+                if (member != null)
+                {
+                    if (member.UserId == userId || member.MemberId == userId)
+                    {
+                        isPatientOrHead = true;
+                    }
+                    else if (member.FamilyId.HasValue)
+                    {
+                        isPatientOrHead = await _unitOfWork.Repository<MediMateRepository.Model.Members>()
+                            .GetQueryable()
+                            .AnyAsync(m => m.FamilyId == member.FamilyId && (m.UserId == userId || m.MemberId == userId));
+                    }
+                }
+
+                if (!isPatientOrHead)
+                    throw new ForbiddenException("Bạn không có quyền tham gia phiên khám này.");
 
                 // Nếu là lần đầu tiên bệnh nhân join, và bác sĩ chưa có trong đó -> gửi thông báo
                 if (!session.UserJoined && !session.DoctorJoined)
@@ -194,7 +210,7 @@ namespace MediMateService.Services.Implementations
             }
             else
             {
-                throw new BadRequestException("Role phải là 'user' hoặc 'doctor'.");
+                throw new BadRequestException("Role phải là 'user', 'member' hoặc 'doctor'.");
             }
 
             // Event-driven: Tự động chuyển sang InProgress khi cả 2 bên đã join

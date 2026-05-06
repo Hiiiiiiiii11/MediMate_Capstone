@@ -46,6 +46,11 @@ namespace MediMateService.Services.Implementations
             if (filter.ClinicId.HasValue)
                 query = query.Where(p => p.ClinicId == filter.ClinicId.Value);
 
+            if (filter.DoctorId.HasValue)
+                query = query.Where(p =>
+                    (p.Appointment != null && p.Appointment.DoctorId == filter.DoctorId.Value) ||
+                    (p.ConsultationSession != null && p.ConsultationSession.DoctorId == filter.DoctorId.Value));
+
             if (!string.IsNullOrWhiteSpace(filter.Status))
                 query = query.Where(p => p.Status == filter.Status);
 

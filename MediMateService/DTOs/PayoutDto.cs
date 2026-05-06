@@ -49,6 +49,7 @@ namespace MediMateService.DTOs
     public class PayoutFilterDto
     {
         public Guid? ClinicId { get; set; }
+        public Guid? DoctorId { get; set; }   // Lọc theo bác sĩ (qua Appointment.DoctorId hoặc ConsultationSession.DoctorId)
         public string? Status { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 20;

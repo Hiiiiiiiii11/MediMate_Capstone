@@ -1,4 +1,6 @@
 using MediMate.Models.Clinics;
+ using MediMateRepository.Model;
+using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,10 +15,17 @@ namespace MediMate.Controllers
     public class PayoutController : ControllerBase
     {
         private readonly IPayoutService _payoutService;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public PayoutController(IPayoutService payoutService)
+        public PayoutController(
+            IPayoutService payoutService,
+            ICurrentUserService currentUserService,
+            IUnitOfWork unitOfWork)
         {
             _payoutService = payoutService;
+            _currentUserService = currentUserService;
+            _unitOfWork = unitOfWork;
         }
 
         /// <summary>
@@ -26,6 +35,18 @@ namespace MediMate.Controllers
         [ProducesResponseType(typeof(ApiResponse<PagedResult<PayoutItemDto>>), 200)]
         public async Task<IActionResult> GetPayouts([FromQuery] PayoutFilterDto filter)
         {
+            if (User.IsInRole("Doctor"))
+            {
+                var userId = _currentUserService.UserId;
+                var doctor = (await _unitOfWork.Repository<Doctors>()
+                    .FindAsync(d => d.UserId == userId)).FirstOrDefault();
+
+                if (doctor == null)
+                    return Unauthorized(ApiResponse<PagedResult<PayoutItemDto>>.Fail("Không tìm thấy thông tin bác sĩ."));
+
+                filter.DoctorId = doctor.DoctorId;
+            }
+
             var result = await _payoutService.GetPayoutsAsync(filter);
             return Ok(ApiResponse<PagedResult<PayoutItemDto>>.Ok(result, "Lấy danh sách công nợ thành công."));
         }

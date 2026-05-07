@@ -9,4 +9,10 @@ namespace Share.Constants
         public const string Active = "Active";
         public const string Rejected = "Rejected";
     }
+    public static class DoctorExceptionStatuses
+    {
+        public const string PENDING = "Pending";
+        public const string APPROVED = "Approved";
+        public const string REJECTED = "Rejected";
+    }
 }

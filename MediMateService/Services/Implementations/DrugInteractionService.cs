@@ -20,7 +20,10 @@ namespace MediMateService.Services.Implementations
         public async Task<DrugInteractionCheckResult> CheckInteractionAsync(Guid memberId, IEnumerable<string> newDrugNames)
         {
             var result = new DrugInteractionCheckResult();
-            var newDrugList = newDrugNames.Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            var newDrugList = newDrugNames
+    .Where(n => !string.IsNullOrWhiteSpace(n))
+    .Select(n => n.Trim()) // Thêm bước Trim() ở đây
+    .ToList();
 
             if (!newDrugList.Any())
                 return result;
@@ -40,6 +43,10 @@ namespace MediMateService.Services.Implementations
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            // Đưa thêm các thuốc mới vào mảng để check tương tác chéo (chính các thuốc mới mâu thuẫn với nhau)
+            currentDrugNames.AddRange(newDrugList);
+            currentDrugNames = currentDrugNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
             if (!currentDrugNames.Any())
                 return result;

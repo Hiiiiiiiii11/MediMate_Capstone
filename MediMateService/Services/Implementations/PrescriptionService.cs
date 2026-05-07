@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Share.Common;
 using Share.Constants;
 using Hangfire;
+using Microsoft.AspNetCore.SignalR;
+using MediMateService.Hubs;
 
 namespace MediMateService.Services.Implementations
 {
@@ -16,8 +18,9 @@ namespace MediMateService.Services.Implementations
         private readonly IActivityLogService _activityLogService;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IDrugInteractionService _drugInteractionService;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
-        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient, IDrugInteractionService drugInteractionService)
+        public PrescriptionService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IUploadPhotoService uploadPhotoService, IActivityLogService activityLogService, IBackgroundJobClient backgroundJobClient, IDrugInteractionService drugInteractionService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
@@ -25,6 +28,7 @@ namespace MediMateService.Services.Implementations
             _activityLogService = activityLogService;
             _backgroundJobClient = backgroundJobClient;
             _drugInteractionService = drugInteractionService;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<PrescriptionResponse>> CreatePrescriptionAsync(Guid memberId, Guid userId, CreatePrescriptionRequest request)
@@ -35,12 +39,15 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
             }
 
-            // 2. Map dữ liệu Header (Bảng Prescriptions)
+            // Khởi tạo ID trước để gán cho các bảng con một cách tường minh (tốt cho tracking)
+            var prescriptionId = Guid.NewGuid();
+
+            // 2. Khởi tạo đối tượng Prescription (Header)
             var prescription = new Prescriptions
             {
-                PrescriptionId = Guid.NewGuid(),
+                PrescriptionId = prescriptionId,
                 MemberId = memberId,
-                PrescriptionCode = request.PrescriptionCode,
+                PrescriptionCode = request.PrescriptionCode ?? $"PRE-{DateTime.Now:yyyyMMddHHmm}",
                 DoctorName = request.DoctorName,
                 HospitalName = request.HospitalName,
                 PrescriptionDate = request.PrescriptionDate,
@@ -48,39 +55,24 @@ namespace MediMateService.Services.Implementations
                 Diagnosis = request.Diagnosis,
                 Status = "Active",
                 CreateAt = DateTime.Now,
-                UpdateAt = DateTime.Now
+                UpdateAt = DateTime.Now,
+                // Đảm bảo các Collection không bị null (Mặc dù Model đã khởi tạo nhưng gán mới cho chắc chắn)
+                PrescriptionImages = new List<PrescriptionImages>(),
+                PrescriptionMedicines = new List<PrescriptionMedicines>()
             };
 
-            // 3. Map dữ liệu Images (Bảng PrescriptionImages)
-            //if (request.Images != null)
-            //{
-            //    foreach (var img in request.Images)
-            //    {
-            //        prescription.PrescriptionImages.Add(new PrescriptionImages
-            //        {
-            //            ImageId = Guid.NewGuid(),
-            //            PrescriptionId = prescription.PrescriptionId,
-            //            ImageUrl = img.ImageUrl,
-            //            OcrRawData = img.OcrRawData ?? "",
-            //            UploadedAt = DateTime.Now,
-            //            IsProcessed = true // Vì UI đã xử lý rồi mới gửi xuống
-            //        });
-            //    }
-            //}
-            if (request.Images != null)
+            // 3. Map dữ liệu Images vào Collection của đối tượng cha
+            if (request.Images != null && request.Images.Any())
             {
                 foreach (var img in request.Images)
                 {
                     prescription.PrescriptionImages.Add(new PrescriptionImages
                     {
                         ImageId = Guid.NewGuid(),
-                        PrescriptionId = prescription.PrescriptionId,
+                        PrescriptionId = prescriptionId, // Khóa ngoại liên kết
                         ImageUrl = img.ImageUrl,
-
-                        // Lấy Thumbnail từ Request (FE gửi xuống)
-                        // Nếu FE không gửi thì fallback bằng cách dùng ImageUrl
+                        // Logic Thumbnail: dùng thumbnail từ FE, nếu không có dùng Original
                         ThumbnailUrl = !string.IsNullOrEmpty(img.ThumbnailUrl) ? img.ThumbnailUrl : img.ImageUrl,
-
                         OcrRawData = img.OcrRawData ?? "",
                         UploadedAt = DateTime.Now,
                         IsProcessed = true
@@ -88,15 +80,15 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            // 4. Map dữ liệu Medicines (Bảng PrescriptionMedicines)
-            if (request.Medicines != null)
+            // 4. Map dữ liệu Medicines vào Collection của đối tượng cha
+            if (request.Medicines != null && request.Medicines.Any())
             {
                 foreach (var med in request.Medicines)
                 {
                     prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
                     {
                         PrescriptionMedicineId = Guid.NewGuid(),
-                        PrescriptionId = prescription.PrescriptionId,
+                        PrescriptionId = prescriptionId, // Khóa ngoại liên kết
                         MedicineName = med.MedicineName,
                         Dosage = med.Dosage ?? "",
                         Unit = med.Unit ?? "",
@@ -108,21 +100,24 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
-            // 5. Lưu vào DB (EF Core tự xử lý Transaction lưu cả 3 bảng)
+            // 5. Lưu vào Database (Chỉ cần Add đối tượng cha)
+            // EF Core sẽ tự động duyệt qua PrescriptionImages và PrescriptionMedicines để lưu
             await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
             await _unitOfWork.CompleteAsync();
 
-            // 6. Phân bổ thuốc vào các khung thời gian
+            // 6. Phân bổ thuốc vào các khung thời gian (Job Hangfire)
             foreach (var med in prescription.PrescriptionMedicines)
             {
                 await AutoDistributeMedicineAsync(memberId, med, prescription.PrescriptionDate);
             }
 
+            // 7. Ghi Log Activity & Phát SignalR
             var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
-            if (targetMember != null && targetMember.FamilyId.HasValue)
+            if (targetMember?.FamilyId.HasValue == true)
             {
                 var doer = (await _unitOfWork.Repository<Members>()
-.FindAsync(m => m.FamilyId == targetMember.FamilyId && (m.UserId == userId || m.MemberId == userId))).FirstOrDefault();
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId))
+                    .FirstOrDefault();
 
                 if (doer != null)
                 {
@@ -132,12 +127,23 @@ namespace MediMateService.Services.Implementations
                         actionType: ActivityActionTypes.CREATE,
                         entityName: ActivityEntityNames.PRESCIPTION,
                         entityId: prescription.PrescriptionId,
-                        description: $"Đã thêm đơn thuốc mới của Bác sĩ '{prescription.DoctorName}' cho '{targetMember.FullName}'."
+                        description: $"Đã thêm đơn thuốc mới kèm {prescription.PrescriptionImages.Count} ảnh cho '{targetMember.FullName}'."
                     );
                 }
+                
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
             }
 
-            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc thành công.");
+            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Lưu đơn thuốc và hình ảnh thành công.");
         }
 
         public async Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId)
@@ -185,11 +191,7 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<PrescriptionResponse>.Fail("Đơn thuốc không tồn tại.", 404);
             }
 
-            // 2. Kiểm tra quyền truy cập (Dùng service bạn đã có)
-            if (!await _currentUserService.CheckAccess(prescription.MemberId, userId))
-            {
-                return ApiResponse<PrescriptionResponse>.Fail("Bạn không có quyền chỉnh sửa đơn thuốc này.", 403);
-            }
+
 
             var oldData = new { prescription.DoctorName, prescription.HospitalName, prescription.Notes, prescription.Status };
             bool hasChanges = false;
@@ -257,6 +259,16 @@ namespace MediMateService.Services.Implementations
                     _unitOfWork.Repository<PrescriptionMedicines>().Remove(medToRemove);
                 }
 
+                // Flush tất cả xóa trước để tránh lỗi Optimistic Concurrency khi thêm mới
+                if (medicinesToRemove.Any())
+                {
+                    await _unitOfWork.CompleteAsync();
+                    // Reload lại prescription sau khi xóa để EF Core không bị stale state
+                    prescription = (await _unitOfWork.Repository<Prescriptions>()
+                        .FindAsync(p => p.PrescriptionId == prescriptionId, includeProperties: "PrescriptionMedicines,PrescriptionImages"))
+                        .FirstOrDefault()!;
+                }
+
                 // Bước C: Cập nhật thuốc cũ hoặc Thêm thuốc mới
                 foreach (var medDto in request.Medicines)
                 {
@@ -279,7 +291,7 @@ namespace MediMateService.Services.Implementations
                     else
                     {
                         // THÊM MỚI: Dành cho thuốc mới thêm tay hoặc từ OCR (ID là null)
-                        prescription.PrescriptionMedicines.Add(new PrescriptionMedicines
+                        var newMed = new PrescriptionMedicines
                         {
                             PrescriptionMedicineId = Guid.NewGuid(),
                             PrescriptionId = prescriptionId,
@@ -290,7 +302,9 @@ namespace MediMateService.Services.Implementations
                             Instructions = medDto.Instructions ?? "",
                             CreatedAt = DateTime.Now,
                             UpdatedAt = DateTime.Now
-                        });
+                        };
+                        // Thêm trực tiếp vào repository thay vì collection để tránh lỗi ownership
+                        await _unitOfWork.Repository<PrescriptionMedicines>().AddAsync(newMed);
                     }
                 }
             }
@@ -320,9 +334,9 @@ namespace MediMateService.Services.Implementations
             }
 
             // 7. Ghi nhật ký hoạt động (Activity Log)
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
             if (hasChanges)
             {
-                var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(prescription.MemberId);
                 if (targetMember?.FamilyId.HasValue == true)
                 {
                     var doer = (await _unitOfWork.Repository<Members>()
@@ -345,7 +359,95 @@ namespace MediMateService.Services.Implementations
                 }
             }
 
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "UPDATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "UPDATED" });
+            }
+
             return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Cập nhật đơn thuốc và lịch uống thuốc thành công.");
+        }
+
+
+        public async Task<ApiResponse<PrescriptionResponse>> CreateEmptyPrescriptionAsync(Guid memberId, Guid userId, CreateEmptyPrescriptionRequest request)
+        {
+            // 1. Kiểm tra quyền truy cập Member
+            if (!await _currentUserService.CheckAccess(memberId, userId))
+            {
+                return ApiResponse<PrescriptionResponse>.Fail("Không có quyền thêm đơn thuốc cho thành viên này.", 403);
+            }
+
+            // --- BỔ SUNG: Làm sạch dữ liệu đầu vào ---
+            // Loại bỏ khoảng trắng thừa và xử lý ký tự xuống dòng nếu cần
+            var cleanDiagnosis = request.Diagnosis?.Trim().Replace("\r", "").Replace("\n", " ");
+            var cleanNotes = request.Notes?.Trim();
+
+            // 2. Tạo thực thể Prescription mới
+            var prescription = new Prescriptions
+            {
+                PrescriptionId = Guid.NewGuid(),
+                MemberId = memberId,
+                PrescriptionCode = $"PRE-{DateTime.Now:yyyyMMddHHmm}",
+                DoctorName = request.DoctorName?.Trim() ?? "Đơn ngoài",
+                HospitalName = request.HospitalName?.Trim() ?? "Đơn ngoài",
+                PrescriptionDate = request.PrescriptionDate ?? DateTime.Now,
+                Diagnosis = cleanDiagnosis ?? "", // Dữ liệu sạch
+                Notes = cleanNotes ?? "",
+                Status = "Active",
+                CreateAt = DateTime.Now,
+                UpdateAt = DateTime.Now
+            };
+
+            // 3. Lưu vào Database
+            await _unitOfWork.Repository<Prescriptions>().AddAsync(prescription);
+            await _unitOfWork.CompleteAsync();
+
+            // 4. Ghi Activity Log (Giữ nguyên logic tìm doer của bạn - rất tốt)
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var doer = (await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId == userId))
+                    .FirstOrDefault();
+
+                if (doer != null)
+                {
+                    await _activityLogService.LogActivityAsync(
+                        familyId: targetMember.FamilyId.Value,
+                        memberId: doer.MemberId,
+                        actionType: ActivityActionTypes.CREATE,
+                        entityName: ActivityEntityNames.PRESCIPTION,
+                        entityId: prescription.PrescriptionId,
+                        description: $"Đã khởi tạo một đơn thuốc trống cho '{targetMember.FullName}'."
+                    );
+                }
+            }
+            
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "CREATED" });
+            }
+
+            return ApiResponse<PrescriptionResponse>.Ok(MapToResponse(prescription), "Đã khởi tạo đơn thuốc.");
         }
 
         // --- HÀM 2: XÓA ĐƠN THUỐC ---
@@ -385,6 +487,21 @@ namespace MediMateService.Services.Implementations
                         description: $"Đã xóa đơn thuốc của bác sĩ '{doctorName}' cấp cho '{targetMember.FullName}'."
                     );
                 }
+            }
+            
+            // Phát SignalR
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familyMembers = await _unitOfWork.Repository<Members>()
+                    .FindAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                foreach (var fm in familyMembers)
+                {
+                    await _hubContext.Clients.Group($"User_{fm.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "DELETED" });
+                }
+            }
+            else if (targetMember?.UserId != null)
+            {
+                await _hubContext.Clients.Group($"User_{targetMember.UserId.Value}").SendAsync("PrescriptionUpdated", new { action = "DELETED" });
             }
 
             return ApiResponse<bool>.Ok(true, "Đã xóa đơn thuốc.");
@@ -606,6 +723,7 @@ namespace MediMateService.Services.Implementations
             return new PrescriptionResponse
             {
                 PrescriptionId = p.PrescriptionId,
+                PrescriptionCode = p.PrescriptionCode,
                 MemberId = p.MemberId,
                 DoctorName = p.DoctorName,
                 HospitalName = p.HospitalName,
@@ -629,84 +747,76 @@ namespace MediMateService.Services.Implementations
         private async Task AutoDistributeMedicineAsync(Guid memberId, PrescriptionMedicines med, DateTime prescriptionDate)
         {
             var now = DateTime.Now.Date; // Lấy ngày thực tế lúc tạo/sửa trên app thay vì ngày ghi trên đơn thuốc
-
             var lowerInst = (med.Instructions ?? "").ToLower();
-            int totalSessions = 0;
+
+            // 1. Nhận diện các buổi cần uống
             bool hasMorning = lowerInst.Contains("sáng");
             bool hasNoon = lowerInst.Contains("trưa");
             bool hasAfternoon = lowerInst.Contains("chiều");
             bool hasEvening = lowerInst.Contains("tối");
+            bool has3Times = lowerInst.Contains("3 lần") || lowerInst.Contains("ba lần");
 
-            if (!hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
+            // Nếu ghi "3 lần" mà không rõ buổi -> Mặc định Sáng, Trưa, Tối
+            if (has3Times && !hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
+            {
+                hasMorning = hasNoon = hasEvening = true;
+            }
+            // Trường hợp mặc định nếu không bắt được từ khóa nào
+            else if (!hasMorning && !hasNoon && !hasAfternoon && !hasEvening)
             {
                 hasMorning = true;
                 if (med.Quantity > 1) hasEvening = true;
             }
 
-            if (hasMorning) totalSessions++;
-            if (hasNoon) totalSessions++;
-            if (hasAfternoon) totalSessions++;
-            if (hasEvening) totalSessions++;
-
-            double days = totalSessions > 0 ? (double)med.Quantity / totalSessions : 1;
+            // 2. Tính toán ngày kết thúc
+            int totalSessionsPerDay = (hasMorning ? 1 : 0) + (hasNoon ? 1 : 0) + (hasAfternoon ? 1 : 0) + (hasEvening ? 1 : 0);
+            double days = totalSessionsPerDay > 0 ? (double)med.Quantity / totalSessionsPerDay : 1;
             if (days < 1) days = 1;
 
             DateTime endDate = now.AddDays(Math.Ceiling(days) - 1);
             if (endDate < now) endDate = now;
 
+            // 3. Lấy các lịch hiện có của Member
             var existingSchedules = (await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId)).ToList();
+                .FindAsync(s => s.MemberId == memberId && s.IsActive)).ToList();
 
             var modifiedScheduleIds = new List<Guid>();
 
-            if (hasMorning)
+            // 4. HÀM CỤC BỘ: Xử lý tìm hoặc tạo lịch thông minh
+            async Task ProcessSession(bool isRequired, string sessionName, TimeSpan defaultTime, int startH, int endH)
             {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("sáng"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi sáng", new TimeSpan(8, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "sáng", med.Dosage);
+                if (!isRequired) return;
+
+                // Tìm lịch có TÊN chứa chữ Sáng/Trưa... HOẶC GIỜ nằm trong khung quy định
+                var schedule = existingSchedules.FirstOrDefault(s =>
+                    (s.ScheduleName ?? "").ToLower().Contains(sessionName.ToLower()) ||
+                    (s.TimeOfDay.Hours >= startH && s.TimeOfDay.Hours < endH));
+
+                // Nếu không tìm thấy, hệ thống tự tạo lịch mặc định (8h, 12h, 16h, 20h)
+                if (schedule == null)
+                {
+                    schedule = await CreateDefaultSchedule(memberId, $"Buổi {sessionName.ToLower()}", defaultTime);
+                    existingSchedules.Add(schedule);
+                }
+
+                string specificDosage = ExtractDosageForSession(med.Instructions, sessionName.ToLower(), med.Dosage);
                 await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
+
+                if (!modifiedScheduleIds.Contains(schedule.ScheduleId))
+                {
+                    modifiedScheduleIds.Add(schedule.ScheduleId);
+                }
             }
 
-            if (hasNoon)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("trưa"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi trưa", new TimeSpan(12, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "trưa", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
-
-            if (hasAfternoon)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("chiều"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi chiều", new TimeSpan(14, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "chiều", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
-
-            if (hasEvening)
-            {
-                var schedule = existingSchedules.FirstOrDefault(s => (s.ScheduleName ?? "").ToLower().Contains("tối"))
-                    ?? await CreateDefaultSchedule(memberId, "Buổi tối", new TimeSpan(20, 0, 0));
-                
-                string specificDosage = ExtractDosageForSession(med.Instructions, "tối", med.Dosage);
-                await AddDetailAsync(schedule.ScheduleId, med, now, endDate, specificDosage);
-                modifiedScheduleIds.Add(schedule.ScheduleId);
-                if (!existingSchedules.Any(s => s.ScheduleId == schedule.ScheduleId)) existingSchedules.Add(schedule);
-            }
+            // 5. Áp dụng cho từng buổi với khung giờ tương ứng
+            await ProcessSession(hasMorning, "sáng", new TimeSpan(8, 0, 0), 6, 11);
+            await ProcessSession(hasNoon, "trưa", new TimeSpan(12, 0, 0), 11, 15);
+            await ProcessSession(hasAfternoon, "chiều", new TimeSpan(16, 0, 0), 15, 18);
+            await ProcessSession(hasEvening, "tối", new TimeSpan(20, 0, 0), 18, 24);
 
             await _unitOfWork.CompleteAsync();
 
-            // ─── XÓA Reminders Pending cũ của các schedule bị ảnh hưởng ───
-            // Để tránh trùng lặp sau khi đổi số lượng/hướng dẫn thuốc
+            // 6. ─── XÓA Reminders Pending cũ của các schedule bị ảnh hưởng ───
             var staleReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId)
                                 && r.Status == "Pending"
@@ -717,7 +827,7 @@ namespace MediMateService.Services.Implementations
                 await _unitOfWork.CompleteAsync();
             }
 
-            // ─── TẠO reminders mới theo lịch mới ───
+            // 7. ─── TẠO reminders mới theo lịch mới ───
             var existingReminders = await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => modifiedScheduleIds.Contains(r.ScheduleId) && r.ReminderDate >= now && r.ReminderDate <= endDate);
 
@@ -726,7 +836,7 @@ namespace MediMateService.Services.Implementations
             foreach (var sId in modifiedScheduleIds)
             {
                 var schedule = await _unitOfWork.Repository<MedicationSchedules>().GetByIdAsync(sId);
-                
+
                 for (var date = now.Date; date <= endDate.Date; date = date.AddDays(1))
                 {
                     var reminderTime = date.Add(schedule.TimeOfDay);
@@ -754,10 +864,31 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
+            // 8. ─── LÊN LỊCH HANGFIRE CHO NHẮC NHỞ MỚI ───
+            // Lấy setting để biết cần báo trước bao nhiêu phút
+            int advanceMinutes = 15;
+            var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId);
+            if (targetMember?.FamilyId.HasValue == true)
+            {
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+                if (familySetting != null) advanceMinutes = familySetting.ReminderAdvanceMinutes;
+            }
+
             foreach (var reminder in newReminders)
             {
+                // Job 1: Báo trước AdvanceMinutes (ví dụ trước 15 phút)
+                var pushTime = reminder.ReminderTime.AddMinutes(-advanceMinutes);
+                if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.CheckAndNotifyOverdueReminder(reminder.ReminderId),
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
+                    new DateTimeOffset(pushTime)
+                );
+
+                // Job 2: Đánh dấu Missed và báo cho gia đình tại EndTime (hết hạn 2 tiếng)
+                _backgroundJobClient.Schedule<IReminderJobService>(
+                    job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
                     new DateTimeOffset(reminder.EndTime)
                 );
             }

@@ -74,7 +74,6 @@ namespace MediMateService.Services.Implementations
                     Status = "Active",
                     AutoRenew = false,
                     RemainingOcrCount = freemiumPackage.OcrLimit,
-                    RemainingConsultantCount = freemiumPackage.ConsultantLimit
                 };
                 await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(subscription);
             }
@@ -147,7 +146,6 @@ namespace MediMateService.Services.Implementations
                     Status = "Active",
                     AutoRenew = false,
                     RemainingOcrCount = freemiumPackage.OcrLimit,
-                    RemainingConsultantCount = freemiumPackage.ConsultantLimit
                 };
                 await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(subscription);
             }
@@ -335,8 +333,32 @@ namespace MediMateService.Services.Implementations
                 return ApiResponse<bool>.Fail("Chỉ chủ gia đình mới được xóa.", 403);
             }
 
+            // ═══════════════════════════════════════════════════════════
+            // [PHASE 4] RÀNG BUỘC: KIỂM TRA LỊCH HẸN ĐANG CHỜ TRƯỚC KHI XÓA
+            // Nếu bất kỳ thành viên nào trong gia đình còn lịch Pending/Approved,
+            // chặn thao tác xóa để tránh mất dữ liệu thanh toán.
+            // ═══════════════════════════════════════════════════════════
+            var memberIds = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId))
+                .Select(m => m.MemberId)
+                .ToList();
+
+            if (memberIds.Any())
+            {
+                var hasActiveAppointments = (await _unitOfWork.Repository<Appointments>()
+                    .FindAsync(a => memberIds.Contains(a.MemberId)
+                                && (a.Status == "Pending" || a.Status == "Approved")))
+                    .Any();
+
+                if (hasActiveAppointments)
+                {
+                    return ApiResponse<bool>.Fail(
+                        "Không thể giải tán gia đình khi có thành viên còn lịch khám đang chờ (Pending/Approved). " +
+                        "Vui lòng hủy tất cả lịch hẹn trước.", 409);
+                }
+            }
+
             // Soft Delete: Xóa Family thì giải phóng tất cả thành viên (Set FamilyId = null)
-            // Hoặc xóa hẳn bản ghi tùy nghiệp vụ của bạn. Ở đây tôi chọn giải phóng thành viên.
             var members = await _unitOfWork.Repository<Members>().FindAsync(m => m.FamilyId == familyId);
             foreach (var member in members)
             {
@@ -388,9 +410,8 @@ namespace MediMateService.Services.Implementations
                 EndDate = subscription.EndDate,
                 Status = subscription.Status,
                 RemainingOcrCount = subscription.RemainingOcrCount,
-                RemainingConsultantCount = subscription.RemainingConsultantCount,
                 OcrLimit = package.OcrLimit,
-                ConsultantLimit = package.ConsultantLimit
+
             };
 
             return ApiResponse<FamilySubscriptionResponse>.Ok(response, "Lấy thông tin gói đăng ký thành công.");
@@ -435,7 +456,6 @@ namespace MediMateService.Services.Implementations
                     EndDate = fs.EndDate,
                     Status = fs.Status,
                     RemainingOcrCount = fs.RemainingOcrCount,
-                    RemainingConsultantCount = fs.RemainingConsultantCount,
                     Price = fs.Package.Price,
                     UserName = fs.User.FullName ?? "N/A",
                     UserEmail = fs.User.Email

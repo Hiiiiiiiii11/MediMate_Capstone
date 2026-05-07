@@ -56,9 +56,21 @@ namespace MediMateService.Services.Implementations
 
                 var now = DateTime.Now;
 
+                // Fix timezone: convert UTC về Local nếu client gửi UTC
+                var localActualTime = (request.ActualTime.HasValue && request.ActualTime.Value.Kind == DateTimeKind.Utc)
+                    ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime.Value, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
+                    : request.ActualTime;
+
                 // Cập nhật trạng thái của Reminder
                 reminder.Status = request.Status;
                 reminder.AcknowledgedAt = now;
+
+                // Lưu người đã xác nhận (nếu có truyền TakenByUserId)
+                if (request.TakenByUserId.HasValue)
+                    reminder.TakenByUserId = request.TakenByUserId.Value;
+                else
+                    reminder.TakenByUserId = currentUserId; // Mặc định là người đang đăng nhập
+
                 _unitOfWork.Repository<MedicationReminders>().Update(reminder);
 
                 // Tạo bản ghi Log
@@ -70,7 +82,7 @@ namespace MediMateService.Services.Implementations
                     ReminderId = reminder.ReminderId,
                     LogDate = reminder.ReminderDate,
                     ScheduledTime = reminder.ReminderDate.Date.Add(reminder.ReminderTime.TimeOfDay),
-                    ActualTime = request.ActualTime ?? now,
+                    ActualTime = localActualTime ?? now,
                     Status = request.Status,
                     Notes = request.Notes ?? string.Empty,
                     CreatedAt = now
@@ -81,6 +93,16 @@ namespace MediMateService.Services.Implementations
 
                 await transaction.CommitAsync();
 
+                // Lookup tên người xác nhận
+                string takenByName = null;
+                var takenByUserId = reminder.TakenByUserId;
+                if (takenByUserId.HasValue)
+                {
+                    var takenByMember = (await _unitOfWork.Repository<Members>()
+                        .FindAsync(m => m.UserId == takenByUserId.Value)).FirstOrDefault();
+                    takenByName = takenByMember?.FullName;
+                }
+
                 var scheduleDetails = await _unitOfWork.Repository<MedicationScheduleDetails>()
                     .FindAsync(d => d.ScheduleId == schedule.ScheduleId 
                                      && d.StartDate.Date <= reminder.ReminderDate.Date 
@@ -90,8 +112,15 @@ namespace MediMateService.Services.Implementations
                     ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
                     : "Thuốc theo lịch";
 
-                // Đã sửa cách gọi hàm Map (gọi như hàm bình thường)
-                var responseDto = MapToResponse(log, medicineName);
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
+
+                // Map response kèm thông tin người xác nhận
+                var responseDto = MapToResponse(log, medicineName, member.FullName, medicinesList, takenByUserId, takenByName);
 
                 // SignalR Update: Broadcast cho toàn gia đình
                 if (member.FamilyId.HasValue) 
@@ -147,8 +176,15 @@ namespace MediMateService.Services.Implementations
                     ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
                     : "Không xác định";
 
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
+
                 // Đã sửa cách gọi hàm Map
-                responseList.Add(MapToResponse(log, medicineName));
+                responseList.Add(MapToResponse(log, medicineName, "", medicinesList));
             }
 
             return ApiResponse<IEnumerable<MedicationLogResponse>>.Ok(responseList);
@@ -226,22 +262,98 @@ namespace MediMateService.Services.Implementations
                                      && d.StartDate.Date <= log.LogDate.Date
                                      && d.EndDate.Date >= log.LogDate.Date,
                            includeProperties: "PrescriptionMedicine");
-                string medicineName = scheduleDetails.Any() 
-                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc")) 
+                string medicineName = scheduleDetails.Any()
+                    ? string.Join(", ", scheduleDetails.Select(d => d.PrescriptionMedicine?.MedicineName ?? "Thuốc"))
                     : "Không xác định";
+
+                var medicinesList = scheduleDetails.Select(d => new LogMedicineDetail
+                {
+                    MedicineName = d.PrescriptionMedicine?.MedicineName ?? "Thuốc",
+                    Dosage = d.Dosage ?? string.Empty,
+                    Instructions = d.PrescriptionMedicine?.Instructions ?? string.Empty
+                }).ToList();
 
                 // Lấy tên thành viên từ Dictionary đã tạo ở trên
                 string memberName = memberDict.ContainsKey(log.MemberId) ? memberDict[log.MemberId] : "Không xác định";
 
                 // Sử dụng hàm Map đã cập nhật
-                responseList.Add(MapToResponse(log, medicineName, memberName));
+                responseList.Add(MapToResponse(log, medicineName, memberName, medicinesList));
             }
 
             return ApiResponse<IEnumerable<MedicationLogResponse>>.Ok(responseList, "Lấy danh sách thành công.");
         }
 
-        // --- 4. HÀM MAP NỘI BỘ (Đã bỏ chữ "this") ---
-        private MedicationLogResponse MapToResponse(MedicationLogs log, string medicineName,string memberName = "")
+        public async Task<ApiResponse<FamilyAdherenceDashboard>> GetFamilyAdherenceDashboardAsync(Guid familyId, Guid currentUserId, DateTime? startDate, DateTime? endDate)
+        {
+            // 1. Kiểm tra quyền truy cập gia đình
+            var requester = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId && m.UserId == currentUserId)).FirstOrDefault();
+
+            if (requester == null)
+            {
+                return ApiResponse<FamilyAdherenceDashboard>.Fail("Bạn không có quyền xem dữ liệu của gia đình này.", 403);
+            }
+
+            // 2. Lấy toàn bộ thành viên trong gia đình
+            var familyMembers = (await _unitOfWork.Repository<Members>()
+                .FindAsync(m => m.FamilyId == familyId)).ToList();
+
+            var memberIds = familyMembers.Select(m => m.MemberId).ToList();
+
+            // 3. Lấy Logs trong khoảng thời gian (Mặc định 30 ngày gần nhất nếu không truyền)
+            var start = startDate?.Date ?? DateTime.Now.AddDays(-30).Date;
+            var end = endDate?.Date ?? DateTime.Now.Date;
+
+            var allLogs = (await _unitOfWork.Repository<MedicationLogs>()
+                .FindAsync(l => memberIds.Contains(l.MemberId) && l.LogDate >= start && l.LogDate <= end)).ToList();
+
+            // 4. Khởi tạo Dashboard
+            var dashboard = new FamilyAdherenceDashboard
+            {
+                FamilyId = familyId,
+                TotalScheduled = allLogs.Count
+            };
+
+            // 5. Tính toán cho từng thành viên
+            foreach (var member in familyMembers)
+            {
+                var memberLogs = allLogs.Where(l => l.MemberId == member.MemberId).ToList();
+                int total = memberLogs.Count;
+                int taken = memberLogs.Count(l => l.Status == "Taken");
+                int skipped = memberLogs.Count(l => l.Status == "Skipped");
+                int missed = memberLogs.Count(l => l.Status == "Missed");
+
+                dashboard.MemberStats.Add(new MemberAdherenceStats
+                {
+                    MemberId = member.MemberId,
+                    MemberName = member.FullName,
+                    AvatarUrl = member.AvatarUrl ?? "",
+                    Taken = taken,
+                    Missed = missed,
+                    Skipped = skipped,
+                    AdherenceRate = total > 0 ? Math.Round((double)taken / total * 100, 2) : 0
+                });
+            }
+
+            // 6. Tính toán tổng quan cả gia đình
+            dashboard.TotalTaken = allLogs.Count(l => l.Status == "Taken");
+            dashboard.TotalSkipped = allLogs.Count(l => l.Status == "Skipped");
+            dashboard.TotalMissed = allLogs.Count(l => l.Status == "Missed");
+            dashboard.OverallAdherenceRate = dashboard.TotalScheduled > 0
+                ? Math.Round((double)dashboard.TotalTaken / dashboard.TotalScheduled * 100, 2)
+                : 0;
+
+            return ApiResponse<FamilyAdherenceDashboard>.Ok(dashboard, "Lấy dashboard thành công.");
+        }
+
+        // --- 4. HÀM MAP NỘI BỘ ---
+        private MedicationLogResponse MapToResponse(
+            MedicationLogs log,
+            string medicineName,
+            string memberName = "",
+            List<LogMedicineDetail> medicines = null,
+            Guid? takenByUserId = null,
+            string takenByName = null)
         {
             if (log == null) return null;
 
@@ -253,6 +365,9 @@ namespace MediMateService.Services.Implementations
                 ReminderId = log.ReminderId,
                 MedicineName = medicineName,
                 MemberName = memberName,
+                TakenByUserId = takenByUserId,
+                TakenByName = takenByName,
+                Medicines = medicines ?? new List<LogMedicineDetail>(),
                 LogDate = log.LogDate,
                 ScheduledTime = log.ScheduledTime,
                 ActualTime = log.ActualTime,

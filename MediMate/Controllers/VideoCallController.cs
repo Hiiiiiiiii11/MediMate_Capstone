@@ -36,23 +36,6 @@ namespace MediMate.Controllers
             return Ok(result);
         }
 
-        /// <summary>
-        /// Người giám hộ (Guardian/Owner) tham gia cuộc gọi khám bệnh của dependent member.
-        /// Chỉ cho phép nếu session.GuardianUserId == currentUserId.
-        /// </summary>
-        [HttpPost("sessions/{sessionId}/guardian/join")]
-        [ProducesResponseType(typeof(ApiResponse<GuardianJoinResponse>), 200)]
-        public async Task<IActionResult> GuardianJoin(Guid sessionId)
-        {
-            // Lấy ID trực tiếp (Vì _currentUserService.UserId đã là kiểu Guid)
-            Guid guardianUserId = _currentUserService.UserId;
 
-            if (guardianUserId == Guid.Empty)
-                return Unauthorized(ApiResponse<GuardianJoinResponse>.Fail("Không xác định được user.", 401));
-
-            var result = await _agoraService.GenerateGuardianTokenAsync(sessionId, guardianUserId);
-            if (!result.Success) return StatusCode(result.Code, result);
-            return Ok(result);
-        }
     }
 }

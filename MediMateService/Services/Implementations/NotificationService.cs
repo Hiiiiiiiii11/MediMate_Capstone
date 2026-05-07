@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.SignalR;
 using MediMateService.Hubs;
+using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace MediMateService.Services.Implementations
 {
@@ -52,6 +54,7 @@ namespace MediMateService.Services.Implementations
                 // 2. BẮN PUSH NOTIFICATION XUỐNG THIẾT BỊ QUA FIREBASE
                 // ==========================================
                 string? targetFcmToken = null;
+                Guid? signalRTargetUserId = userId;
 
                 if (userId.HasValue)
                 {
@@ -62,6 +65,20 @@ namespace MediMateService.Services.Implementations
                 {
                     var targetMember = await _unitOfWork.Repository<Members>().GetByIdAsync(memberId.Value);
                     targetFcmToken = targetMember?.FcmToken;
+
+                    // [LỖI FIX]: Nếu Member không có FcmToken (thành viên phụ, không có dt riêng), tìm Token của chủ hộ
+                    if (string.IsNullOrEmpty(targetFcmToken) && targetMember?.FamilyId != null)
+                    {
+                        var headMember = await _unitOfWork.Repository<Members>().GetQueryable()
+                            .FirstOrDefaultAsync(m => m.FamilyId == targetMember.FamilyId && m.UserId != null);
+                        
+                        if (headMember?.UserId != null)
+                        {
+                            var headUser = await _unitOfWork.Repository<User>().GetByIdAsync(headMember.UserId.Value);
+                            targetFcmToken = headUser?.FcmToken;
+                            signalRTargetUserId = headMember.UserId.Value;
+                        }
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(targetFcmToken))
@@ -76,13 +93,15 @@ namespace MediMateService.Services.Implementations
                 }
 
                 // SignalR Push Update
-                if (userId.HasValue)
+                if (signalRTargetUserId.HasValue)
                 {
-                    await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
+                    await _hubContext.Clients.Group($"User_{signalRTargetUserId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
                 }
+                
+                // Vẫn push event vào phòng của memberId nhánh phụ mặc dù member ko có thiết bị riêng, phòng khi login ở đâu đó
                 if (memberId.HasValue)
                 {
-                    await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
+                    await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotification", new { title, message, type, referenceId, createdAt = DateTime.Now });
                 }
 
                 return ApiResponse<bool>.Ok(true, "Gửi thông báo thành công.");
@@ -92,6 +111,27 @@ namespace MediMateService.Services.Implementations
                 // Ghi log lỗi nếu muốn
                 return ApiResponse<bool>.Fail($"Lỗi khi gửi thông báo: {ex.Message}", 500);
             }
+        }
+
+        public async Task<ApiResponse<bool>> SendNotificationToUserAsync(Guid userId, string title, string message, string type, Guid? referenceId = null)
+        {
+            return await SendNotificationAsync(userId, title, message, type, referenceId);
+        }
+
+        public async Task<ApiResponse<bool>> SendNotificationToRoleAsync(string roleName, string title, string message, string type, Guid? referenceId = null)
+        {
+            var usersInRole = await _unitOfWork.Repository<User>().GetQueryable()
+                .Where(u => u.Role == roleName && u.IsActive)
+                .ToListAsync();
+
+            if (!usersInRole.Any()) return ApiResponse<bool>.Ok(false, $"Không có người dùng nào thuộc nhóm {roleName}.");
+
+            foreach (var user in usersInRole)
+            {
+                await SendNotificationAsync(user.UserId, title, message, type, referenceId);
+            }
+
+            return ApiResponse<bool>.Ok(true, $"Đã gửi thông báo cho {usersInRole.Count} người dùng thuộc nhóm {roleName}.");
         }
 
         public async Task<ApiResponse<IEnumerable<NotificationDto>>> GetUserNotificationsAsync(Guid? userId = null, Guid? memberId = null)
@@ -139,7 +179,7 @@ namespace MediMateService.Services.Implementations
 
                 // SignalR Push Update
                 if (userId.HasValue) await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotificationUpdate");
-                if (memberId.HasValue) await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
+                if (memberId.HasValue) await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc.");
@@ -165,7 +205,7 @@ namespace MediMateService.Services.Implementations
 
                 // SignalR Push Update
                 if (userId.HasValue) await _hubContext.Clients.Group($"User_{userId.Value}").SendAsync("ReceiveNotificationUpdate");
-                if (memberId.HasValue) await _hubContext.Clients.Group($"Member_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
+                if (memberId.HasValue) await _hubContext.Clients.Group($"User_{memberId.Value}").SendAsync("ReceiveNotificationUpdate");
             }
 
             return ApiResponse<bool>.Ok(true, "Đã đánh dấu đọc tất cả.");

@@ -20,6 +20,7 @@ namespace MediMateRepository.Model
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         public virtual Members Member { get; set; }
+
         // 1 Lịch cố định chứa nhiều loại thuốc
         public virtual ICollection<MedicationScheduleDetails> ScheduleDetails { get; set; } = new List<MedicationScheduleDetails>();
         public virtual ICollection<MedicationReminders> MedicationReminders { get; set; } = new List<MedicationReminders>();

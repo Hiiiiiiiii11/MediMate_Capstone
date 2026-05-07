@@ -1,4 +1,4 @@
-﻿using CloudinaryDotNet;
+using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using MediMateService.DTOs;
 using Microsoft.AspNetCore.Http;
@@ -38,7 +38,7 @@ namespace MediMateService.Services.Implementations
             // 2. Tạo link Thumbnail (resize 200x200)
             var thumbnailUrl = _cloudinary.Api.UrlImgUp
                 .Transform(new Transformation()
-                    .Width(200).Height(200).Crop("fill").Gravity("auto")
+                    .Width(600).Height(600).Crop("fill").Gravity("auto")
                     .Quality("auto").FetchFormat("auto"))
                 .BuildUrl(uploadResult.PublicId);
 
@@ -77,7 +77,7 @@ namespace MediMateService.Services.Implementations
             // Cấu hình: Rộng 200, Cao 200, Cắt vừa khít (fill), Tự động nén (q_auto)
             var thumbnailUrl = _cloudinary.Api.UrlImgUp
                 .Transform(new Transformation()
-                    .Width(200).Height(200).Crop("fill").Gravity("auto")
+                    .Width(600).Height(600).Crop("fill").Gravity("auto")
                     .Quality("auto").FetchFormat("auto"))
                 .BuildUrl(uploadResult.PublicId);
 
@@ -115,6 +115,29 @@ namespace MediMateService.Services.Implementations
 
             // Chỉ cần trả về link URL tuyệt đối (SecureUrl)
             return uploadResult.SecureUrl.AbsoluteUri;
+        }
+
+        public async Task<string?> UploadVideoFromStreamAsync(Stream videoStream, string publicId, string folder = "consultation_recordings")
+        {
+            if (videoStream == null || videoStream.Length == 0)
+                throw new ArgumentException("Video stream không được rỗng.");
+
+            var uploadParams = new VideoUploadParams
+            {
+                File = new FileDescription($"{publicId}.mp4", videoStream),
+                Folder = folder,
+                PublicId = publicId,
+                Overwrite = true,
+                // "private" yêu cầu signed URL khi truy cập — bảo vệ quyền riêng tư
+                Type = "private"
+            };
+
+            var result = await _cloudinary.UploadAsync(uploadParams);
+
+            if (result.Error != null)
+                throw new Exception($"Cloudinary video upload lỗi: {result.Error.Message}");
+
+            return result.SecureUrl.AbsoluteUri;
         }
     }
 }

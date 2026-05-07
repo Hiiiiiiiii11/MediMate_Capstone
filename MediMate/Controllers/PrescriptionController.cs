@@ -23,11 +23,29 @@ public class PrescriptionController : ControllerBase
     [HttpPost("member/{memberId}")]
     [ProducesResponseType(typeof(ApiResponse<PrescriptionResponse>), 201)]
     public async Task<IActionResult> CreatePrescription(Guid memberId, [FromBody] CreatePrescriptionRequest request)
-        {
+    {
         try
         {
             var userId = _currentUserService.UserId;
             var result = await _prescriptionService.CreatePrescriptionAsync(memberId, userId, request);
+
+            if (!result.Success) return StatusCode(result.Code, result);
+            return StatusCode(201, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+
+    [HttpPost("member/{memberId}/empty")]
+    [ProducesResponseType(typeof(ApiResponse<PrescriptionResponse>), 201)]
+    public async Task<IActionResult> CreateEmptyPrescription(Guid memberId, [FromBody] CreateEmptyPrescriptionRequest request)
+    {
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _prescriptionService.CreateEmptyPrescriptionAsync(memberId, userId, request);
 
             if (!result.Success) return StatusCode(result.Code, result);
             return StatusCode(201, result);

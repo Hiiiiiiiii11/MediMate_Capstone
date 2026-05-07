@@ -116,5 +116,25 @@ namespace MediMate.Controllers
                 return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
             }
         }
+
+        [Authorize]
+        [HttpGet("family/{familyId}/dashboard")]
+        [ProducesResponseType(typeof(ApiResponse<FamilyAdherenceDashboard>), 200)]
+        public async Task<IActionResult> GetFamilyAdherenceDashboard(Guid familyId, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+        {
+            try
+            {
+                var userId = _currentUserService.UserId;
+                var result = await _medicationLogService.GetFamilyAdherenceDashboardAsync(familyId, userId, startDate, endDate);
+
+                if (!result.Success) return StatusCode(result.Code, result);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
     }
 }

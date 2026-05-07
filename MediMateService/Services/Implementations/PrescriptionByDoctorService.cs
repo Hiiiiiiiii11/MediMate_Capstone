@@ -1,4 +1,4 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using Share.Common;
@@ -53,14 +53,66 @@ namespace MediMateService.Services.Implementations
             };
 
             await _unitOfWork.Repository<PrescriptionsByDoctor>().AddAsync(prescription);
-
-            // Tùy chọn: Có thể tự động kết thúc (End) Session luôn nếu bác sĩ kê đơn xong
-            // session.Status = "Ended";
-            // _unitOfWork.Repository<ConsultationSessions>().Update(session);
-
             await _unitOfWork.CompleteAsync();
 
-            return ApiResponse<PrescriptionByDoctorDto>.Ok(MapToDto(prescription), "Kê đơn thuốc thành công.");
+            // ═══════════════════════════════════════════════════════════
+            // [PHASE 4] TỰ ĐỘNG GỬI TIN NHẮN HỆ THỐNG VÀO CHAT
+            // Sau khi kê đơn, sinh System Message vào khung chat của phiên
+            // ═══════════════════════════════════════════════════════════
+            try
+            {
+                var member = await _unitOfWork.Repository<Members>().GetByIdAsync(request.MemberId);
+                // Tái sử dụng biến doctor đã có từ validation phía trên
+
+                // Xây dựng nội dung tin nhắn dạng text đầy đủ
+                var medicineLines = new System.Text.StringBuilder();
+                var medicines = new List<DigitalMedicineItemDto>();
+                try { medicines = System.Text.Json.JsonSerializer.Deserialize<List<DigitalMedicineItemDto>>(medicinesJson) ?? new(); } catch { }
+
+                for (int i = 0; i < medicines.Count; i++)
+                {
+                    var m = medicines[i];
+                    medicineLines.AppendLine($"  {i + 1}. {m.MedicineName} ({m.Dosage}) - {m.Quantity} {m.Unit}");
+                    if (!string.IsNullOrWhiteSpace(m.Instructions))
+                        medicineLines.AppendLine($"     → {m.Instructions}");
+                }
+
+                var messageContent = $"""
+📋 ĐƠN THUỐC ĐIỆN TỬ
+━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Bệnh nhân : {member?.FullName ?? "Không rõ"}
+👨‍⚕️ Bác sĩ     : {doctor?.FullName ?? "Không rõ"}
+📅 Ngày kê   : {DateTime.Now:dd/MM/yyyy HH:mm}
+━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Chẩn đoán : {request.Diagnosis}
+
+💊 DANH SÁCH THUỐC:
+{medicineLines}
+━━━━━━━━━━━━━━━━━━━━━━━━
+📝 Lời dặn: {request.Advice}
+""";
+
+                var systemMessage = new ChatDoctorMessages
+                {
+                    ChatDoctorMessageId = Guid.NewGuid(),
+                    ConsultanSessionId = request.ConsultanSessionId,
+                    SenderId = doctorId,
+                    Type = SenderType.Doctor,
+                    Content = messageContent,  // [FIX] Dùng đúng nội dung đơn thuốc đã xây dựng
+                    AttachmentUrl = null,
+                    IsRead = false,
+                    SendAt = DateTime.Now
+                };
+
+                await _unitOfWork.Repository<ChatDoctorMessages>().AddAsync(systemMessage);
+                await _unitOfWork.CompleteAsync();
+            }
+            catch
+            {
+                // Không để lỗi gửi chat làm gián đoạn luồng chính
+            }
+
+            return ApiResponse<PrescriptionByDoctorDto>.Ok(MapToDto(prescription), "Kê đơn thuốc thành công và đã gửi vào chat.");
         }
 
         public async Task<ApiResponse<PrescriptionByDoctorDto>> GetByIdAsync(Guid prescriptionId, Guid currentUserId)
@@ -109,13 +161,33 @@ namespace MediMateService.Services.Implementations
             if (prescription == null)
                 return ApiResponse<PrescriptionByDoctorDto>.Fail("Không tìm thấy đơn thuốc.", 404);
 
+            if (prescription.IsLocked)
+                return ApiResponse<PrescriptionByDoctorDto>.Fail("Đơn thuốc này đã bị khóa và không thể chỉnh sửa.", 400);
+
             // Chỉ bác sĩ kê đơn mới được sửa
             if (prescription.Doctor == null || prescription.Doctor.UserId != currentUserId)
                 return ApiResponse<PrescriptionByDoctorDto>.Fail("Bạn không có quyền sửa đơn thuốc này.", 403);
 
-            prescription.Diagnosis = request.Diagnosis;
-            prescription.Advice = request.Advice;
-            prescription.MedicinesList = JsonSerializer.Serialize(request.Medicines);
+            // Cập nhật từng trường nếu được truyền lên
+            if (request.Diagnosis != null)
+                prescription.Diagnosis = request.Diagnosis;
+                
+            if (request.Advice != null)
+                prescription.Advice = request.Advice;
+                
+            if (request.Medicines != null)
+                prescription.MedicinesList = JsonSerializer.Serialize(request.Medicines);
+
+            if (!string.IsNullOrEmpty(request.Status))
+            {
+                prescription.Status = request.Status;
+                if (request.Status == "Completed" || request.Status == "Cancelled")
+                {
+                    prescription.IsLocked = true;
+                }
+            }
+
+            prescription.UpdatedAt = DateTime.Now;
 
             _unitOfWork.Repository<PrescriptionsByDoctor>().Update(prescription);
             await _unitOfWork.CompleteAsync();
@@ -154,10 +226,15 @@ namespace MediMateService.Services.Implementations
                 DoctorName = p.Doctor?.FullName ?? "Unknown",
                 MemberId = p.MemberId,
                 MemberName = p.Member?.FullName ?? "Unknown",
+                MemberDateOfBirth = p.Member?.DateOfBirth,
+                MemberGender = p.Member?.Gender,
                 Diagnosis = p.Diagnosis,
                 Advice = p.Advice,
                 Medicines = medicinesList,
-                CreatedAt = p.CreatedAt
+                Status = p.Status,
+                IsLocked = p.IsLocked,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
             };
         }
     }

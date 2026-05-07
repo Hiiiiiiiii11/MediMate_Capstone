@@ -13,17 +13,20 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _config;
+        private readonly INotificationService _notificationService;
 
         public DoctorService(
             IDoctorRepository repo, 
             IUnitOfWork unitOfWork,
             IEmailService emailService,
-            IConfiguration config)
+            IConfiguration config,
+            INotificationService notificationService)
         {
             _repo = repo;
             _unitOfWork = unitOfWork;
             _emailService = emailService;
             _config = config;
+            _notificationService = notificationService;
         }
 
         public async Task<List<DoctorDto>> GetPublicDoctorsAsync(string? specialty = null)
@@ -31,13 +34,18 @@ namespace MediMateService.Services.Implementations
             var list = await _repo.GetPublicDoctorsAsync();
             if (!string.IsNullOrWhiteSpace(specialty))
                 list = list.Where(d => d.Specialty.Contains(specialty, StringComparison.OrdinalIgnoreCase)).ToList();
-            return list.Select(MapToDto).ToList();
+            var dtos = list.Select(MapToDto).ToList();
+            await PopulateClinicInfoAsync(dtos);
+            return dtos;
         }
 
         public async Task<DoctorDto> GetPublicDoctorByIdAsync(Guid doctorId)
         {
             var doc = await _repo.GetPublicDoctorByIdAsync(doctorId);
-            return doc == null ? throw new NotFoundException("Không tìm thấy bác sĩ.") : MapToDto(doc);
+            if (doc == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+            var dto = MapToDto(doc);
+            await PopulateClinicInfoAsync(dto);
+            return dto;
         }
 
         //public async Task<List<DoctorAvailabilityDto>> GetPublicAvailabilityByDoctorAsync(Guid doctorId)
@@ -55,13 +63,18 @@ namespace MediMateService.Services.Implementations
                 list = list.Where(d => d.Specialty.Contains(specialty, StringComparison.OrdinalIgnoreCase)).ToList();
             if (!string.IsNullOrWhiteSpace(status))
                 list = list.Where(d => d.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
-            return list.Select(MapToDto).ToList();
+            var dtos = list.Select(MapToDto).ToList();
+            await PopulateClinicInfoAsync(dtos);
+            return dtos;
         }
 
         public async Task<DoctorDto> GetDoctorByIdAsync(Guid doctorId)
         {
             var doc = await _repo.GetDoctorByIdAsync(doctorId);
-            return doc == null ? throw new NotFoundException("Không tìm thấy bác sĩ.") : MapToDto(doc);
+            if (doc == null) throw new NotFoundException("Không tìm thấy bác sĩ.");
+            var dto = MapToDto(doc);
+            await PopulateClinicInfoAsync(dto);
+            return dto;
         }
 
         public async Task<List<DoctorAvailabilityDto>> GetAvailabilityByDoctorAsync(Guid doctorId)
@@ -119,7 +132,8 @@ namespace MediMateService.Services.Implementations
                 FullName = request.FullName,
                 UserId = newUserId,
                 CreatedAt = DateTime.Now,
-                Status = DoctorStatuses.Inactive
+                Status = DoctorStatuses.Inactive,
+                CurrentHospitalName = request.CurrentHospitalName?.Trim() ?? string.Empty
             };
 
             await _repo.AddDoctorAsync(doctor);
@@ -161,7 +175,9 @@ namespace MediMateService.Services.Implementations
             var doctor = doctors.FirstOrDefault(d => d.UserId == userId);
             if (doctor == null) throw new NotFoundException("Không tìm thấy hồ sơ bác sĩ.");
 
-            return MapToDto(doctor);
+            var dto = MapToDto(doctor);
+            await PopulateClinicInfoAsync(dto);
+            return dto;
         }
 
         public async Task<DoctorDto> UpdateMyProfileAsync(Guid userId, UpdateDoctorDto request)
@@ -214,7 +230,8 @@ namespace MediMateService.Services.Implementations
 
             doctor.FullName = dto.FullName;
             doctor.Specialty = dto.Specialty;
-            doctor.CurrentHospitalName = dto.CurrentHospitalName;
+            if (!string.IsNullOrWhiteSpace(dto.CurrentHospitalName))
+                doctor.CurrentHospitalName = dto.CurrentHospitalName.Trim();
             doctor.LicenseNumber = dto.LicenseNumber;
             doctor.LicenseImage = dto.LicenseImage;
             doctor.YearsOfExperience = dto.YearsOfExperience;
@@ -229,6 +246,15 @@ namespace MediMateService.Services.Implementations
             doctor.RejectionReason = null;
 
             await _repo.UpdateDoctorAsync(doctor);
+
+            // Gửi thông báo tới quản lý
+            await _notificationService.SendNotificationToRoleAsync(
+                Roles.DoctorManager,
+                "Hồ sơ bác sĩ mới",
+                $"Bác sĩ {doctor.FullName} vừa nộp hồ sơ chờ duyệt.",
+                "Info"
+            );
+
             return MapToDto(doctor);
         }
 
@@ -414,6 +440,44 @@ namespace MediMateService.Services.Implementations
             }
         }
 
+        private async Task PopulateClinicInfoAsync(DoctorDto dto)
+        {
+            var clinicDoc = (await _unitOfWork.Repository<ClinicDoctors>().GetAllAsync())
+                .FirstOrDefault(cd => cd.DoctorId == dto.DoctorId && cd.Status == "Active");
+            if (clinicDoc != null)
+            {
+                var clinic = await _unitOfWork.Repository<Clinics>().GetByIdAsync(clinicDoc.ClinicId);
+                if (clinic != null)
+                {
+                    dto.ClinicId = clinic.ClinicId;
+                    dto.ClinicName = clinic.Name;
+                    dto.ConsultationFee = clinicDoc.ConsultationFee;
+                }
+            }
+        }
+
+        private async Task PopulateClinicInfoAsync(List<DoctorDto> dtos)
+        {
+            var activeClinicDocs = (await _unitOfWork.Repository<ClinicDoctors>().GetAllAsync())
+                .Where(cd => cd.Status == "Active").ToList();
+            var allClinics = await _unitOfWork.Repository<Clinics>().GetAllAsync();
+            
+            foreach (var dto in dtos)
+            {
+                var cd = activeClinicDocs.FirstOrDefault(x => x.DoctorId == dto.DoctorId);
+                if (cd != null)
+                {
+                    var clinic = allClinics.FirstOrDefault(c => c.ClinicId == cd.ClinicId);
+                    if (clinic != null)
+                    {
+                        dto.ClinicId = clinic.ClinicId;
+                        dto.ClinicName = clinic.Name;
+                        dto.ConsultationFee = cd.ConsultationFee;
+                    }
+                }
+            }
+        }
+
         private static DoctorDto MapToDto(Doctors e) => new()
         {
             DoctorId = e.DoctorId,
@@ -424,7 +488,6 @@ namespace MediMateService.Services.Implementations
             LicenseImage = e.LicenseImage,
             YearsOfExperience = e.YearsOfExperience,
             Bio = e.Bio,
-            AverageRating = e.AverageRating,
             Status = e.Status,
             RejectionReason = e.RejectionReason,
             LastSeenAt = e.LastSeenAt,

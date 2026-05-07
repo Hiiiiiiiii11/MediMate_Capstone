@@ -2,6 +2,7 @@ using Hangfire;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using MediMateService.Shared;
 using Share.Common;
 using Share.Constants;
 using System;
@@ -64,7 +65,16 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
+            // Preload dictionary TakenByUserId -> FullName
+            var takenUserIds = reminders.Where(r => r.TakenByUserId.HasValue)
+                                        .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
+            var takenByMembers = takenUserIds.Any()
+                ? (await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value)))
+                    .ToDictionary(m => m.UserId!.Value, m => m.FullName)
+                : new Dictionary<Guid, string>();
+
+            var response = reminders.OrderBy(r => r.ReminderTime)
+                                    .Select(r => MapToReminderDailyResponse(r, takenByMembers));
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
 
@@ -82,6 +92,11 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<MedicationReminders>().Update(reminder);
 
             // 3.2 Sinh ra Log lưu lịch sử
+            // Fix timezone: convert UTC về Local nếu client gửi UTC
+            var localActualTime = request.ActualTime.Kind == DateTimeKind.Utc
+                ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
+                : request.ActualTime;
+
             var log = new MedicationLogs
             {
                 LogId = Guid.NewGuid(),
@@ -90,7 +105,7 @@ namespace MediMateService.Services.Implementations
                 ReminderId = reminder.ReminderId,
                 LogDate = DateTime.Now.Date,
                 ScheduledTime = reminder.ReminderTime,
-                ActualTime = request.ActualTime,
+                ActualTime = localActualTime,
                 Status = request.Status,
                 Notes = request.Notes,
                 CreatedAt = DateTime.Now
@@ -145,7 +160,7 @@ namespace MediMateService.Services.Implementations
 
             // Re-schedule Hangfire Job để đẩy thông báo tiếp theo
             _backgroundJobClient.Schedule<IReminderJobService>(
-                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                 new DateTimeOffset(nextPushTime)
             );
 
@@ -175,9 +190,19 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            var response = reminders.OrderBy(r => r.ReminderTime).Select(MapToReminderDailyResponse);
+            // Preload dictionary TakenByUserId -> FullName
+            var takenUserIds = reminders.Where(r => r.TakenByUserId.HasValue)
+                                        .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
+            var takenByMembers = takenUserIds.Any()
+                ? (await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value)))
+                    .ToDictionary(m => m.UserId!.Value, m => m.FullName)
+                : new Dictionary<Guid, string>();
+
+            var response = reminders.OrderBy(r => r.ReminderTime)
+                                    .Select(r => MapToReminderDailyResponse(r, takenByMembers));
             return ApiResponse<IEnumerable<ReminderDailyResponse>>.Ok(response);
         }
+
 
         // =======================================================
         // CẬP NHẬT LỊCH (UPDATE)
@@ -222,7 +247,7 @@ namespace MediMateService.Services.Implementations
 
                     // Re-schedule jobs mới. 
                     _backgroundJobClient.Schedule<IReminderJobService>(
-                        job => job.NotifyReminderTimeAsync(r.ReminderId),
+                        job => job.NotifyReminderTimeAsync(r.ReminderId, 1),
                         new DateTimeOffset(pushTime)
                     );
                     _backgroundJobClient.Schedule<IReminderJobService>(
@@ -302,7 +327,7 @@ namespace MediMateService.Services.Implementations
                             if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
 
                             _backgroundJobClient.Schedule<IReminderJobService>(
-                                job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                                job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                                 new DateTimeOffset(pushTime) // Báo trước AdvanceMinutes
                             );
                             _backgroundJobClient.Schedule<IReminderJobService>(
@@ -458,7 +483,7 @@ namespace MediMateService.Services.Implementations
             int minHoursGap = 2; // Default
             int maxDosesPerDay = 6; // Default
             int advanceMinutes = 15; // Default
-            
+
             if (targetMember.FamilyId.HasValue)
             {
                 var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
@@ -483,7 +508,7 @@ namespace MediMateService.Services.Implementations
                     proposedDosesCount[item.MedicineName] = 0;
                     allProposedTimes[item.MedicineName] = new List<TimeSpan>();
                 }
-                
+
                 proposedDosesCount[item.MedicineName] += timeRanges.Count;
 
                 if (proposedDosesCount[item.MedicineName] > maxDosesPerDay)
@@ -518,7 +543,7 @@ namespace MediMateService.Services.Implementations
             {
                 // In Pillbox, we convert "SpecificTimes" to time blocks
                 var timeRanges = ParseTimeRanges(item.SpecificTimes);
-                
+
                 foreach (var range in timeRanges)
                 {
                     TimeSpan timeBlock = range.Start;
@@ -603,10 +628,10 @@ namespace MediMateService.Services.Implementations
                 if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
 
                 _backgroundJobClient.Schedule<IReminderJobService>(
-                    job => job.NotifyReminderTimeAsync(reminder.ReminderId),
+                    job => job.NotifyReminderTimeAsync(reminder.ReminderId, 1),
                     new DateTimeOffset(pushTime) // Báo trước Advance Minutes
                 );
-                
+
                 _backgroundJobClient.Schedule<IReminderJobService>(
                     job => job.CheckMissedReminderAndAlertFamilyAsync(reminder.ReminderId),
                     new DateTimeOffset(reminder.EndTime) // Lúc chốt sổ Missed
@@ -616,13 +641,116 @@ namespace MediMateService.Services.Implementations
             var schedulesToReturn = await _unitOfWork.Repository<MedicationSchedules>()
                 .FindAsync(s => s.MemberId == memberId, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
             var responseData = schedulesToReturn.Where(s => modifiedSchedules.Select(ms => ms.ScheduleId).Contains(s.ScheduleId)).Select(MapToResponse).ToList();
-            
+
             return ApiResponse<List<ScheduleResponse>>.Ok(responseData, "Đã lưu lịch uống thuốc thành công.");
         }
 
-
-        private ReminderDailyResponse MapToReminderDailyResponse(MedicationReminders r)
+        public async Task<ApiResponse<bool>> UpdateMemberPreferredTimesAsync(Guid memberId, Guid currentUserId, UpdateMemberPreferredTimesRequest request)
         {
+            // 1. Kiểm tra quyền truy cập
+            if (!await _currentUserService.CheckAccess(memberId, currentUserId))
+                return ApiResponse<bool>.Fail("Không có quyền truy cập.", 403);
+
+            // 2. Lấy tất cả các lịch hiện có của Member này
+            var existingSchedules = await _unitOfWork.Repository<MedicationSchedules>()
+                .FindAsync(s => s.MemberId == memberId, "Member");
+
+            if (!existingSchedules.Any())
+                return ApiResponse<bool>.Ok(true, "Thành viên chưa có lịch uống thuốc nào để cập nhật.");
+
+            // Lấy setting để biết cần báo trước bao nhiêu phút
+            var targetMember = existingSchedules.First().Member;
+            int advanceMinutes = 15;
+            if (targetMember.FamilyId.HasValue)
+            {
+                var familySetting = (await _unitOfWork.Repository<NotificationSetting>()
+                    .FindAsync(s => s.FamilyId == targetMember.FamilyId.Value)).FirstOrDefault();
+                if (familySetting != null) advanceMinutes = familySetting.ReminderAdvanceMinutes;
+            }
+
+            bool hasAnyChange = false;
+
+            // 3. Hàm xử lý cập nhật giờ và dời Reminders
+            async Task ApplyNewTimeIfValid(MedicationSchedules schedule, TimeSpan? newTime, int minH, int maxH)
+            {
+                if (!newTime.HasValue || schedule.TimeOfDay == newTime.Value) return;
+
+                // Validate xem giờ người dùng chọn có hợp lý với buổi đó không
+                if (newTime.Value.Hours < minH || newTime.Value.Hours >= maxH)
+                    throw new BadRequestException($"Giờ được chọn không phù hợp với quy chuẩn khung giờ ({minH}h-{maxH}h).");
+
+                // Cập nhật giờ mới
+                schedule.TimeOfDay = newTime.Value;
+                _unitOfWork.Repository<MedicationSchedules>().Update(schedule);
+                hasAnyChange = true;
+
+                // DỜI LẠI TOÀN BỘ REMINDERS TƯƠNG LAI CỦA LỊCH NÀY
+                var futurePendingReminders = await _unitOfWork.Repository<MedicationReminders>()
+                    .FindAsync(r => r.ScheduleId == schedule.ScheduleId
+                                    && r.Status == "Pending"
+                                    && r.ReminderDate >= DateTime.Now.Date);
+
+                foreach (var r in futurePendingReminders)
+                {
+                    r.ReminderTime = r.ReminderDate.Add(schedule.TimeOfDay);
+                    r.EndTime = r.ReminderTime.AddHours(2);
+                    _unitOfWork.Repository<MedicationReminders>().Update(r);
+
+                    var pushTime = r.ReminderTime.AddMinutes(-advanceMinutes);
+                    if (pushTime < DateTime.Now) pushTime = DateTime.Now.AddMinutes(1);
+
+                    // Re-schedule Hangfire
+                    _backgroundJobClient.Schedule<IReminderJobService>(
+                        job => job.NotifyReminderTimeAsync(r.ReminderId, 1),
+                        new DateTimeOffset(pushTime)
+                    );
+                    _backgroundJobClient.Schedule<IReminderJobService>(
+                        job => job.CheckMissedReminderAndAlertFamilyAsync(r.ReminderId),
+                        new DateTimeOffset(r.EndTime)
+                    );
+                }
+            }
+
+            try
+            {
+                // 4. Quét từng lịch và áp dụng giờ mới nếu tên lịch có chứa từ khóa
+                foreach (var schedule in existingSchedules)
+                {
+                    var name = schedule.ScheduleName?.ToLower() ?? "";
+
+                    if (name.Contains("sáng"))
+                        await ApplyNewTimeIfValid(schedule, request.MorningTime, 6, 11);
+                    else if (name.Contains("trưa"))
+                        await ApplyNewTimeIfValid(schedule, request.NoonTime, 11, 15);
+                    else if (name.Contains("chiều"))
+                        await ApplyNewTimeIfValid(schedule, request.AfternoonTime, 15, 18);
+                    else if (name.Contains("tối"))
+                        await ApplyNewTimeIfValid(schedule, request.EveningTime, 18, 24);
+                }
+
+                if (hasAnyChange)
+                {
+                    await _unitOfWork.CompleteAsync();
+                    return ApiResponse<bool>.Ok(true, "Đã đồng bộ giờ uống thuốc mới cho toàn bộ lịch.");
+                }
+
+                return ApiResponse<bool>.Ok(true, "Không có sự thay đổi nào được thực hiện.");
+            }
+            catch (BadRequestException ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, 400);
+            }
+        }
+
+
+        private ReminderDailyResponse MapToReminderDailyResponse(
+            MedicationReminders r,
+            Dictionary<Guid, string> takenByLookup = null)
+        {
+            string takenByName = null;
+            if (r.TakenByUserId.HasValue && takenByLookup != null)
+                takenByLookup.TryGetValue(r.TakenByUserId.Value, out takenByName);
+
             return new ReminderDailyResponse
             {
                 ReminderId = r.ReminderId,
@@ -633,6 +761,8 @@ namespace MediMateService.Services.Implementations
                 ReminderTime = r.ReminderTime,
                 EndTime = r.EndTime,
                 Status = r.Status,
+                TakenByUserId = r.TakenByUserId,
+                TakenByName = takenByName,
                 Medicines = r.Schedule.ScheduleDetails?
                     .Where(d => d.StartDate.Date <= r.ReminderDate.Date && d.EndDate.Date >= r.ReminderDate.Date)
                     .Select(d => new ScheduleDetailItemResponse

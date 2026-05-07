@@ -11,6 +11,9 @@ namespace MediMateService.DTOs
         public int YearsOfExperience { get; set; }
         public string Bio { get; set; } = string.Empty;
         public double AverageRating { get; set; }
+        public string ClinicName { get; set; } = string.Empty;
+        public Guid? ClinicId { get; set; }
+        public decimal? ConsultationFee { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? RejectionReason { get; set; }
         public DateTime? LastSeenAt { get; set; }
@@ -27,13 +30,14 @@ namespace MediMateService.DTOs
         public string FullName { get; set; } = string.Empty;
         public string Gender { get; set; } = string.Empty;
         public DateTime? DateOfBirth { get; set; }
+        public string? CurrentHospitalName { get; set; }
     }
 
     public class SubmitDoctorDto
     {
         public string FullName { get; set; } = string.Empty;
         public string Specialty { get; set; } = string.Empty;
-        public string CurrentHospitalName { get; set; } = string.Empty;
+        public string? CurrentHospitalName { get; set; }
         public string? AvatarUrl { get; set; }
         public string LicenseNumber { get; set; } = string.Empty;
         public string? LicenseImage { get; set; }
@@ -167,6 +171,7 @@ namespace MediMateService.DTOs
         // Sửa TimeSpan? thành string?
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
+        public string Status { get; set; } = string.Empty;
 
         public string Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
@@ -186,7 +191,8 @@ namespace MediMateService.DTOs
         public DateTime Date { get; set; }
         public TimeSpan? StartTime { get; set; }
         public TimeSpan? EndTime { get; set; }
-        public string Reason { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty; // Chỉ nhận "Pending", "Approved", "Rejected"
+        public string? Reason { get; set; } = string.Empty;
         public bool IsAvailableOverride { get; set; }
     }
 
@@ -196,6 +202,7 @@ namespace MediMateService.DTOs
         public bool? IsAvailableOverride { get; set; }
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
+        public string? Status { get; set; }
         public bool IsDescending { get; set; } = true;
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
@@ -220,10 +227,15 @@ namespace MediMateService.DTOs
         public string DoctorName { get; set; } = string.Empty; // Tên bác sĩ kê đơn
         public Guid MemberId { get; set; }
         public string MemberName { get; set; } = string.Empty; // Tên bệnh nhân
+        public DateTime? MemberDateOfBirth { get; set; }        // Ngày sinh bệnh nhân
+        public string? MemberGender { get; set; }               // Giới tính bệnh nhân
         public string? Diagnosis { get; set; }
         public string? Advice { get; set; }
         public List<DigitalMedicineItemDto> Medicines { get; set; } = new(); // Danh sách thuốc (đã parse từ JSON)
+        public string Status { get; set; } = "Active";
+        public bool IsLocked { get; set; } = false;
         public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     public class CreatePrescriptionByDoctorRequest
@@ -237,8 +249,9 @@ namespace MediMateService.DTOs
 
     public class UpdatePrescriptionByDoctorRequest
     {
-        public string Diagnosis { get; set; } = string.Empty;
-        public string Advice { get; set; } = string.Empty;
-        public List<DigitalMedicineItemDto> Medicines { get; set; } = new();
+        public string? Diagnosis { get; set; }
+        public string? Advice { get; set; }
+        public List<DigitalMedicineItemDto>? Medicines { get; set; }
+        public string? Status { get; set; }
     }
 }

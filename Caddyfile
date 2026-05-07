@@ -1,4 +1,31 @@
+{
+    admin localhost:2019
+}
+
+:80, :443 {
+    @direct not host {$DOMAIN_NAME}
+    handle @direct {
+        respond 444
+    }
+}
+
 {$DOMAIN_NAME} {
+
+    @honeypot {
+        path /.env /.env.local /.env.production /.env.backup
+        path /.git /.git/config /.git/HEAD
+        path /config.php /phpinfo.php /info.php
+        path /wp-admin /wp-login.php /wordpress
+        path /.aws/credentials /.aws/config
+        path /.DS_Store /etc/passwd /proc/self
+        path /backup /dump /db.sql
+        path /admin/config /phpmyadmin
+    }
+
+    handle @honeypot {
+        respond 403
+    }
+
     reverse_proxy api:8080
 
     log {

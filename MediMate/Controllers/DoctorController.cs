@@ -15,18 +15,15 @@ namespace MediMate.Controllers
     {
         private readonly IDoctorService _doctorService;
         private readonly IDoctorDocumentService _doctorDocumentService;
-        private readonly IRatingService _ratingService;
         private readonly IUploadPhotoService _uploadPhotoService;
 
         public DoctorController(
             IDoctorService doctorService,
             IDoctorDocumentService doctorDocumentService,
-            IRatingService ratingService,
             IUploadPhotoService uploadPhotoService)
         {
             _doctorService = doctorService;
             _doctorDocumentService = doctorDocumentService;
-            _ratingService = ratingService;
             _uploadPhotoService = uploadPhotoService;
         }
 
@@ -59,15 +56,6 @@ namespace MediMate.Controllers
         //    return Ok(ApiResponse<List<DoctorAvailabilityResponse>>.Ok(response, "Lấy lịch làm việc bác sĩ thành công."));
         //}
 
-        [HttpGet("{doctorId}/reviews")]
-        [AllowAnonymous]
-        [ProducesResponseType(typeof(ApiResponse<List<DoctorReviewResponse>>), 200)]
-        public async Task<IActionResult> GetReviews(Guid doctorId)
-        {
-            var data = await _ratingService.GetDoctorReviewsAsync(doctorId);
-            var response = data.Select(MapReviewResponse).ToList();
-            return Ok(ApiResponse<List<DoctorReviewResponse>>.Ok(response, "Lấy đánh giá bác sĩ thành công."));
-        }
 
     
         [HttpGet("me")]
@@ -263,12 +251,14 @@ namespace MediMate.Controllers
                 DoctorId = dto.DoctorId,
                 FullName = dto.FullName,
                 Specialty = dto.Specialty,
-                CurrentHospitalName = dto.CurrentHospitalName,
+                ClinicName = dto.ClinicName,
                 LicenseNumber = dto.LicenseNumber,
                 LicenseImage = dto.LicenseImage,
                 YearsOfExperience = dto.YearsOfExperience,
                 Bio = dto.Bio,
                 AverageRating = dto.AverageRating,
+                ClinicId = dto.ClinicId,
+                ConsultationFee = dto.ConsultationFee,
                 Status = dto.Status,
                 CreatedAt = dto.CreatedAt,
                 UserId = dto.UserId,
@@ -289,17 +279,5 @@ namespace MediMate.Controllers
             };
         }
 
-        private static DoctorReviewResponse MapReviewResponse(DoctorReviewDto dto)
-        {
-            return new DoctorReviewResponse
-            {
-                RatingId = dto.RatingId,
-                SessionId = dto.SessionId,
-                MemberId = dto.MemberId,
-                Score = dto.Score,
-                Comment = dto.Comment,
-                CreatedAt = dto.CreatedAt
-            };
-        }
     }
 }

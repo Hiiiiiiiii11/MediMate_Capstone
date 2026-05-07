@@ -18,13 +18,16 @@ namespace MediMate.Controllers
     {
         private readonly IConsultationService _consultationService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IAgoraRecordingService _agoraRecordingService;
 
         public ConsultationSessionController(
             IConsultationService consultationService,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            IAgoraRecordingService agoraRecordingService)
         {
             _consultationService = consultationService;
             _currentUserService = currentUserService;
+            _agoraRecordingService = agoraRecordingService;
         }
 
         // ─────────────────────────────────────────────────────────
@@ -94,16 +97,16 @@ namespace MediMate.Controllers
         }
 
         // ─────────────────────────────────────────────────────────
-        // POST: Chỉ bệnh nhân (User) mới được kết thúc phiên meet
+        // POST: Cả bệnh nhân và bác sĩ đều được kết thúc phiên meet
         //   Sau khi End: bác sĩ vẫn có thể gửi tin nhắn, bệnh nhân thì không
         //   Appointment → Completed
         // ─────────────────────────────────────────────────────────
         [HttpPost("{sessionId}/end")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionDto>), 200)]
-        public async Task<IActionResult> EndSessionByUser(Guid sessionId)
+        public async Task<IActionResult> EndSession(Guid sessionId)
         {
             var userId = _currentUserService.UserId;
-            var result = await _consultationService.EndSessionByUserAsync(sessionId, userId);
+            var result = await _consultationService.EndSessionAsync(sessionId, userId);
             return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Phiên tư vấn đã kết thúc thành công."));
         }
 
@@ -117,6 +120,53 @@ namespace MediMate.Controllers
             var userId = _currentUserService.UserId;
             var result = await _consultationService.AttachPrescriptionAsync(sessionId, userId, request);
             return Ok(ApiResponse<ConsultationSessionDto>.Ok(result, "Đã gắn đơn thuốc vào phiên tư vấn."));
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // GET: Xem URL video ghi lại phiên khám
+        // Chỉ Bác sĩ phụ trách và Family Owner mới được xem
+        // ─────────────────────────────────────────────────────────
+        /// <summary>Lấy URL video ghi lại phiên khám. Chỉ Bác sĩ hoặc chủ hộ mới được xem.</summary>
+        [HttpGet("{sessionId}/recording")]
+        [ProducesResponseType(typeof(ApiResponse<string>), 200)]
+        public async Task<IActionResult> GetRecordingUrl(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            var url = await _agoraRecordingService.GetRecordingUrlAsync(sessionId, userId);
+            if (url == null)
+                return Ok(ApiResponse<string>.Ok(null, "Phiên này chưa có bản ghi hình."));
+            return Ok(ApiResponse<string>.Ok(url, "Lấy URL video thành công."));
+        }
+        // ─────────────────────────────────────────────────────────
+        // POST: Bác sĩ yêu cầu kết thúc phiên
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/request-end")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        public async Task<IActionResult> RequestEndSession(Guid sessionId)
+        {
+            var userId = _currentUserService.UserId;
+            await _consultationService.RequestEndSessionAsync(sessionId, userId);
+            return Ok(ApiResponse<bool>.Ok(true, "Đã gửi yêu cầu kết thúc đến bệnh nhân."));
+        }
+
+
+        // ─────────────────────────────────────────────────────────
+        // POST: Upload video từ Web/App lên Cloudinary
+        // ─────────────────────────────────────────────────────────
+        [HttpPost("{sessionId}/upload-recording")]
+        [ProducesResponseType(typeof(ApiResponse<string>), 200)]
+        public async Task<IActionResult> UploadRecording(Guid sessionId, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(ApiResponse<string>.Fail("File video không hợp lệ."));
+
+            using var stream = file.OpenReadStream();
+            var url = await _agoraRecordingService.UploadManualRecordingAsync(sessionId, stream);
+
+            if (string.IsNullOrEmpty(url))
+                return BadRequest(ApiResponse<string>.Fail("Không thể upload video. Vui lòng kiểm tra cấu hình Cloudinary."));
+
+            return Ok(ApiResponse<string>.Ok(url, "Upload video thành công."));
         }
     }
 }

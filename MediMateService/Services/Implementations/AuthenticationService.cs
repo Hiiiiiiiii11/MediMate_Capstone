@@ -1,6 +1,8 @@
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using MediMateService.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -18,20 +20,20 @@ namespace MediMateService.Services.Implementations
         private readonly IAuthenticationRepository _authRepo;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly IMemoryCache _memoryCache;
+        private readonly IHubContext<MediMateHub> _hubContext;
 
         private static readonly HashSet<string> RemainingRoles = new(StringComparer.OrdinalIgnoreCase)
         {
             "Admin", "Doctor", "Staff", "DoctorManager"
         };
 
-        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService,IMemoryCache memoryCache)
+        public AuthenticationService(IUnitOfWork unitOfWork, IAuthenticationRepository authRepo, IConfiguration configuration, IEmailService emailService, IHubContext<MediMateHub> hubContext)
         {
             _unitOfWork = unitOfWork;
             _authRepo = authRepo;
             _configuration = configuration;
             _emailService = emailService;
-            _memoryCache = memoryCache;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<AutheticationResponse>> RegisterAsync(RegisterRequest request)
@@ -160,48 +162,36 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<AutheticationResponse>> LoginDependentByQrAsync(DependentQrLoginRequest request)
         {
-            // 1. Validate định dạng mã
+            // 1 & 2. Validate và tìm Member (Giữ nguyên của bạn)
             if (string.IsNullOrEmpty(request.QrData) || !request.QrData.StartsWith("LOGIN-"))
-            {
                 return ApiResponse<AutheticationResponse>.Fail("Mã QR không hợp lệ.", 400);
-            }
 
-            // Tách lấy SyncToken thực tế
-            var syncToken = request.QrData.Substring(6); // Bỏ chữ "LOGIN-"
+            var syncToken = request.QrData.Substring(6);
+            var member = (await _unitOfWork.Repository<Members>().FindAsync(m => m.SyncToken == syncToken)).FirstOrDefault();
 
-            // 2. Tìm Member có SyncToken này
-            var member = (await _unitOfWork.Repository<Members>()
-                .FindAsync(m => m.SyncToken == syncToken)).FirstOrDefault();
-
-            if (member == null)
-            {
-                return ApiResponse<AutheticationResponse>.Fail("Mã đăng nhập không chính xác hoặc đã được sử dụng.", 401);
-            }
-
-            // 3. Kiểm tra mã hết hạn chưa
+            if (member == null) return ApiResponse<AutheticationResponse>.Fail("Mã đăng nhập không chính xác hoặc đã sử dụng.", 401);
             if (member.SyncTokenExpireAt == null || member.SyncTokenExpireAt < DateTime.Now)
-            {
-                return ApiResponse<AutheticationResponse>.Fail("Mã QR đăng nhập đã hết hạn. Vui lòng tạo mã mới.", 401);
-            }
+                return ApiResponse<AutheticationResponse>.Fail("Mã QR đã hết hạn.", 401);
 
-            // 4. THÀNH CÔNG: Xóa SyncToken để tránh dùng lại
+            await _hubContext.Clients.Group($"User_{member.MemberId}").SendAsync("ForceLogout", new { message = "Tài khoản của bạn đã được đăng nhập trên một thiết bị khác." });
+
+            // 3. Xóa SyncToken, cập nhật FcmToken
             member.SyncToken = null;
             member.SyncTokenExpireAt = null;
 
-
             if (!string.IsNullOrEmpty(request.FcmToken))
             {
-                member.FcmToken = request.FcmToken;
+                member.FcmToken = request.FcmToken; // Ghi đè FcmToken mới nhất
             }
+
+            // 4. Sinh JWT Token và LƯU LẠI LÀM MỐC (MỚI)
+            var token = GenerateJwtTokenForDependent(member, "dependent");
+            member.CurrentSessionToken = token;
 
             _unitOfWork.Repository<Members>().Update(member);
             await _unitOfWork.CompleteAsync();
 
-            // 5. Sinh JWT Token đặc biệt cho Dependent
-            // Hàm này tương tự hàm GenerateToken cho User của bạn, nhưng dùng MemberId thay vì UserId
-            var token = GenerateJwtTokenForDependent(member, "dependent");
-
-            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token}, $"Đăng nhập thành công với tư cách: {member.FullName}");
+            return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, $"Đăng nhập thành công với tư cách: {member.FullName}");
         }
 
 
@@ -250,15 +240,24 @@ namespace MediMateService.Services.Implementations
 
             if (!string.Equals(user.Role, "User", StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<AutheticationResponse>.Fail("Tài khoản không có quyền đăng nhập tại đây.", 403);
+
+            await _hubContext.Clients.Group($"User_{user.UserId}").SendAsync("ForceLogout", new { message = "Tài khoản của bạn đã được đăng nhập trên một thiết bị khác." });
+
+            // 1. Tạo JWT Token MỚI
+            var token = GenerateJwtToken(user, "user");
+
+            // 2. Ghi đè FCM Token của máy mới nhất (Máy cũ sẽ bị mất thông báo)
             if (!string.IsNullOrEmpty(request.FcmToken))
             {
                 user.FcmToken = request.FcmToken;
-
-                // Lưu vào DB (Tùy theo cấu trúc Repo của bạn, có thể dùng _authRepo hoặc _unitOfWork)
-                _unitOfWork.Repository<User>().Update(user);
-                await _unitOfWork.CompleteAsync();
             }
-            var token = GenerateJwtToken(user, "user");
+
+            // 3. LƯU LẠI TOKEN CỦA PHIÊN NÀY ĐỂ LÀM MỐC KIỂM TRA
+            user.CurrentSessionToken = token;
+
+            _unitOfWork.Repository<User>().Update(user);
+            await _unitOfWork.CompleteAsync();
+
             return ApiResponse<AutheticationResponse>.Ok(new AutheticationResponse { AccessToken = token }, "Đăng nhập thành công.");
         }
 
@@ -319,13 +318,13 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<bool>> LogoutAsync(Guid? accountId, string role, string token)
         {
-            // 1. Xóa FCM Token như cũ
             if (role == "Dependent")
             {
                 var member = await _unitOfWork.Repository<Members>().GetByIdAsync(accountId);
                 if (member != null)
                 {
                     member.FcmToken = null;
+                    // member.CurrentSessionToken = null; // (Nếu bạn có thêm cột này cho Members)
                     _unitOfWork.Repository<Members>().Update(member);
                 }
             }
@@ -335,39 +334,14 @@ namespace MediMateService.Services.Implementations
                 if (user != null)
                 {
                     user.FcmToken = null;
+                    user.CurrentSessionToken = null; // Xóa mốc session
                     _unitOfWork.Repository<User>().Update(user);
                 }
             }
             await _unitOfWork.CompleteAsync();
 
-            // 2. THU HỒI TOKEN BẰNG BLACKLIST
-            if (!string.IsNullOrEmpty(token))
-            {
-                // Xóa chữ "Bearer " nếu Frontend gửi kèm
-                var jwtString = token.Replace("Bearer ", "").Trim();
-
-                var handler = new JwtSecurityTokenHandler();
-                if (handler.CanReadToken(jwtString))
-                {
-                    var jwtToken = handler.ReadJwtToken(jwtString);
-                    var expiryDate = jwtToken.ValidTo; // Lấy thời gian hết hạn của token
-
-                    // Nếu token chưa hết hạn tự nhiên thì mới cần đưa vào Blacklist
-                    if (expiryDate > DateTime.Now)
-                    {
-                        var timeRemaining = expiryDate - DateTime.Now;
-
-                        // Lưu token vào RAM (MemoryCache).
-                        // Thời gian lưu đúng bằng thời gian sống còn lại của Token.
-                        // Khi token tự hết hạn, nó cũng tự bay màu khỏi Cache để đỡ tốn RAM.
-                        _memoryCache.Set(
-                            $"blacklist_{jwtString}",
-                            "revoked",
-                            timeRemaining
-                        );
-                    }
-                }
-            }
+            // Bạn vẫn có thể giữ lại logic MemoryCache (Blacklist) nếu muốn, 
+            // nhưng với cách check DB ở trên thì MemoryCache không còn quá quan trọng nữa.
 
             return ApiResponse<bool>.Ok(true, "Đăng xuất thành công.");
         }

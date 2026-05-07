@@ -1,6 +1,7 @@
-﻿using MediMateRepository.Model;
+using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using System;
 using System.Collections.Generic;
@@ -12,26 +13,44 @@ namespace MediMateService.Services.Implementations
     public class DoctorAvailabilityService : IDoctorAvailabilityService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly INotificationService _notificationService;
 
-        public DoctorAvailabilityService(IUnitOfWork unitOfWork)
+        public DoctorAvailabilityService(IUnitOfWork unitOfWork, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<DoctorAvailabilityDto>> CreateAsync(Guid doctorId, Guid currentUserId, CreateDoctorAvailabilityRequest request)
         {
+            // 1. Kiểm tra bác sĩ tồn tại
             var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(doctorId);
             if (doctor == null)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Không tìm thấy thông tin bác sĩ.", 404);
 
-            //if (doctor.UserId != currentUserId)  //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
-            //    return ApiResponse<DoctorAvailabilityDto>.Fail("Bạn không có quyền thiết lập lịch cho bác sĩ này.", 403);
-
+            // 2. Kiểm tra logic giờ bắt đầu < giờ kết thúc
             if (request.StartTime >= request.EndTime)
                 return ApiResponse<DoctorAvailabilityDto>.Fail("Giờ bắt đầu phải sớm hơn giờ kết thúc.", 400);
 
-            // Tùy chọn: Có thể thêm logic check trùng khung giờ (Overlap) trong cùng một ngày ở đây
+            // 3. KIỂM TRA TRÙNG LỊCH (OVERLAP CHECK)
+            // Lấy tất cả lịch làm việc hiện có của bác sĩ vào ngày đó
+            var isOverlapping = await _unitOfWork.Repository<DoctorAvailability>()
+                .GetQueryable()
+                .AsNoTracking() // Dùng AsNoTracking để tối ưu hiệu năng vì chỉ check tồn tại
+                .AnyAsync(a => a.DoctorId == doctorId
+                            && a.DayOfWeek == request.DayOfWeek
+                            && a.IsActive // Chỉ check các lịch đang hoạt động
+                            && request.StartTime < a.EndTime
+                            && a.StartTime < request.EndTime);
 
+            if (isOverlapping)
+            {
+                return ApiResponse<DoctorAvailabilityDto>.Fail(
+                    $"Bác sĩ đã có lịch làm việc trong khoảng hoặc trùng với khung giờ {request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm} vào {request.DayOfWeek}. " +
+                    "Vui lòng xóa hoặc chỉnh sửa lịch cũ trước khi tạo mới.", 409);
+            }
+
+            // 4. Tạo mới nếu không trùng
             var availability = new DoctorAvailability
             {
                 DoctorAvailabilityId = Guid.NewGuid(),
@@ -44,6 +63,16 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<DoctorAvailability>().AddAsync(availability);
             await _unitOfWork.CompleteAsync();
+
+            if (doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    doctor.UserId,
+                    "Lịch làm việc mới",
+                    $"Quản lý vừa thêm lịch làm việc mới cho bạn vào {request.DayOfWeek} ({request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
 
             return ApiResponse<DoctorAvailabilityDto>.Ok(MapToDto(availability), "Thêm khung giờ làm việc thành công.");
         }
@@ -93,26 +122,57 @@ namespace MediMateService.Services.Implementations
             _unitOfWork.Repository<DoctorAvailability>().Update(availability);
             await _unitOfWork.CompleteAsync();
 
+            if (availability.Doctor != null && availability.Doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    availability.Doctor.UserId,
+                    "Cập nhật lịch làm việc",
+                    $"Quản lý vừa cập nhật lịch làm việc của bạn vào {request.DayOfWeek} ({request.StartTime:hh\\:mm} - {request.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
+
             return ApiResponse<DoctorAvailabilityDto>.Ok(MapToDto(availability), "Cập nhật lịch làm việc thành công.");
         }
 
         public async Task<ApiResponse<bool>> DeleteAsync(Guid availabilityId, Guid currentUserId)
         {
             var availability = (await _unitOfWork.Repository<DoctorAvailability>()
-                .FindAsync(a => a.DoctorAvailabilityId == availabilityId, "Doctor")).FirstOrDefault();
+                .FindAsync(a => a.DoctorAvailabilityId == availabilityId)).FirstOrDefault();
+            
             if (availability == null)
                 return ApiResponse<bool>.Fail("Không tìm thấy lịch làm việc.", 404);
 
+            // Kiểm tra xem khung giờ này ĐÃ TỪNG có người đặt chưa (dù quá khứ hay tương lai)
             var appointments = await _unitOfWork.Repository<Appointments>()
-                .FindAsync(ap => ap.DoctorId == availability.DoctorId && ap.AppointmentDate.Date >= DateTime.UtcNow.Date);
+                .FindAsync(ap => ap.AvailabilityId == availabilityId);
+            
             if (appointments.Any())
-                return ApiResponse<bool>.Fail("Không thể xóa khung giờ này vì đã có lịch hẹn trong tương lai.", 400);
+            {
+                // Nếu đã có người đặt, xóa cứng sẽ vi phạm Foreign Key của Database.
+                // Giải pháp: Khóa cờ IsActive để hệ thống không cho đặt lịch vào khung giờ này nữa.
+                availability.IsActive = false;
+                _unitOfWork.Repository<DoctorAvailability>().Update(availability);
+                await _unitOfWork.CompleteAsync();
 
-            //if (availability.Doctor.UserId != currentUserId) //doc manager có thể thiết lập lịch cho bác sĩ, nên bỏ check này
-            //    return ApiResponse<bool>.Fail("Bạn không có quyền xóa lịch này.", 403);
+                return ApiResponse<bool>.Ok(true, "Xóa khung giờ làm việc thành công.");
+            }
 
+            // Nếu chưa từng có ai đặt lịch vào khung giờ này -> Xóa cứng an toàn
             _unitOfWork.Repository<DoctorAvailability>().Remove(availability);
             await _unitOfWork.CompleteAsync();
+
+            // Lấy thông tin bác sĩ để gửi thông báo (NẾU currentUserId khác doctor.UserId)
+            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(availability.DoctorId);
+            if (doctor != null && doctor.UserId != currentUserId)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    doctor.UserId,
+                    "Hủy lịch làm việc",
+                    $"Quản lý vừa hủy lịch làm việc của bạn vào {availability.DayOfWeek} ({availability.StartTime:hh\\:mm} - {availability.EndTime:hh\\:mm}).",
+                    "Info"
+                );
+            }
 
             return ApiResponse<bool>.Ok(true, "Xóa khung giờ làm việc thành công.");
         }

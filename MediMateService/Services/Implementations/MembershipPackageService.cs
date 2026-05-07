@@ -53,8 +53,9 @@ namespace MediMateService.Services.Implementations
                 DurationDays = dto.DurationDays,
                 MemberLimit = dto.MemberLimit,
                 OcrLimit = dto.OcrLimit,
-                ConsultantLimit = dto.ConsultantLimit,
-                Description = dto.Description
+                Description = dto.Description,
+                AllowVideoRecordingAccess = dto.AllowVideoRecordingAccess,
+                HealthAlertEnabled = dto.HealthAlertEnabled
             };
 
             await _unitOfWork.Repository<MembershipPackages>().AddAsync(package);
@@ -76,8 +77,9 @@ namespace MediMateService.Services.Implementations
             if (dto.DurationDays.HasValue) package.DurationDays = dto.DurationDays.Value;
             if (dto.MemberLimit.HasValue) package.MemberLimit = dto.MemberLimit.Value;
             if (dto.OcrLimit.HasValue) package.OcrLimit = dto.OcrLimit.Value;
-            if (dto.ConsultantLimit.HasValue) package.ConsultantLimit = dto.ConsultantLimit.Value;
             if (dto.Description != null) package.Description = dto.Description;
+            if (dto.AllowVideoRecordingAccess.HasValue) package.AllowVideoRecordingAccess = dto.AllowVideoRecordingAccess.Value;
+            if (dto.HealthAlertEnabled.HasValue) package.HealthAlertEnabled = dto.HealthAlertEnabled.Value;
 
             _unitOfWork.Repository<MembershipPackages>().Update(package);
             await _unitOfWork.CompleteAsync();
@@ -116,9 +118,10 @@ namespace MediMateService.Services.Implementations
             DurationDays = p.DurationDays,
             MemberLimit = p.MemberLimit,
             OcrLimit = p.OcrLimit,
-            ConsultantLimit = p.ConsultantLimit,
             Description = p.Description,
-            ActiveSubscriberCount = activeSubscriberCount
+            ActiveSubscriberCount = activeSubscriberCount,
+            AllowVideoRecordingAccess = p.AllowVideoRecordingAccess,
+            HealthAlertEnabled = p.HealthAlertEnabled
         };
     }
 }

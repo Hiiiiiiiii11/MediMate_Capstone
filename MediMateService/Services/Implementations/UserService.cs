@@ -2,6 +2,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 namespace MediMateService.Services.Implementations
 {
@@ -99,17 +100,32 @@ namespace MediMateService.Services.Implementations
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(callerId);
             if (user != null)
             {
+                // Lấy thông tin bank account nếu có
+                var bankAccount = await _unitOfWork.Repository<UserBankAccount>().GetQueryable()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.UserId == user.UserId);
+
                 response = new UserProfileResponse
                 {
                     UserId = user.UserId,
                     FullName = user.FullName,
                     Email = user.Email,
                     PhoneNumber = user.PhoneNumber,
-                    DateOfBirth = user.DateOfBirth, // Có thể null trong bảng User
+                    DateOfBirth = user.DateOfBirth,
                     Gender = user.Gender,
-                    AvatarUrl = user.AvatarUrl, // Lấy avatar của User gốc
+                    AvatarUrl = user.AvatarUrl,
                     Role = user.Role ?? "User",
                     IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    BankAccount = bankAccount == null ? null : new UserBankInfo
+                    {
+                        BankAccountId = bankAccount.BankAccountId,
+                        BankName = bankAccount.BankName,
+                        AccountNumber = bankAccount.AccountNumber,
+                        AccountHolder = bankAccount.AccountHolder,
+                        CreatedAt = bankAccount.CreatedAt,
+                        UpdatedAt = bankAccount.UpdatedAt
+                    }
                 };
             }
             // --- TRƯỜNG HỢP 2: LÀ DEPENDENT (CON CÁI/MEMBER) ---
@@ -120,16 +136,16 @@ namespace MediMateService.Services.Implementations
                 {
                     response = new UserProfileResponse
                     {
-                        UserId = member.MemberId, // Trả về MemberId vào trường UserId để FE dùng thống nhất
+                        UserId = member.MemberId,
                         FullName = member.FullName,
-                        Email = null, // Member phụ thuộc thường không có email riêng
+                        Email = null,
                         PhoneNumber = null,
                         DateOfBirth = member.DateOfBirth,
                         Gender = member.Gender,
                         AvatarUrl = member.AvatarUrl,
-                        Role = member.Role ?? "Member", // Thường là "Member" hoặc "Dependent"
+                        Role = member.Role ?? "Member",
                         IsActive = member.IsActive,
-
+                        BankAccount = null
                     };
                 }
             }

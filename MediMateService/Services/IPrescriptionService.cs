@@ -24,10 +24,12 @@ namespace MediMateService.Services
         Task<ApiResponse<PrescriptionMedicineResponse>> UpdateMedicineAsync(Guid medicineId, Guid userId, UpdateMedicineRequest request);
         Task<ApiResponse<bool>> DeleteMedicineAsync(Guid medicineId, Guid userId);
 
+        Task<ApiResponse<PrescriptionResponse>> CreateEmptyPrescriptionAsync(Guid memberId, Guid userId, CreateEmptyPrescriptionRequest request);
+
         // 2. Xóa đơn thuốc
 
     }
 
 
-    
+
 }

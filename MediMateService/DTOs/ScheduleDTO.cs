@@ -69,6 +69,10 @@ namespace MediMateService.DTOs
         public DateTime ReminderTime { get; set; }
         public DateTime EndTime { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        // Audit trail: ai đã xác nhận uống thuốc
+        public Guid? TakenByUserId { get; set; }
+        public string? TakenByName { get; set; }
     }
 
     public class ScheduleDetailResponse : ScheduleResponse
@@ -103,6 +107,13 @@ namespace MediMateService.DTOs
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public string Instructions { get; set; } = string.Empty;
+    }
+    public class UpdateMemberPreferredTimesRequest
+    {
+        public TimeSpan? MorningTime { get; set; }   // Giờ buổi sáng mong muốn (06:00 - 10:59)
+        public TimeSpan? NoonTime { get; set; }      // Giờ buổi trưa mong muốn (11:00 - 14:59)
+        public TimeSpan? AfternoonTime { get; set; } // Giờ buổi chiều mong muốn (15:00 - 17:59)
+        public TimeSpan? EveningTime { get; set; }   // Giờ buổi tối mong muốn (18:00 - 23:59)
     }
 
 }

@@ -163,6 +163,19 @@ namespace MediMateService.Services.Implementations
                 payout.ReportFileUrl = reportFileUrl;
                 totalAmount += payout.Amount;
                 _unitOfWork.Repository<DoctorPayout>().Update(payout);
+
+                var transaction = new Transactions
+                {
+                    TransactionCode = $"CLINIC-{payout.PayoutId.ToString().Substring(0, 8).ToUpper()}",
+                    PayoutId = payout.PayoutId,
+                    TransactionStatus = "Success",
+                    AmountPaid = payout.Amount,
+                    TransactionType = Share.Constants.TransactionTypes.OutClinicPayout,
+                    PaidAt = now,
+                    GatewayName = "BankTransfer",
+                    GatewayResponse = transferImageUrl
+                };
+                await _unitOfWork.Repository<Transactions>().AddAsync(transaction);
             }
 
             await _unitOfWork.CompleteAsync();

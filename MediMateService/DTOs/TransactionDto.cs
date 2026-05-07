@@ -84,4 +84,11 @@ namespace MediMateService.DTOs
         public string? TransferImageUrl { get; set; }
         public string? BankTransactionCode { get; set; }
     }
+
+    public class TransactionStatisticsDto
+    {
+        public decimal TotalIncoming { get; set; }
+        public decimal TotalOutgoing { get; set; }
+        public decimal NetRevenue { get; set; }
+    }
 }

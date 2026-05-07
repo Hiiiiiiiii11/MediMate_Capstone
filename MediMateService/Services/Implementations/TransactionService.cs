@@ -83,6 +83,29 @@ namespace MediMateService.Services.Implementations
 
         #endregion
 
+        #region Statistics
+        public async Task<ApiResponse<TransactionStatisticsDto>> GetTransactionStatisticsAsync()
+        {
+            var transactions = await _unitOfWork.Repository<Transactions>().GetQueryable()
+                .Where(t => t.TransactionStatus == "Success" || t.TransactionStatus == "SUCCESS")
+                .AsNoTracking()
+                .ToListAsync();
+
+            var incomingTypes = new[] { TransactionTypes.MoneyReceived, TransactionTypes.InPackagePurchase, TransactionTypes.InSessionPayment };
+            var outgoingTypes = new[] { TransactionTypes.MoneySent, TransactionTypes.OutRefundSession, TransactionTypes.OutClinicPayout };
+
+            decimal totalIncoming = transactions.Where(t => incomingTypes.Contains(t.TransactionType) || t.TransactionType.StartsWith("IN")).Sum(t => t.AmountPaid);
+            decimal totalOutgoing = transactions.Where(t => outgoingTypes.Contains(t.TransactionType) || t.TransactionType.StartsWith("OUT")).Sum(t => t.AmountPaid);
+
+            return ApiResponse<TransactionStatisticsDto>.Ok(new TransactionStatisticsDto
+            {
+                TotalIncoming = totalIncoming,
+                TotalOutgoing = totalOutgoing,
+                NetRevenue = totalIncoming - totalOutgoing
+            }, "Lấy thống kê giao dịch thành công.");
+        }
+        #endregion
+
         #region Transaction & Payout Management
 
         public async Task<ApiResponse<bool>> UpdateTransactionStatusAsync(Guid transactionId, string status)

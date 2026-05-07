@@ -15,5 +15,6 @@ namespace MediMateService.Services
         Task<ApiResponse<bool>> ApproveDoctorPayoutAsync(Guid payoutId, ApprovePayoutRequest request, string? transferImageUrl = null);
         Task<ApiResponse<PagedResult<PendingPayoutDto>>> GetPendingPayoutsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null);
         Task<ApiResponse<PagedResult<PaidPayoutDto>>> GetPaidPayoutsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null);
+        Task<ApiResponse<TransactionStatisticsDto>> GetTransactionStatisticsAsync();
     }
 }

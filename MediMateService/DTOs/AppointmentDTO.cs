@@ -39,6 +39,7 @@ namespace MediMateService.DTOs
         public string? ClinicName { get; set; }           // Tên phòng khám
         public Guid MemberId { get; set; }
         public string? MemberName { get; set; }
+        public Guid UserId { get; set; }
         public Guid AvailabilityId { get; set; }
         public DateTime AppointmentDate { get; set; }
         public TimeSpan AppointmentTime { get; set; }
@@ -79,6 +80,7 @@ namespace MediMateService.DTOs
         // Thông tin Phòng khám
         public Guid? ClinicId { get; set; }
         public string? ClinicName { get; set; }
+        public Guid UserId { get; set; }
 
         // Thông tin Bác sĩ
         public Guid DoctorId { get; set; }

@@ -890,6 +890,7 @@ if (isUnavailableSlot)
         {
             var appointments = await _unitOfWork.Repository<Appointments>().GetQueryable()
                 .Include(a => a.Member)
+                .Include(a => a.Payments)
                 .Where(a => a.PaymentStatus == "Refunded")
                 .OrderByDescending(a => a.CreatedAt)
                 .AsNoTracking()
@@ -973,6 +974,7 @@ if (isUnavailableSlot)
         {
             // Lấy thông tin thanh toán đầu tiên (nếu có)
             var payment = item.Payments?.FirstOrDefault();
+
             // Lấy session đầu tiên (nếu có)
             var session = item.ConsultationSessions?.FirstOrDefault();
 
@@ -986,6 +988,11 @@ if (isUnavailableSlot)
                 ClinicName = item.Clinic?.Name,
                 MemberId = item.MemberId,
                 MemberName = item.Member?.FullName,
+
+                // ✅ CẢI TIẾN: Ưu tiên lấy UserId từ người thanh toán, 
+                // nếu không có (trường hợp chưa thanh toán) thì lấy UserId của chính Member/Bệnh nhân.
+                UserId = payment?.UserId ?? item.Member?.UserId ?? Guid.Empty,
+
                 AvailabilityId = item.AvailabilityId,
                 AppointmentDate = item.AppointmentDate,
                 AppointmentTime = item.AppointmentTime,

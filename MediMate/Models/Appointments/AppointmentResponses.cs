@@ -9,7 +9,9 @@ namespace MediMate.Models.Appointments
         public Guid? ClinicId { get; set; }
         public string? ClinicName { get; set; }
         public Guid MemberId { get; set; }
+
         public string? MemberName { get; set; }
+        public Guid UserId { get; set; }
         public Guid AvailabilityId { get; set; }
         public DateTime AppointmentDate { get; set; }
         public TimeSpan AppointmentTime { get; set; }

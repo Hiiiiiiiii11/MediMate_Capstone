@@ -28,6 +28,9 @@ namespace MediMateService.Services
 
         // Hoàn tất thủ tục hoàn tiền cho gói gia đình (dành cho Admin)
         Task<ApiResponse<bool>> CompleteRefundAsync(Guid subscriptionId, CompleteRefundRequest request);
+
+        // Lấy danh sách yêu cầu hoàn tiền gói (dành cho Admin)
+        Task<ApiResponse<List<RefundableSubscriptionDto>>> GetRefundableFamilySubscriptionsAsync();
     }
 
    

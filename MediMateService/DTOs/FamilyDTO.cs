@@ -73,4 +73,20 @@ namespace MediMateService.DTOs
     {
         public string Status { get; set; } = string.Empty;
     }
+
+    public class RefundableSubscriptionDto
+    {
+        public Guid SubscriptionId { get; set; }
+        public Guid FamilyId { get; set; }
+        public string FamilyName { get; set; } = string.Empty;
+        public Guid PackageId { get; set; }
+        public string PackageName { get; set; } = string.Empty;
+        public Guid UserId { get; set; }
+        public string? UserName { get; set; }
+        public decimal Amount { get; set; }
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
 }

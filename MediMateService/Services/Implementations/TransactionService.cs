@@ -279,9 +279,7 @@ namespace MediMateService.Services.Implementations
                 }
                 else if (lowerType == "out")
                 {
-                    // "Chi ra" exclude refund if we have a separate refund tab, 
-                    // or maybe include it? The user wants them separate.
-                    query = query.Where(t => t.TransactionType.ToLower().StartsWith("out") && !t.TransactionType.ToLower().Contains("refund"));
+                    query = query.Where(t => t.TransactionType.ToLower().StartsWith("out"));
                 }
                 else if (lowerType == "refund")
                 {

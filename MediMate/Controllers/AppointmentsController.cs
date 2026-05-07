@@ -205,6 +205,7 @@ namespace MediMate.Controllers
                 ClinicName = dto.ClinicName,
                 MemberId = dto.MemberId,
                 MemberName = dto.MemberName,
+                UserId = dto.UserId, // ✅ Đảm bảo gán UserId ở đây
                 AvailabilityId = dto.AvailabilityId,
                 AppointmentDate = dto.AppointmentDate,
                 AppointmentTime = dto.AppointmentTime,

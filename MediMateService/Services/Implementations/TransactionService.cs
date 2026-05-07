@@ -269,6 +269,35 @@ namespace MediMateService.Services.Implementations
         {
             if (!string.IsNullOrEmpty(filter.SearchTerm))
                 query = query.Where(t => t.TransactionCode.Contains(filter.SearchTerm));
+            
+            if (!string.IsNullOrEmpty(filter.Type))
+            {
+                var lowerType = filter.Type.ToLower();
+                if (lowerType == "in")
+                {
+                    query = query.Where(t => t.TransactionType.ToLower().StartsWith("in"));
+                }
+                else if (lowerType == "out")
+                {
+                    // "Chi ra" exclude refund if we have a separate refund tab, 
+                    // or maybe include it? The user wants them separate.
+                    query = query.Where(t => t.TransactionType.ToLower().StartsWith("out") && !t.TransactionType.ToLower().Contains("refund"));
+                }
+                else if (lowerType == "refund")
+                {
+                    query = query.Where(t => t.TransactionType.ToLower().Contains("refund"));
+                }
+                else
+                {
+                    query = query.Where(t => t.TransactionType.ToLower() == lowerType);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(filter.Status))
+            {
+                query = query.Where(t => t.TransactionStatus.ToLower() == filter.Status.ToLower());
+            }
+
             return filter.IsDescending ? query.OrderByDescending(t => t.PaidAt) : query.OrderBy(t => t.PaidAt);
         }
 

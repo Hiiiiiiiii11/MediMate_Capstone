@@ -1,6 +1,8 @@
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
+using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 using static MediMateRepository.Model.Families;
@@ -12,12 +14,14 @@ namespace MediMateService.Services.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IActivityLogService _activityLogService;
         private readonly IUploadPhotoService _uploadPhotoService;
+        private readonly INotificationService _notificationService;
 
-        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService, IUploadPhotoService uploadPhotoService)
+        public FamilyService(IUnitOfWork unitOfWork, IActivityLogService activityLogService, IUploadPhotoService uploadPhotoService, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _activityLogService = activityLogService;
             _uploadPhotoService = uploadPhotoService;
+            _notificationService = notificationService;
         }
 
         // --- LOGIC 1: CHẾ ĐỘ CÁ NHÂN ---
@@ -493,6 +497,209 @@ namespace MediMateService.Services.Implementations
             await _unitOfWork.CompleteAsync();
 
             return ApiResponse<bool>.Ok(true, $"Đã cập nhật trạng thái gói thành {status}.");
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // HỦY GÓI ĐĂNG KÝ (Cancel Subscription)
+        // Điều kiện: Gói phải còn Active, chỉ chủ hộ mới được hủy
+        // Logic: Nếu đã dùng > 10% thời gian gói → KHÔNG được hoàn tiền
+        //        Nếu dùng <= 10% → tạo Payment + Transaction hoàn tiền
+        //        Sau khi hủy → kích hoạt lại gói Freemium (Price = 0)
+        // ─────────────────────────────────────────────────────────────────
+        public async Task<ApiResponse<bool>> CancelSubscriptionAsync(Guid subscriptionId, Guid userId)
+        {
+            // 1. Lấy subscription và load Package
+            var subscription = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
+                .Include(s => s.Package)
+                .Include(s => s.Family)
+                .FirstOrDefaultAsync(s => s.SubscriptionId == subscriptionId);
+
+            if (subscription == null)
+                return ApiResponse<bool>.Fail("Không tìm thấy gói đăng ký.", 404);
+
+            // 2. Kiểm tra gói còn hiệu lực
+            if (subscription.Status != "Active")
+                return ApiResponse<bool>.Fail("Chỉ có thể hủy gói đang ở trạng thái Active.", 400);
+
+            // 3. Gói Freemium (Price = 0) không cho phép hủy
+            if (subscription.Package.Price == 0)
+                return ApiResponse<bool>.Fail("Không thể hủy gói Freemium miễn phí.", 400);
+
+            // 4. Kiểm tra quyền: chỉ chủ hộ (UserId khớp với người tạo subscription) mới được hủy
+            if (subscription.UserId != userId)
+            {
+                // Kiểm tra xem có phải là Owner của Family không
+                var isOwner = await _unitOfWork.Repository<Members>().GetQueryable()
+                    .AnyAsync(m => m.FamilyId == subscription.FamilyId
+                                   && m.UserId == userId
+                                   && m.Role == Roles.Owner);
+
+                if (!isOwner)
+                    return ApiResponse<bool>.Fail("Chỉ chủ hộ gia đình mới có quyền hủy gói đăng ký.", 403);
+            }
+
+            // 5. Tính phần trăm thời gian đã sử dụng
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            int totalDays = subscription.EndDate.DayNumber - subscription.StartDate.DayNumber;
+            int usedDays = today.DayNumber - subscription.StartDate.DayNumber;
+            
+            // Đảm bảo usedDays không âm
+            usedDays = Math.Max(0, usedDays);
+            double timeUsagePercent = totalDays > 0 ? (double)usedDays / totalDays * 100 : 100;
+
+            // 5b. Tính phần trăm OCR đã sử dụng
+            // OcrLimit là tổng lượt, RemainingOcrCount là số còn lại
+            int totalOcr = subscription.Package.OcrLimit;
+            int usedOcr = totalOcr - subscription.RemainingOcrCount;
+            usedOcr = Math.Max(0, usedOcr); // Đảm bảo không âm
+            double ocrUsagePercent = totalOcr > 0 ? (double)usedOcr / totalOcr * 100 : 0;
+
+            // Không đủ điều kiện hoàn tiền nếu:
+            // - Thời gian sử dụng > 10% HOẶC
+            // - OCR đã dùng > 10% tổng lượt
+            bool isEligibleForRefund = timeUsagePercent <= 10.0 && ocrUsagePercent <= 10.0;
+
+            // 6. Lấy Payment gốc của gói này để xác định số tiền và người trả
+            var originalPayment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                .Where(p => p.SubscriptionId == subscriptionId && p.Status == "Success")
+                .OrderByDescending(p => p.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            // 7. Đánh dấu subscription là Cancelled
+            subscription.Status = "Cancelled";
+            subscription.EndDate = today; // Kết thúc sớm ngay hôm nay
+            _unitOfWork.Repository<FamilySubscriptions>().Update(subscription);
+
+            // 8. Nếu đủ điều kiện hoàn tiền → tạo Payment + Transaction
+            decimal refundAmount = 0;
+            if (isEligibleForRefund && originalPayment != null && originalPayment.Amount > 0)
+            {
+                refundAmount = originalPayment.Amount;
+
+                var refundPayment = new Payments
+                {
+                    PaymentId = Guid.NewGuid(),
+                    SubscriptionId = subscriptionId,
+                    UserId = userId,
+                    Amount = refundAmount,
+                    PaymentContent = $"Hoàn tiền hủy gói {subscription.Package.PackageName} - #{subscriptionId.ToString()[..8].ToUpper()}",
+                    Status = "Refunded",
+                    CreatedAt = DateTime.Now
+                };
+                await _unitOfWork.Repository<Payments>().AddAsync(refundPayment);
+
+                var refundTransaction = new Transactions
+                {
+                    TransactionId = Guid.NewGuid(),
+                    TransactionCode = $"SUB-REFUND-{subscriptionId.ToString()[..8].ToUpper()}",
+                    PaymentId = refundPayment.PaymentId,
+                    GatewayName = "Manual",
+                    TransactionStatus = "Pending", // Pending vì Admin cần duyệt chuyển khoản thực tế
+                    AmountPaid = refundAmount,
+                    TransactionType = Share.Constants.TransactionTypes.OutRefundSubscription,
+                    GatewayResponse = null,
+                    PaidAt = null // Chưa trả, Admin sẽ cập nhật sau
+                };
+                await _unitOfWork.Repository<Transactions>().AddAsync(refundTransaction);
+            }
+
+            // 9. Kích hoạt lại gói Freemium sẵn có (ưu tiên gói đã tồn tại trong DB)
+            //    Tìm gói Free cũ (Price = 0) của gia đình đang ở trạng thái Inactive/Expired
+            var freemiumPackage = await _unitOfWork.Repository<MembershipPackages>().GetQueryable()
+                .FirstOrDefaultAsync(p => p.Price == 0 && p.IsActive);
+
+            if (freemiumPackage != null)
+            {
+                var existingFreeSub = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
+                    .Where(s => s.FamilyId == subscription.FamilyId
+                                && s.PackageId == freemiumPackage.PackageId
+                                && s.SubscriptionId != subscriptionId)
+                    .OrderByDescending(s => s.StartDate)
+                    .FirstOrDefaultAsync();
+
+                if (existingFreeSub != null)
+                {
+                    // Tái kích hoạt gói Free cũ đã tồn tại
+                    existingFreeSub.Status = "Active";
+                    existingFreeSub.EndDate = today.AddDays(freemiumPackage.DurationDays);
+                    existingFreeSub.RemainingOcrCount = freemiumPackage.OcrLimit;
+                    _unitOfWork.Repository<FamilySubscriptions>().Update(existingFreeSub);
+                }
+                else
+                {
+                    // Không tìm thấy gói Free cũ → tạo mới (fallback)
+                    var newFreeSub = new FamilySubscriptions
+                    {
+                        SubscriptionId = Guid.NewGuid(),
+                        FamilyId = subscription.FamilyId,
+                        PackageId = freemiumPackage.PackageId,
+                        UserId = userId,
+                        StartDate = today,
+                        EndDate = today.AddDays(freemiumPackage.DurationDays),
+                        Status = "Active",
+                        AutoRenew = false,
+                        RemainingOcrCount = freemiumPackage.OcrLimit
+                    };
+                    await _unitOfWork.Repository<FamilySubscriptions>().AddAsync(newFreeSub);
+                }
+            }
+
+            await _unitOfWork.CompleteAsync();
+
+            // 10. Ghi Activity Log
+            var doer = await _unitOfWork.Repository<Members>().GetQueryable()
+                .FirstOrDefaultAsync(m => m.FamilyId == subscription.FamilyId && m.UserId == userId);
+
+            if (doer != null)
+            {
+                await _activityLogService.LogActivityAsync(
+                    familyId: subscription.FamilyId,
+                    memberId: doer.MemberId,
+                    actionType: ActivityActionTypes.UPDATE,
+                    entityName: ActivityEntityNames.FAMILY,
+                    entityId: subscription.SubscriptionId,
+                    description: isEligibleForRefund
+                        ? $"Đã hủy gói '{subscription.Package.PackageName}' (thời gian: {timeUsagePercent:F1}%, OCR: {ocrUsagePercent:F1}%). Yêu cầu hoàn tiền {refundAmount:N0} VND đang chờ xử lý."
+                        : $"Đã hủy gói '{subscription.Package.PackageName}' (thời gian: {timeUsagePercent:F1}%, OCR: {ocrUsagePercent:F1}%). Không đủ điều kiện hoàn tiền. Đã chuyển về gói Freemium."
+                );
+            }
+
+            // 11. Gửi thông báo cho chủ hộ
+            string notifTitle = isEligibleForRefund
+                ? " Hủy gói thành công - Đang xử lý hoàn tiền"
+                : " Hủy gói thành công";
+
+            string notifMessage = isEligibleForRefund
+                ? $"Gói '{subscription.Package.PackageName}' đã bị hủy. Bạn đã sử dụng {timeUsagePercent:F1}% thời gian và {ocrUsagePercent:F1}% lượt OCR (đều ≤ 10%). " +
+                  $"Yêu cầu hoàn tiền {refundAmount:N0} VND đang chờ Admin xử lý. Hệ thống đã kích hoạt lại gói Freemium cho gia đình bạn."
+                : $"Gói '{subscription.Package.PackageName}' đã bị hủy. Bạn đã sử dụng {timeUsagePercent:F1}% thời gian và {ocrUsagePercent:F1}% lượt OCR — vượt ngưỡng 10%, không đủ điều kiện hoàn tiền. " +
+                  "Hệ thống đã kích hoạt lại gói Freemium cho gia đình bạn.";
+
+            await _notificationService.SendNotificationAsync(
+                userId: userId,
+                title: notifTitle,
+                message: notifMessage,
+                type: "SUBSCRIPTION_CANCELLED",
+                referenceId: subscriptionId
+            );
+
+            // 12. Thông báo cho Admin nếu cần hoàn tiền
+            if (isEligibleForRefund && refundAmount > 0)
+            {
+                await _notificationService.SendNotificationToRoleAsync(
+                    Roles.Admin,
+                    " Yêu cầu hoàn tiền hủy gói mới",
+                    $"Gia đình '{subscription.Family?.FamilyName}' vừa hủy gói '{subscription.Package.PackageName}'. " +
+                    $"Yêu cầu hoàn tiền {refundAmount:N0} VND đang chờ xử lý.",
+                    "Warning"
+                );
+            }
+
+            string successMessage = isEligibleForRefund
+                ? $"Hủy gói thành công. Yêu cầu hoàn tiền {refundAmount:N0} VND đang chờ Admin xử lý."
+                : $"Hủy gói thành công. Đã sử dụng {timeUsagePercent:F1}% thời gian / {ocrUsagePercent:F1}% OCR (> 10%) nên không được hoàn tiền.";
+
+            return ApiResponse<bool>.Ok(true, successMessage);
         }
     }
 }

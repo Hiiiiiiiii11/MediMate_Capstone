@@ -176,7 +176,7 @@ namespace MediMate.Controllers
         // [ADMIN] XÁC NHẬN ĐÃ CHUYỂN KHOẢN CHO BÁC SĨ
         // ─────────────────────────────────────────────────────────
         [HttpPost("payouts/{payoutId}/approve")]
-        [Authorize(Roles = "Admin,Manager")] // CHỈ ADMIN/KẾ TOÁN ĐƯỢC DUYỆT
+        [Authorize(Roles = "Admin,Manager")] 
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         public async Task<IActionResult> ApproveDoctorPayout(Guid payoutId, [FromForm] ApprovePayoutRequest request)
         {
@@ -201,6 +201,23 @@ namespace MediMate.Controllers
                 return StatusCode(500, ApiResponse<bool>.Fail("Lỗi hệ thống: " + ex.Message, 500));
             }
         }
+        // ─────────────────────────────────────────────────────────
+        // [ADMIN] LẤY THỐNG KÊ GIAO DỊCH (TỔNG THU, TỔNG CHI, DOANH THU)
+        // ─────────────────────────────────────────────────────────
+        [HttpGet("statistics")]
+        [Authorize(Roles = "Admin,Manager")]
+        [ProducesResponseType(typeof(ApiResponse<TransactionStatisticsDto>), 200)]
+        public async Task<IActionResult> GetTransactionStatistics()
+        {
+            try
+            {
+                var result = await _transactionService.GetTransactionStatisticsAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail("Lỗi hệ thống: " + ex.Message, 500));
+            }
+        }
     }
-
 }

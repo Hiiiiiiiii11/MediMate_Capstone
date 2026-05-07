@@ -22,6 +22,9 @@ namespace MediMateService.Services
         // Admin methods for family subscriptions
         Task<ApiResponse<PagedResult<AdminFamilySubscriptionResponse>>> GetAllFamilySubscriptionsAsync(AdminFamilySubscriptionFilter filter);
         Task<ApiResponse<bool>> UpdateFamilySubscriptionStatusAsync(Guid subscriptionId, string status);
+        
+        // Hủy gói đăng ký (chỉ chủ hộ), hoàn tiền nếu sử dụng chưa quá 10%
+        Task<ApiResponse<bool>> CancelSubscriptionAsync(Guid subscriptionId, Guid userId);
     }
 
    

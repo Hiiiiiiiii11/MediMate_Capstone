@@ -25,6 +25,9 @@ namespace MediMateService.Services
         
         // Hủy gói đăng ký (chỉ chủ hộ), hoàn tiền nếu sử dụng chưa quá 10%
         Task<ApiResponse<bool>> CancelSubscriptionAsync(Guid subscriptionId, Guid userId);
+
+        // Hoàn tất thủ tục hoàn tiền cho gói gia đình (dành cho Admin)
+        Task<ApiResponse<bool>> CompleteRefundAsync(Guid subscriptionId, CompleteRefundRequest request);
     }
 
    

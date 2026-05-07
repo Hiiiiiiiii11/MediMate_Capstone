@@ -88,14 +88,17 @@ namespace MediMateService.Services.Implementations
             {
                 throw new BadRequestException("Ngày đặt khám không khớp với khung giờ rảnh của bác sĩ.");
             }
+var isUnavailableSlot = (await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
+    .FindAsync(e => e.DoctorId == request.DoctorId
+                    && e.Date.Date == request.AppointmentDate.Date
+                    && !e.IsAvailableOverride // Trạng thái nghỉ
+                    // Kiểm tra giờ đặt lịch có nằm trong khoảng thời gian bác sĩ xin nghỉ không
+                    && request.AppointmentTime >= e.StartTime 
+                    && request.AppointmentTime < e.EndTime))
+    .Any();
 
-            // 6. Kiểm tra ngày nghỉ (Day Off)
-            var isDayOff = (await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
-                .FindAsync(e => e.DoctorId == request.DoctorId
-                                && e.Date.Date == request.AppointmentDate.Date
-                                && !e.IsAvailableOverride)).Any();
-            if (isDayOff) throw new BadRequestException("Bác sĩ đã xin nghỉ phép vào ngày này.");
-
+if (isUnavailableSlot) 
+    throw new BadRequestException("Bác sĩ đã xin nghỉ vào khung giờ này. Vui lòng chọn khung giờ khác.");
             // 7. Kiểm tra trùng lịch (Slot Booked)
             var isSlotBooked = (await _unitOfWork.Repository<Appointments>()
                 .FindAsync(a => a.DoctorId == request.DoctorId
@@ -518,6 +521,7 @@ namespace MediMateService.Services.Implementations
             DateTime now = DateTime.Now; // Lấy giờ hệ thống
             bool isToday = targetDate == now.Date;
             TimeSpan currentTime = now.TimeOfDay;
+            int bufferMinutes = 15;
 
             // 1. Lấy tất cả các ngoại lệ (Exceptions)
             var exceptions = await _unitOfWork.Repository<DoctorAvailabilityExceptions>()
@@ -550,11 +554,11 @@ namespace MediMateService.Services.Implementations
                 while (currentSlotTime + slotDuration <= shift.EndTime)
                 {
                     // ✅ LOGIC 1: NẾU LÀ HÔM NAY, BỎ QUA CÁC GIỜ ĐÃ QUA HOẶC QUÁ SÁT GIỜ (10 PHÚT)
-                    if (isToday && currentSlotTime < currentTime.Add(TimeSpan.FromMinutes(10)))
-                    {
-                        currentSlotTime = currentSlotTime.Add(slotDuration);
-                        continue;
-                    }
+                    if (isToday && currentSlotTime <= currentTime.Add(TimeSpan.FromMinutes(bufferMinutes)))
+        {
+            currentSlotTime = currentSlotTime.Add(slotDuration);
+            continue;
+        }
 
                     // ✅ LOGIC 2: KIỂM TRA LỊCH NGHỈ (EXCEPTIONS)
                     bool isLeaveSlot = exceptions.Any(e =>
@@ -569,13 +573,12 @@ namespace MediMateService.Services.Implementations
                     }
 
                     result.Add(new AvailableSlotDto
-                    {
-                        AvailabilityId = shift.DoctorAvailabilityId,
-                        Time = currentSlotTime,
-                        DisplayTime = $"{currentSlotTime:hh\\:mm} - {(currentSlotTime + slotDuration):hh\\:mm}",
-                        IsBooked = bookedTimes.Contains(currentSlotTime)
-                    });
-
+        {
+            AvailabilityId = shift.DoctorAvailabilityId,
+            Time = currentSlotTime,
+            DisplayTime = $"{currentSlotTime:hh\\:mm} - {(currentSlotTime + slotDuration):hh\\:mm}",
+            IsBooked = bookedTimes.Contains(currentSlotTime)
+        });
                     currentSlotTime = currentSlotTime.Add(slotDuration);
                 }
             }

@@ -596,7 +596,7 @@ namespace MediMateService.Services.Implementations
                     GatewayName = "Manual",
                     TransactionStatus = "Pending", // Pending vì Admin cần duyệt chuyển khoản thực tế
                     AmountPaid = refundAmount,
-                    TransactionType = Share.Constants.TransactionTypes.OutRefundSubscription,
+                    TransactionType = TransactionTypes.OutRefundSubscription,
                     GatewayResponse = null,
                     PaidAt = null // Chưa trả, Admin sẽ cập nhật sau
                 };
@@ -700,6 +700,66 @@ namespace MediMateService.Services.Implementations
                 : $"Hủy gói thành công. Đã sử dụng {timeUsagePercent:F1}% thời gian / {ocrUsagePercent:F1}% OCR (> 10%) nên không được hoàn tiền.";
 
             return ApiResponse<bool>.Ok(true, successMessage);
+        }
+        // ─────────────────────────────────────────────────────────────────
+        // ADMIN: XÁC NHẬN ĐÃ CHUYỂN KHOẢN HOÀN TIỀN
+        // ─────────────────────────────────────────────────────────────────
+        public async Task<ApiResponse<bool>> CompleteRefundAsync(Guid subscriptionId, CompleteRefundRequest request)
+        {
+            var subscription = await _unitOfWork.Repository<FamilySubscriptions>().GetQueryable()
+                .Include(s => s.Family)
+                .Include(s => s.Package)
+                .FirstOrDefaultAsync(s => s.SubscriptionId == subscriptionId);
+
+            if (subscription == null)
+                throw new NotFoundException("Không tìm thấy gói đăng ký.");
+
+            // Lấy payment refund đang chờ xử lý bằng cách truy vấn trực tiếp Payments
+            var refundPayment = await _unitOfWork.Repository<Payments>().GetQueryable()
+                .FirstOrDefaultAsync(p => p.SubscriptionId == subscriptionId && p.Status == "Refunded");
+                
+            if (refundPayment == null)
+                throw new BadRequestException("Không tìm thấy yêu cầu hoàn tiền hợp lệ cho gói đăng ký này.");
+
+            // Lấy transaction của refund này
+            var refundTransaction = await _unitOfWork.Repository<Transactions>().GetQueryable()
+                .FirstOrDefaultAsync(t => t.PaymentId == refundPayment.PaymentId && t.TransactionType == TransactionTypes.OutRefundSubscription && t.TransactionStatus == "Pending");
+
+            if (refundTransaction == null)
+                throw new BadRequestException("Không tìm thấy giao dịch hoàn tiền đang chờ xử lý.");
+
+            // Upload ảnh chứng minh chuyển khoản hoàn tiền nếu có
+            string? refundImageUrl = null;
+            if (request.TransferImage != null)
+            {
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.TransferImage);
+                refundImageUrl = uploadResult.OriginalUrl;
+            }
+
+            // Cập nhật trạng thái
+            refundPayment.Status = "RefundCompleted";
+            _unitOfWork.Repository<Payments>().Update(refundPayment);
+
+            refundTransaction.TransactionStatus = "Success";
+            refundTransaction.GatewayResponse = refundImageUrl;
+            refundTransaction.PaidAt = DateTime.Now;
+            _unitOfWork.Repository<Transactions>().Update(refundTransaction);
+
+            await _unitOfWork.CompleteAsync();
+
+            // Gửi thông báo cho chủ hộ
+            var family = subscription.Family;
+            if (family != null)
+            {
+                await _notificationService.SendNotificationToUserAsync(
+                    family.CreateBy,
+                    "Hoàn tiền thành công",
+                    $"Số tiền {refundTransaction.AmountPaid} VND cho việc hủy gói {subscription.Package?.PackageName} đã được hoàn lại. Vui lòng kiểm tra tài khoản ngân hàng.",
+                    "Success"
+                );
+            }
+
+            return ApiResponse<bool>.Ok(true, "Xác nhận hoàn tiền thành công.");
         }
     }
 }

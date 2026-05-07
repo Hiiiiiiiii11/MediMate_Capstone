@@ -898,7 +898,7 @@ if (isUnavailableSlot)
             return appointments.Select(MapAppointment).ToList();
         }
 
-        public async Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId, IFormFile? transferImage)
+        public async Task<AppointmentDto> CompleteRefundAsync(Guid appointmentId, CompleteRefundRequest request)
         {
             var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
                 .Include(a => a.Member)
@@ -913,9 +913,9 @@ if (isUnavailableSlot)
 
             // Upload ảnh chứng minh chuyển khoản hoàn tiền nếu có
             string? refundImageUrl = null;
-            if (transferImage != null)
+            if (request.TransferImage != null)
             {
-                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(transferImage);
+                var uploadResult = await _uploadPhotoService.UploadPhotoAsync(request.TransferImage);
                 refundImageUrl = uploadResult.OriginalUrl;
             }
 

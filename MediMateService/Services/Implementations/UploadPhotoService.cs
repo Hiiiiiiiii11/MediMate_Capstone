@@ -38,7 +38,7 @@ namespace MediMateService.Services.Implementations
             // 2. Tạo link Thumbnail (resize 200x200)
             var thumbnailUrl = _cloudinary.Api.UrlImgUp
                 .Transform(new Transformation()
-                    .Width(200).Height(200).Crop("fill").Gravity("auto")
+                    .Width(600).Height(600).Crop("fill").Gravity("auto")
                     .Quality("auto").FetchFormat("auto"))
                 .BuildUrl(uploadResult.PublicId);
 
@@ -77,7 +77,7 @@ namespace MediMateService.Services.Implementations
             // Cấu hình: Rộng 200, Cao 200, Cắt vừa khít (fill), Tự động nén (q_auto)
             var thumbnailUrl = _cloudinary.Api.UrlImgUp
                 .Transform(new Transformation()
-                    .Width(200).Height(200).Crop("fill").Gravity("auto")
+                    .Width(600).Height(600).Crop("fill").Gravity("auto")
                     .Quality("auto").FetchFormat("auto"))
                 .BuildUrl(uploadResult.PublicId);
 

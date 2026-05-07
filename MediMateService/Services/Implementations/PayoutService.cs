@@ -46,6 +46,11 @@ namespace MediMateService.Services.Implementations
             if (filter.ClinicId.HasValue)
                 query = query.Where(p => p.ClinicId == filter.ClinicId.Value);
 
+            if (filter.DoctorId.HasValue)
+                query = query.Where(p =>
+                    (p.Appointment != null && p.Appointment.DoctorId == filter.DoctorId.Value) ||
+                    (p.ConsultationSession != null && p.ConsultationSession.DoctorId == filter.DoctorId.Value));
+
             if (!string.IsNullOrWhiteSpace(filter.Status))
                 query = query.Where(p => p.Status == filter.Status);
 
@@ -119,9 +124,15 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────────────────────────
         public async Task<int> ProcessClinicPayoutAsync(Guid clinicId, ProcessPayoutDto dto)
         {
+            // Lấy Clinic riêng để tránh EF Core track duplicate qua Include
+            var clinic = await _unitOfWork.Repository<Clinics>()
+                .GetQueryable()
+                .Include(c => c.Admin)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ClinicId == clinicId);
+
+            // Lấy các payout đang chờ, KHÔNG include Clinic để tránh conflict tracking
             var pendingPayouts = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
-                .Include(p => p.Clinic)
-                .ThenInclude(c => c.Admin)
                 .Where(p => p.ClinicId == clinicId && p.Status == "ReadyToPay")
                 .ToListAsync();
 
@@ -143,7 +154,6 @@ namespace MediMateService.Services.Implementations
 
             var now = DateTime.Now;
             decimal totalAmount = 0;
-            var clinic = pendingPayouts.First().Clinic;
 
             foreach (var payout in pendingPayouts)
             {
@@ -157,8 +167,9 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.CompleteAsync();
 
-            // Gửi Email thông báo cho Clinic Admin
-            if (clinic?.Admin?.Email != null)
+            // Gửi Email thông báo cho Clinic
+            var targetEmail = clinic?.Email ?? clinic?.Admin?.Email;
+            if (!string.IsNullOrEmpty(targetEmail))
             {
                 var subject = $"[MediMate] Thông báo Tất toán Công nợ - {now:dd/MM/yyyy}";
                 var emailBody = $@"
@@ -173,8 +184,8 @@ namespace MediMateService.Services.Implementations
                     <p>Trân trọng,<br>Đội ngũ MediMate</p>
                 ";
 
-                // Chạy background task để tránh block request API nếu mail server phản hồi chậm
-                _ = Task.Run(() => _emailService.SendEmailAsync(clinic.Admin.Email, subject, emailBody));
+                // Await trực tiếp để đảm bảo service không bị dispose trước khi chạy xong
+                await _emailService.SendEmailAsync(targetEmail, subject, emailBody);
             }
 
             return pendingPayouts.Count;

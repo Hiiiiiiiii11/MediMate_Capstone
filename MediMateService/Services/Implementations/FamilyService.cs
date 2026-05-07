@@ -761,5 +761,37 @@ namespace MediMateService.Services.Implementations
 
             return ApiResponse<bool>.Ok(true, "Xác nhận hoàn tiền thành công.");
         }
+
+        public async Task<ApiResponse<List<RefundableSubscriptionDto>>> GetRefundableFamilySubscriptionsAsync()
+        {
+            var refundPayments = await _unitOfWork.Repository<Payments>().GetQueryable()
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Family)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Package)
+                .Include(p => p.User)
+                .Where(p => p.Status == "Refunded" && p.SubscriptionId != null)
+                .OrderByDescending(p => p.CreatedAt)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var result = refundPayments.Select(p => new RefundableSubscriptionDto
+            {
+                SubscriptionId = p.SubscriptionId!.Value,
+                FamilyId = p.Subscription!.FamilyId,
+                FamilyName = p.Subscription.Family?.FamilyName ?? string.Empty,
+                PackageId = p.Subscription.PackageId,
+                PackageName = p.Subscription.Package?.PackageName ?? string.Empty,
+                UserId = p.UserId,
+                UserName = p.User?.FullName,
+                Amount = p.Amount,
+                StartDate = p.Subscription.StartDate,
+                EndDate = p.Subscription.EndDate,
+                Status = p.Status,
+                CreatedAt = p.CreatedAt
+            }).ToList();
+
+            return ApiResponse<List<RefundableSubscriptionDto>>.Ok(result);
+        }
     }
 }

@@ -183,4 +183,20 @@ public class FamilyController : ControllerBase
             return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
         }
     }
+
+    [HttpGet("subscriptions/refundable")]
+    [ProducesResponseType(typeof(ApiResponse<List<RefundableSubscriptionDto>>), 200)]
+    public async Task<IActionResult> GetRefundableSubscriptions()
+    {
+        try
+        {
+            var result = await _familyService.GetRefundableFamilySubscriptionsAsync();
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
 }

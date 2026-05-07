@@ -148,10 +148,10 @@ namespace MediMateService.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<PrescriptionResponse>>> GetPrescriptionsByMemberAsync(Guid memberId, Guid userId)
         {
-            if (!await _currentUserService.CheckAccess(memberId, userId))
-            {
-                return ApiResponse<IEnumerable<PrescriptionResponse>>.Fail("Access Denied", 403);
-            }
+            //if (!await _currentUserService.CheckAccess(memberId, userId))
+            //{
+            //    return ApiResponse<IEnumerable<PrescriptionResponse>>.Fail("Access Denied", 403);
+            //}
 
             // Include cả Images và Medications
             var list = await _unitOfWork.Repository<Prescriptions>()

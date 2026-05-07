@@ -147,4 +147,23 @@ public class FamilyController : ControllerBase
             return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
         }
     }
+
+    // POST: api/v1/families/subscriptions/{subscriptionId}/cancel
+    // Chủ hộ hủy gói đang dùng. Hệ thống kiểm tra % sử dụng để quyết định hoàn tiền.
+    [HttpPost("subscriptions/{subscriptionId}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    public async Task<IActionResult> CancelSubscription(Guid subscriptionId)
+    {
+        try
+        {
+            var userId = _currentUserService.UserId;
+            var result = await _familyService.CancelSubscriptionAsync(subscriptionId, userId);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
 }

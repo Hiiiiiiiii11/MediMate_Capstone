@@ -13,6 +13,7 @@ namespace Share.Constants
         public const string InSessionPayment = "IN_SESSION";
         public const string MoneySent = "OUT";
         public const string OutRefundSession = "OUT_REFUND_SESSION";
+        public const string OutRefundSubscription = "OUT_REFUND_SUBSCRIPTION";
         public const string OutClinicPayout = "OUT_CLINIC_PAYOUT";
     };
 }

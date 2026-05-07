@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
 using MediMateRepository.Model;
 using MediMateRepository.Repositories;
+using MediMateService.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 
 namespace MediMateService.Services.Implementations
@@ -69,6 +72,39 @@ namespace MediMateService.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<List<DrugDto>>> SearchDrugsAsync(string searchTerm, int limit = 10)
+        {
+            try
+            {
+                var query = _unitOfWork.Repository<Drug>().GetQueryable().AsNoTracking();
+
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    searchTerm = searchTerm.ToLower();
+                    query = query.Where(d => d.Name.ToLower().Contains(searchTerm) || d.Synonyms.ToLower().Contains(searchTerm));
+                }
+
+                var drugs = await query
+                    .OrderBy(d => d.Name)
+                    .Take(limit)
+                    .Select(d => new DrugDto
+                    {
+                        DrugId = d.DrugId,
+                        DrugBankId = d.DrugBankId,
+                        Name = d.Name,
+                        Synonyms = d.Synonyms,
+                        Description = d.Description
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<DrugDto>>.Ok(drugs, "Tìm kiếm thuốc thành công.");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<DrugDto>>.Fail($"Lỗi hệ thống: {ex.Message}", 500);
+            }
+        }
+
         private Drug ParseDrug(XmlReader reader)
         {
             Drug drug = new Drug { DrugId = Guid.NewGuid() };
@@ -95,6 +131,25 @@ namespace MediMateService.Services.Implementations
                         {
                             var desc = inner.ReadElementContentAsString();
                             drug.Description = desc.Length > 2000 ? desc.Substring(0, 1997) + "..." : desc;
+                        }
+                        else if (inner.Name == "synonyms" && string.IsNullOrEmpty(drug.Synonyms))
+                        {
+                            var synonymsList = new List<string>();
+                            using (XmlReader synReader = inner.ReadSubtree())
+                            {
+                                while (synReader.Read())
+                                {
+                                    if (synReader.NodeType == XmlNodeType.Element && synReader.Name == "synonym")
+                                    {
+                                        var syn = synReader.ReadElementContentAsString();
+                                        if (!string.IsNullOrWhiteSpace(syn))
+                                        {
+                                            synonymsList.Add(syn.Trim());
+                                        }
+                                    }
+                                }
+                            }
+                            drug.Synonyms = string.Join(", ", synonymsList);
                         }
                         else if (inner.Name == "drug-interactions")
                         {

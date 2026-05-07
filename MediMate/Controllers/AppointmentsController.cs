@@ -205,6 +205,7 @@ namespace MediMate.Controllers
                 ClinicName = dto.ClinicName,
                 MemberId = dto.MemberId,
                 MemberName = dto.MemberName,
+                UserId = dto.UserId, // ✅ Đảm bảo gán UserId ở đây
                 AvailabilityId = dto.AvailabilityId,
                 AppointmentDate = dto.AppointmentDate,
                 AppointmentTime = dto.AppointmentTime,
@@ -258,7 +259,7 @@ namespace MediMate.Controllers
         {
             try
             {
-                var result = await _appointmentService.CompleteRefundAsync(appointmentId, request.TransferImage);
+                var result = await _appointmentService.CompleteRefundAsync(appointmentId, request);
                 return Ok(ApiResponse<AppointmentDto>.Ok(result, "Đã cập nhật trạng thái hoàn tiền thành công."));
             }
             catch (Exception ex)

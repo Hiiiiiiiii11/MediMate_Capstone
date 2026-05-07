@@ -2,6 +2,7 @@ using MediMateService.DTOs;
 using MediMateService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Share.Common;
 
 [Route("api/v1/families")]
@@ -158,6 +159,38 @@ public class FamilyController : ControllerBase
         {
             var userId = _currentUserService.UserId;
             var result = await _familyService.CancelSubscriptionAsync(subscriptionId, userId);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+
+    [HttpPost("subscriptions/{subscriptionId}/complete-refund")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    public async Task<IActionResult> CompleteSubscriptionRefund(Guid subscriptionId, [FromForm] CompleteRefundRequest request)
+    {
+        try
+        {
+            var result = await _familyService.CompleteRefundAsync(subscriptionId, request);
+            if (!result.Success) return StatusCode(result.Code, result);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Success = false, Message = "Lỗi hệ thống: " + ex.Message });
+        }
+    }
+
+    [HttpGet("subscriptions/refundable")]
+    [ProducesResponseType(typeof(ApiResponse<List<RefundableSubscriptionDto>>), 200)]
+    public async Task<IActionResult> GetRefundableSubscriptions()
+    {
+        try
+        {
+            var result = await _familyService.GetRefundableFamilySubscriptionsAsync();
             if (!result.Success) return StatusCode(result.Code, result);
             return Ok(result);
         }

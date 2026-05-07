@@ -117,6 +117,7 @@ namespace MediMate
             builder.Services.AddScoped<IClinicService, ClinicService>();
             builder.Services.AddScoped<IPayoutService, PayoutService>();
             builder.Services.AddScoped<IAgoraRecordingService, AgoraRecordingService>();
+            builder.Services.AddScoped<IUserBankAccountService, UserBankAccountService>();
             builder.Services.AddMemoryCache();
             builder.Services.AddSignalR();
 

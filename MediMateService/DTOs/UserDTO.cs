@@ -29,6 +29,22 @@ namespace MediMateService.DTOs
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
+    public class UpsertUserBankAccountRequest
+    {
+        [Required] public string BankName { get; set; } = string.Empty;
+        [Required] public string AccountNumber { get; set; } = string.Empty;
+        [Required] public string AccountHolder { get; set; } = string.Empty;
+    }
+
+    public class UserBankAccountDto
+    {
+        public Guid BankAccountId { get; set; }
+        public string BankName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountHolder { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
 
     public class CreateDoctorManagerDto
     {

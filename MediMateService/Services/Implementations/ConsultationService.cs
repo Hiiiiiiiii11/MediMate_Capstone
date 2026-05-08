@@ -149,7 +149,7 @@ namespace MediMateService.Services.Implementations
                         {
                             await _notificationService.SendNotificationAsync(
                                 userId: headUserId.Value,
-                                title: "👨‍⚕️ Bác sĩ đã vào phòng!",
+                                title: "Bác sĩ đã vào phòng!",
                                 message: "Bác sĩ đang đợi tư vấn trực tuyến cho bạn. Hãy tham gia ngay nhé!",
                                 type: ConsultationSessionActionTypes.SESSION_STARTED,
                                 referenceId: session.ConsultanSessionId
@@ -157,7 +157,7 @@ namespace MediMateService.Services.Implementations
                         }
                         await _notificationService.SendNotificationAsync(
                             userId: null,
-                            title: "👨‍⚕️ Bác sĩ đã vào phòng!",
+                            title: "Bác sĩ đã vào phòng!",
                             message: "Bác sĩ đang đợi tư vấn trực tuyến cho bạn. Hãy tham gia ngay nhé!",
                             type: ConsultationSessionActionTypes.SESSION_STARTED,
                             referenceId: session.ConsultanSessionId,
@@ -198,7 +198,7 @@ namespace MediMateService.Services.Implementations
                     {
                         await _notificationService.SendNotificationAsync(
                             userId: doctor.UserId,
-                            title: "🙋‍♂️ Bệnh nhân đã có mặt!",
+                            title: "Bệnh nhân đã có mặt!",
                             message: $"Bệnh nhân {member.FullName} đã tham gia phòng chờ tư vấn. Vui lòng tham gia để bắt đầu.",
                             type: ConsultationSessionActionTypes.SESSION_STARTED,
                             referenceId: session.ConsultanSessionId
@@ -238,7 +238,7 @@ namespace MediMateService.Services.Implementations
                     {
                         await _notificationService.SendNotificationAsync(
                             userId: headUserId.Value,
-                            title: "📞 Phiên tư vấn đã bắt đầu!",
+                            title: "Phiên tư vấn đã bắt đầu!",
                             message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                             type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
                             referenceId: session.ConsultanSessionId
@@ -247,7 +247,7 @@ namespace MediMateService.Services.Implementations
 
                     await _notificationService.SendNotificationAsync(
                         userId: null,
-                        title: "📞 Phiên tư vấn đã bắt đầu!",
+                        title: "Phiên tư vấn đã bắt đầu!",
                         message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                         type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
                         referenceId: session.ConsultanSessionId,
@@ -259,7 +259,7 @@ namespace MediMateService.Services.Implementations
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: doctor.UserId,
-                        title: "📞 Phiên tư vấn đã bắt đầu!",
+                        title: "Phiên tư vấn đã bắt đầu!",
                         message: "Cả bác sĩ và bệnh nhân đã ở trong phòng. Cuộc tư vấn đang diễn ra.",
                         type: ConsultationSessionActionTypes.SESSION_IN_PROGRESS,
                         referenceId: session.ConsultanSessionId
@@ -426,7 +426,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "⚠️ Bạn đã bỏ lỡ phiên tư vấn",
+                    title: "Bạn đã bỏ lỡ phiên tư vấn",
                     message: $"Lịch hẹn của bệnh nhân {member?.FullName} đã bị hủy vì bạn không tham gia đúng giờ. Hệ thống đã ghi nhận lỗi No-show.",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
@@ -442,7 +442,7 @@ namespace MediMateService.Services.Implementations
 
                 await _notificationService.SendNotificationAsync(
                     userId: headUserId.Value,
-                    title: "❌ Đã hủy phiên tư vấn (Bác sĩ vắng mặt)",
+                    title: "Đã hủy phiên tư vấn (Bác sĩ vắng mặt)",
                     message: $"Phiên khám của {member?.FullName} đã được hủy thành công do bác sĩ không có mặt.{refundMsg}",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
@@ -456,7 +456,7 @@ namespace MediMateService.Services.Implementations
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: headUserId.Value,
-                        title: "⚠️ Cần cập nhật thông tin ngân hàng",
+                        title: "Cần cập nhật thông tin ngân hàng",
                         message: "Lịch hẹn của bạn sẽ được hoàn tiền, nhưng bạn chưa có thông tin ngân hàng trong hồ sơ. Vui lòng cập nhật ngay.",
                         type: "BANKING_INFO_MISSING",
                         referenceId: appointment.AppointmentId
@@ -556,7 +556,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "✅ Phiên tư vấn đã kết thúc",
+                    title: "Phiên tư vấn đã kết thúc",
                     message: $"{enderName} đã kết thúc phiên tư vấn. Hệ thống đã ghi nhận doanh thu phiên khám.",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
@@ -579,7 +579,7 @@ namespace MediMateService.Services.Implementations
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: headUserId.Value,
-                        title: "✅ Phiên tư vấn đã kết thúc",
+                        title: "Phiên tư vấn đã kết thúc",
                         message: $"{enderName} đã kết thúc phiên tư vấn.",
                         type: ConsultationSessionActionTypes.SESSION_ENDED,
                         referenceId: session.ConsultanSessionId

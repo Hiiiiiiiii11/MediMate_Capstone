@@ -78,18 +78,18 @@ namespace MediMateService.Services.Implementations
                 }
 
                 var messageContent = $"""
-📋 ĐƠN THUỐC ĐIỆN TỬ
+ĐƠN THUỐC ĐIỆN TỬ
 ━━━━━━━━━━━━━━━━━━━━━━━━
-👤 Bệnh nhân : {member?.FullName ?? "Không rõ"}
-👨‍⚕️ Bác sĩ     : {doctor?.FullName ?? "Không rõ"}
-📅 Ngày kê   : {DateTime.Now:dd/MM/yyyy HH:mm}
+Bệnh nhân : {member?.FullName ?? "Không rõ"}
+Bác sĩ     : {doctor?.FullName ?? "Không rõ"}
+Ngày kê   : {DateTime.Now:dd/MM/yyyy HH:mm}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 Chẩn đoán : {request.Diagnosis}
+Chẩn đoán : {request.Diagnosis}
 
-💊 DANH SÁCH THUỐC:
+DANH SÁCH THUỐC:
 {medicineLines}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📝 Lời dặn: {request.Advice}
+Lời dặn: {request.Advice}
 """;
 
                 var systemMessage = new ChatDoctorMessages

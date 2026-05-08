@@ -439,7 +439,7 @@ public class PayOSService : IPayOSService
 
                         await _notificationService.SendNotificationAsync(
                             userId: doctor.UserId,
-                            title: "💳 Lịch khám mới chờ xác nhận!",
+                            title: "Lịch khám mới chờ xác nhận!",
                             message: $"Bệnh nhân {memberName} đã thanh toán thành công và đang chờ bạn xác nhận lịch khám lúc {timeStr} ngày {dateStr}.",
                             type: "NEW_APPOINTMENT_PAID",
                             referenceId: appointment.AppointmentId
@@ -450,7 +450,7 @@ public class PayOSService : IPayOSService
                         {
                             await _notificationService.SendNotificationAsync(
                                 userId: transaction.Payment.UserId,
-                                title: "✅ Đặt lịch & Thanh toán thành công!",
+                                title: "Đặt lịch & Thanh toán thành công!",
                                 message: $"Bạn đã đặt lịch khám cho {memberName} với bác sĩ {doctor.User.FullName} vào lúc {timeStr} ngày {dateStr}. Vui lòng chờ bác sĩ xác nhận.",
                                 type: AppointmentActionTypes.NEW_APPOINTMENT,
                                 referenceId: appointment.AppointmentId
@@ -462,7 +462,7 @@ public class PayOSService : IPayOSService
                         {
                             await _notificationService.SendNotificationAsync(
                                 userId: null,
-                                title: "📅 Lịch khám mới cho bạn!",
+                                title: "Lịch khám mới cho bạn!",
                                 message: $"Đã đặt lịch khám cho bạn với bác sĩ {doctor.User.FullName} vào lúc {timeStr} ngày {dateStr}.",
                                 type: AppointmentActionTypes.NEW_APPOINTMENT,
                                 referenceId: appointment.AppointmentId,

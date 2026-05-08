@@ -139,19 +139,19 @@ namespace MediMateService.Services.Implementations
 
             if (attempt == 1 && DateTime.Now < reminder.ReminderTime.AddMinutes(-2))
             {
-                title = "⏰ Sắp đến giờ uống thuốc!";
+                title = "Sắp đến giờ uống thuốc!";
                 bodyMember = $"Sắp tới bạn có lịch uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}. Hãy chuẩn bị nhé!";
                 bodyFamily = $"{targetMember.FullName} sắp có lịch uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}.";
             }
             else if (isLastWarning)
             {
-                title = "🚨 CẢNH BÁO TRỄ GIỜ UỐNG THUỐC!";
+                title = "CẢNH BÁO TRỄ GIỜ UỐNG THUỐC!";
                 bodyMember = $"Bạn sắp trễ giờ uống {medicineNames} (lịch {reminder.ReminderTime:HH\\:mm}). Nhắc nhở lần cuối, hãy uống uống thuốc để đảm bảo sức khỏe!";
                 bodyFamily = $"CẢNH BÁO: {targetMember.FullName} chưa uống {medicineNames} lúc {reminder.ReminderTime:HH\\:mm}! Nhắc nhở lần cuối!";
             }
             else
             {
-                title = "⚠️ Bạn có thuốc cần uống!";
+                title = "Bạn có thuốc cần uống!";
                 bodyMember = $"Đã đến giờ uống {medicineNames}. Hãy uống thuốc và xác nhận trên app nhé!";
                 bodyFamily = $"{targetMember.FullName} có lịch uống {medicineNames} bây giờ. Hãy nhắc nhở nhé!";
             }
@@ -286,7 +286,7 @@ namespace MediMateService.Services.Implementations
                     var creatorUser = await _unitOfWork.Repository<User>().GetByIdAsync(family.CreateBy);
                     if (creatorUser != null && !string.IsNullOrEmpty(creatorUser.FcmToken))
                     {
-                        string urgentTitle = "🚨 CẢNH BÁO KHẨN CẤP: BỎ THUỐC";
+                        string urgentTitle = "CẢNH BÁO KHẨN CẤP: BỎ THUỐC";
                         string urgentBody = targetMember.UserId == family.CreateBy
                             ? $"Bạn đã bỏ thuốc {threshold} lần liên tiếp! Việc dùng thuốc không đều đặn sẽ ảnh hưởng xấu đến kết quả điều trị. Hãy chú ý nhé!"
                             : $"Bệnh nhân {targetMember.FullName} đã bỏ thuốc {threshold} lần liên tiếp! Hãy liên lạc và kiểm tra tình hình lập tức.";
@@ -332,7 +332,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: headUserId.Value,
-                    title: "⏰ Sắp đến giờ khám!",
+                    title: "Sắp đến giờ khám!",
                     message: $"Bạn có lịch khám online với Bác sĩ {doctor.FullName} vào lúc {timeString} (15 phút nữa). Vui lòng chuẩn bị!",
                     type: "UPCOMING_APPOINTMENT",
                     referenceId: appointment.AppointmentId
@@ -342,7 +342,7 @@ namespace MediMateService.Services.Implementations
             // Bắn trực tiếp cho thiết bị của chính bệnh nhân
             await _notificationService.SendNotificationAsync(
                 userId: null,
-                title: "⏰ Sắp đến giờ khám!",
+                title: "Sắp đến giờ khám!",
                 message: $"Bạn có lịch khám online với Bác sĩ {doctor.FullName} vào lúc {timeString} (15 phút nữa). Vui lòng chuẩn bị!",
                 type: "UPCOMING_APPOINTMENT",
                 referenceId: appointment.AppointmentId,
@@ -351,7 +351,7 @@ namespace MediMateService.Services.Implementations
 
             await _notificationService.SendNotificationAsync(
                 userId: doctor.UserId,
-                title: "⏰ Sắp đến giờ làm việc!",
+                title: "Sắp đến giờ làm việc!",
                 message: $"Bạn có lịch khám online với bệnh nhân {member.FullName} vào lúc {timeString} (15 phút nữa).",
                 type: "UPCOMING_APPOINTMENT",
                 referenceId: appointment.AppointmentId
@@ -410,7 +410,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: member.UserId.Value,
-                    title: "🔔 Phòng khám đã mở!",
+                    title: "Phòng khám đã mở!",
                     message: $"Phiên tư vấn với Bác sĩ {doctor.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
                     type: ConsultationSessionActionTypes.SESSION_STARTED,
                     referenceId: session.ConsultanSessionId
@@ -420,7 +420,7 @@ namespace MediMateService.Services.Implementations
             // Gửi trực tiếp cho thiết bị của Bệnh nhân (đề phòng app bệnh nhân ở máy khác)
             await _notificationService.SendNotificationAsync(
                 userId: null,
-                title: "🔔 Phòng khám đã mở!",
+                title: "Phòng khám đã mở!",
                 message: $"Phiên tư vấn với Bác sĩ {doctor.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
                 type: ConsultationSessionActionTypes.SESSION_STARTED,
                 referenceId: session.ConsultanSessionId,
@@ -430,7 +430,7 @@ namespace MediMateService.Services.Implementations
             // Member bình thường → thông báo bác sĩ như cũ
             await _notificationService.SendNotificationAsync(
                 userId: doctor.UserId,
-                title: "🔔 Phòng khám đã mở!",
+                title: "Phòng khám đã mở!",
                 message: $"Phiên tư vấn với bệnh nhân {member.FullName} lúc {timeString} đã sẵn sàng. Tham gia ngay!",
                 type: ConsultationSessionActionTypes.SESSION_STARTED,
                 referenceId: session.ConsultanSessionId
@@ -523,7 +523,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: headUserId.Value,
-                    title: "⏱️ Phiên tư vấn đã kết thúc",
+                    title: "Phiên tư vấn đã kết thúc",
                     message: "Phiên tư vấn đã hết thời gian cho phép. Bác sĩ vẫn có thể nhắn tin cho bạn nếu cần.",
                     type: ConsultationSessionActionTypes.SESSION_TIMEOUT,
                     referenceId: session.ConsultanSessionId
@@ -534,7 +534,7 @@ namespace MediMateService.Services.Implementations
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "⏱️ Phiên tư vấn đã kết thúc",
+                    title: "Phiên tư vấn đã kết thúc",
                     message: $"Phiên tư vấn với bệnh nhân {member?.FullName ?? "Unknown"} đã hết thời gian. Bạn vẫn có thể gửi tin nhắn bổ sung.",
                     type: ConsultationSessionActionTypes.SESSION_TIMEOUT,
                     referenceId: session.ConsultanSessionId
@@ -605,7 +605,7 @@ namespace MediMateService.Services.Implementations
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: headUserId.Value,
-                        title: "❌ Lịch hẹn đã bị hủy tự động",
+                        title: "Lịch hẹn đã bị hủy tự động",
                         message: $"Lịch hẹn cho {patientName} vào {timeStr} ngày {dateStr} đã bị hủy do bác sĩ không xác nhận kịp thời. Số tiền đặt lịch sẽ được hoàn lại trong 1-2 ngày làm việc. Vui lòng liên hệ bộ phận hỗ trợ nếu có thắc mắc.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId
@@ -620,7 +620,7 @@ namespace MediMateService.Services.Implementations
                         {
                             await _notificationService.SendNotificationAsync(
                                 userId: headUserId.Value,
-                                title: "⚠️ Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
+                                title: "Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
                                 message: "Lịch hẹn bị hủy tự động và hệ thống sẽ hoàn tiền cho bạn. " +
                                          "Tuy nhiên, bạn chưa cập nhật thông tin ngân hàng. " +
                                          "Vui lòng vào Cài đặt → Tài khoản ngân hàng để thêm thông tin nhận hoàn tiền.",
@@ -651,7 +651,7 @@ namespace MediMateService.Services.Implementations
                 // 6. GỬI THÔNG BÁO CHO MEMBER (Nếu là hồ sơ bệnh nhân riêng lẻ)
                 await _notificationService.SendNotificationAsync(
                     userId: null,
-                    title: "❌ Lịch hẹn của bạn đã bị hủy",
+                    title: "Lịch hẹn của bạn đã bị hủy",
                     message: $"Lịch hẹn khám vào lúc {timeStr} ngày {dateStr} đã bị hủy tự động. Vui lòng chọn khung giờ hoặc bác sĩ khác.",
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId,
@@ -662,7 +662,7 @@ namespace MediMateService.Services.Implementations
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: doctor.UserId,
-                        title: "⚠️ Lịch khám đã bị hủy tự động",
+                        title: "Lịch khám đã bị hủy tự động",
                         message: $"Bạn đã bỏ lỡ lịch đặt khám của bệnh nhân {member?.FullName ?? "Unknown"} vì không duyệt kịp thời gian.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId

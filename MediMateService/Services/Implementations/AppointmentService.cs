@@ -366,7 +366,7 @@ if (isUnavailableSlot)
                 // 1. Bệnh nhân hủy -> Gửi thông báo cho Bác sĩ
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "❌ Lịch khám đã bị hủy",
+                    title: "Lịch khám đã bị hủy",
                     message: $"Bệnh nhân {member?.FullName} đã hủy lịch khám lúc {timeString} ngày {dateString}. Lý do: {reasonStr}.",
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId
@@ -375,7 +375,7 @@ if (isUnavailableSlot)
                 // 2. Bệnh nhân hủy -> Thông báo lại cho chính họ (tài khoản Member - Patient) để đồng bộ app
                 await _notificationService.SendNotificationAsync(
                     userId: null,
-                    title: "❌ Lịch khám đã bị hủy",
+                    title: "Lịch khám đã bị hủy",
                     message: $"Lịch khám của bạn với bác sĩ {doctor.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy thành công.",
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId,
@@ -387,7 +387,7 @@ if (isUnavailableSlot)
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: headUserIdCancel.Value,
-                        title: "❌ Lịch khám đã bị hủy",
+                        title: "Lịch khám đã bị hủy",
                         message: $"Lịch khám của {member?.FullName} với bác sĩ {doctor.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId
@@ -401,7 +401,7 @@ if (isUnavailableSlot)
                 {
                     await _notificationService.SendNotificationAsync(
                         userId: headUserIdCancel.Value,
-                        title: "❌ Bác sĩ đã hủy lịch khám",
+                        title: "Bác sĩ đã hủy lịch khám",
                         message: $"Bác sĩ {doctor?.User?.FullName ?? "vô danh"} đã hủy lịch khám của bệnh nhân {member.FullName} lúc {timeString} ngày {dateString}. Lý do: {reasonStr}.",
                         type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                         referenceId: appointment.AppointmentId
@@ -411,7 +411,7 @@ if (isUnavailableSlot)
                 // 2. Bác sĩ tự hủy -> Gửi cho Bệnh nhân (để push Firebase tự auto route về chủ hộ + lưu DB cho member)
                 await _notificationService.SendNotificationAsync(
                     userId: null,
-                    title: "❌ Bác sĩ đã hủy lịch khám",
+                    title: "Bác sĩ đã hủy lịch khám",
                     message: $"Lịch khám của bạn với bác sĩ {doctor?.User?.FullName ?? "vô danh"} lúc {timeString} ngày {dateString} đã bị hủy. Lý do: {reasonStr}.",
                     type: AppointmentActionTypes.APPOINTMENT_CANCELLED,
                     referenceId: appointment.AppointmentId,
@@ -440,7 +440,7 @@ if (isUnavailableSlot)
             {
                 await _notificationService.SendNotificationAsync(
                     userId: headUserIdCancel.Value,
-                    title: "⚠️ Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
+                    title: "Bạn chưa có thông tin ngân hàng để nhận hoàn tiền!",
                     message: "Lịch hẹn đã hủy thành công và hệ thống sẽ hoàn tiền cho bạn. " +
                              "Tuy nhiên, bạn chưa cập nhật thông tin ngân hàng. " +
                              "Vui lòng vào Cài đặt → Tài khoản ngân hàng để thêm thông tin nhận hoàn tiền.",
@@ -692,7 +692,7 @@ if (isUnavailableSlot)
 
                 if (request.Status.Equals(AppointmentConstants.APPROVED, StringComparison.OrdinalIgnoreCase))
                 {
-                    title = "✅ Lịch khám đã được xác nhận";
+                    title = "Lịch khám đã được xác nhận";
                     message = $"Bác sĩ đã chấp nhận lịch khám của {member.FullName}. Vui lòng chuẩn bị sẵn sàng vào khung giờ đã đặt.";
 
                     var appointmentFullTime = appointment.AppointmentDate.Date.Add(appointment.AppointmentTime);
@@ -726,12 +726,12 @@ if (isUnavailableSlot)
                 }
                 else if (request.Status.Equals(AppointmentConstants.COMPLETED, StringComparison.OrdinalIgnoreCase))
                 {
-                    title = "🏁 Buổi khám đã hoàn thành";
+                    title = "Buổi khám đã hoàn thành";
                     message = $"Buổi tư vấn của {member.FullName} đã kết thúc. Vui lòng kiểm tra lại tin nhắn để xem toa thuốc hoặc lời dặn dò của bác sĩ (nếu có).";
                 }
                 else if (request.Status.Equals(AppointmentConstants.REJECTED, StringComparison.OrdinalIgnoreCase))
                 {
-                    title = "❌ Lịch khám bị từ chối";
+                    title = "Lịch khám bị từ chối";
                     message = $"Rất tiếc, bác sĩ không thể tiếp nhận lịch khám của {member.FullName}. Lượt khám đã được hoàn trả lại cho bạn.";
                 }
 
@@ -1061,7 +1061,7 @@ if (isUnavailableSlot)
 
                     await _notificationService.SendNotificationAsync(
                         userId: doctor.UserId,
-                        title: "💳 Lịch khám mới đã thanh toán — Chờ xác nhận của bạn",
+                        title: "Lịch khám mới đã thanh toán — Chờ xác nhận của bạn",
                         message: $"Bệnh nhân {member?.FullName ?? "Không rõ"} đã thanh toán lịch khám lúc {timeStr} ngày {dateStr}. Vui lòng vào app để xác nhận hoặc từ chối.",
                         type: AppointmentActionTypes.NEW_APPOINTMENT,
                         referenceId: appointment.AppointmentId

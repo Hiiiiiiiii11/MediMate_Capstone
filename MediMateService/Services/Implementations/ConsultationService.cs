@@ -319,11 +319,26 @@ namespace MediMateService.Services.Implementations
             var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
             if (session == null)
                 throw new NotFoundException("Không tìm thấy phiên tư vấn.");
+            var appointment = await _appointmentRepository.GetAppointmentByIdAsync(session.AppointmentId);
+            if (appointment == null)
+                throw new NotFoundException("Không tìm thấy lịch hẹn liên quan.");
 
-            // Chỉ bệnh nhân hoặc chủ hộ mới được cancel no-show
+            // 2. KIỂM TRA LOGIC 10 PHÚT
+            var scheduledStartTime = appointment.AppointmentDate.Date.Add(appointment.AppointmentTime);
+            var allowCancelTime = scheduledStartTime.AddMinutes(10); // Mốc được phép hủy
+
+            if (DateTime.Now < allowCancelTime)
+            {
+                var waitTime = (allowCancelTime - DateTime.Now).TotalMinutes;
+                throw new BadRequestException(
+                    $"Bạn chỉ có thể báo lỗi bác sĩ vắng mặt sau {allowCancelTime:HH:mm} (10 phút kể từ khi bắt đầu). " +
+                    $"Vui lòng đợi thêm {Math.Ceiling(waitTime)} phút nữa để hỗ trợ bác sĩ.");
+            }
+
+            // 1. Kiểm tra quyền (Chỉ bệnh nhân hoặc chủ hộ mới được cancel no-show)
             var member = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
             bool canCancel = false;
-            
+
             if (member != null)
             {
                 if (member.UserId == userId || member.MemberId == userId)
@@ -343,55 +358,110 @@ namespace MediMateService.Services.Implementations
                 throw new ForbiddenException("Chỉ hồ sơ bệnh nhân trực tiếp hoặc chủ hộ gia đình mới được huỷ phiên do bác sĩ không đến.");
             }
 
+            // 2. Kiểm tra trạng thái hợp lệ để hủy No-show
             if (session.Status == ConsultationSessionConstants.ENDED)
                 throw new ConflictException("Phiên tư vấn đã kết thúc trước đó.");
 
             if (session.DoctorJoined)
                 throw new BadRequestException("Bác sĩ đã tham gia phiên này. Không thể huỷ theo lý do không gặp bác sĩ.");
 
+            // 3. Cập nhật Session
             session.Status = ConsultationSessionConstants.ENDED;
             session.EndedAt = DateTime.Now;
-            session.Note = "Khách huỷ vì lý do không gặp bác sĩ";
+            session.Note = "Khách huỷ vì lý do bác sĩ không xuất hiện (No-show)";
 
             await _appointmentRepository.UpdateSessionAsync(session);
 
-            // Cập nhật Appointment → Cancelled
-            var appointment = await _appointmentRepository.GetAppointmentByIdAsync(session.AppointmentId);
+            // 4. Cập nhật Appointment & Xử lý Tài chính (Refund)
             if (appointment != null)
             {
                 appointment.Status = AppointmentConstants.CANCELLED;
-                appointment.CancelReason = "Bệnh nhân huỷ do bác sĩ không tham gia đúng giờ";
-                await _appointmentRepository.UpdateAppointmentAsync(appointment);
+                appointment.CancelReason = "Bệnh nhân huỷ do bác sĩ không tham gia đúng giờ (No-show)";
 
-                // Hoàn trả lượt khám cho gia đình
-                if (member.FamilyId != null)
+                // ── LOGIC HOÀN TIỀN (REFUND) ──
+                if (appointment.PaymentStatus == "Paid")
                 {
-                    var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                    var activeSubscription = (await _unitOfWork.Repository<MediMateRepository.Model.FamilySubscriptions>()
-                        .FindAsync(s => s.FamilyId == member.FamilyId
-                                        && s.Status == "Active"
-                                        && s.EndDate >= currentDate)).FirstOrDefault();
+                    // Chuyển trạng thái sang Refunded để Admin đối soát trong Flow 6
+                    appointment.PaymentStatus = "Refunded";
 
-                    if (activeSubscription != null)
+                    // Tìm và hủy Payout đang Hold của bác sĩ/phòng khám (nếu có)
+                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId && p.Status == "Hold");
+
+                    if (payout != null)
                     {
-                        _unitOfWork.Repository<MediMateRepository.Model.FamilySubscriptions>().Update(activeSubscription);
+                        payout.Status = "Cancelled";
+                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
                     }
+
+                    // Gửi thông báo cho Admin hệ thống để thực hiện chuyển khoản hoàn tiền
+                    await _notificationService.SendNotificationToRoleAsync(
+                        Roles.Admin,
+                        "Yêu cầu hoàn tiền (No-show)",
+                        $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} bị hủy do bác sĩ vắng mặt. Cần hoàn tiền gấp cho bệnh nhân.",
+                        "Warning"
+                    );
                 }
+
+                await _appointmentRepository.UpdateAppointmentAsync(appointment);
             }
 
             await _unitOfWork.CompleteAsync();
 
-            // Thông báo cho bác sĩ
+            // 5. Gửi thông báo cho các bên
+
+            // Tìm chủ hộ để báo cáo tài chính/hủy lịch
+            Guid? headUserId = member?.UserId;
+            if (!headUserId.HasValue && member?.FamilyId != null)
+            {
+                var familyManager = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetQueryable()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
+                headUserId = familyManager?.UserId;
+            }
+
+            // Thông báo cho Bác sĩ (Báo lỗi vắng mặt)
             var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
             if (doctor != null)
             {
                 await _notificationService.SendNotificationAsync(
                     userId: doctor.UserId,
-                    title: "❌ Bệnh nhân đã huỷ phiên tư vấn",
-                    message: $"Bệnh nhân {member.FullName} đã huỷ phiên tư vấn vì lý do không gặp được bác sĩ.",
+                    title: "⚠️ Bạn đã bỏ lỡ phiên tư vấn",
+                    message: $"Lịch hẹn của bệnh nhân {member?.FullName} đã bị hủy vì bạn không tham gia đúng giờ. Hệ thống đã ghi nhận lỗi No-show.",
                     type: ConsultationSessionActionTypes.SESSION_ENDED,
                     referenceId: session.ConsultanSessionId
                 );
+            }
+
+            // Thông báo cho Bệnh nhân/Chủ hộ
+            if (headUserId.HasValue)
+            {
+                string refundMsg = appointment?.PaymentStatus == "Refunded"
+                    ? " Hệ thống đang thực hiện quy trình hoàn tiền cho bạn."
+                    : "";
+
+                await _notificationService.SendNotificationAsync(
+                    userId: headUserId.Value,
+                    title: "❌ Đã hủy phiên tư vấn (Bác sĩ vắng mặt)",
+                    message: $"Phiên khám của {member?.FullName} đã được hủy thành công do bác sĩ không có mặt.{refundMsg}",
+                    type: ConsultationSessionActionTypes.SESSION_ENDED,
+                    referenceId: session.ConsultanSessionId
+                );
+
+                // Kiểm tra xem User đã có tài khoản ngân hàng để nhận tiền chưa
+                var hasBank = await _unitOfWork.Repository<UserBankAccount>().GetQueryable()
+                    .AnyAsync(b => b.UserId == headUserId.Value);
+
+                if (appointment?.PaymentStatus == "Refunded" && !hasBank)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: headUserId.Value,
+                        title: "⚠️ Cần cập nhật thông tin ngân hàng",
+                        message: "Lịch hẹn của bạn sẽ được hoàn tiền, nhưng bạn chưa có thông tin ngân hàng trong hồ sơ. Vui lòng cập nhật ngay.",
+                        type: "BANKING_INFO_MISSING",
+                        referenceId: appointment.AppointmentId
+                    );
+                }
             }
 
             return MapSession(session);

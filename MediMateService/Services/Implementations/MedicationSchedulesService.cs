@@ -461,14 +461,18 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
+            // Sử dụng AsNoTracking để EF Core không giữ cache gây lỗi Key
             var schedules = await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId && s.IsActive == true, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(s => s.Member)
+                .Include(s => s.ScheduleDetails)
+                    .ThenInclude(d => d.PrescriptionMedicine)
+                .Where(s => s.MemberId == memberId && s.IsActive)
+                .OrderBy(s => s.TimeOfDay)
+                .ToListAsync();
 
-            var response = schedules
-                .OrderByDescending(s => s.IsActive)
-                .ThenBy(s => s.TimeOfDay)
-                .Select(s => MapToResponse(s));
-
+            var response = schedules.Select(MapToResponse);
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
 

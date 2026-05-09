@@ -437,7 +437,7 @@ namespace MediMateService.Services.Implementations
             );
 
             _backgroundJobClient.Schedule<IReminderJobService>(
-                job => job.AutoEndExpiredSessionAsync(session.ConsultanSessionId),
+                job => job.AutoEndExpiredAppointmentAsync(appointment.AppointmentId),
                 TimeSpan.FromMinutes(65)
             );
         }
@@ -445,101 +445,104 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────────────────────────
         // JOB: TỰ ĐỘNG KẾT THÚC SESSION SAU 65 PHÚT (T+60 PHÚT SO VỚI GIỜ HẸN)
         // ─────────────────────────────────────────────────────────────────
-        public async Task AutoEndExpiredSessionAsync(Guid sessionId)
+        // Đổi tên từ Session sang Appointment để bao quát hơn
+        public async Task AutoEndExpiredAppointmentAsync(Guid appointmentId)
         {
-            var session = await _unitOfWork.Repository<ConsultationSessions>().GetByIdAsync(sessionId);
+            // 1. Lấy thông tin Lịch hẹn (Đây là gốc của vấn đề)
+            var appointment = await _unitOfWork.Repository<Appointments>().GetQueryable()
+                .Include(a => a.Doctor)
+                .Include(a => a.Member)
+                .Include(a => a.ConsultationSessions) // Load kèm session nếu có
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
 
-            // Nếu đã kết thúc thủ công hoặc không tìm thấy → bỏ qua
-            if (session == null || session.Status == ConsultationSessionConstants.ENDED) return;
-            // 1. Cập nhật trạng thái Session
-            session.Status = ConsultationSessionConstants.ENDED;
-            session.EndedAt = DateTime.Now;
-            var autoNote = "Phiên tư vấn tự động kết thúc do hết thời gian";
-            session.Note = string.IsNullOrWhiteSpace(session.Note)
-                ? autoNote
-                : $"{session.Note}; {autoNote}";
+            // Nếu không tìm thấy lịch hẹn hoặc lịch đã kết thúc/hủy rồi -> Bỏ qua
+            if (appointment == null ||
+                appointment.Status == AppointmentConstants.COMPLETED ||
+                appointment.Status == AppointmentConstants.CANCELLED)
+                return;
 
-            _unitOfWork.Repository<ConsultationSessions>().Update(session);
-
-            // 2. Cập nhật trạng thái Appointment sang Completed (nếu chưa bị hủy)
-            var appointment = await _unitOfWork.Repository<Appointments>().GetByIdAsync(session.AppointmentId);
-            if (appointment != null && appointment.Status != AppointmentConstants.CANCELLED)
+            // 2. Xử lý Session liên quan (nếu có)
+            var session = appointment.ConsultationSessions?.FirstOrDefault();
+            if (session != null && session.Status != ConsultationSessionConstants.ENDED)
             {
-                appointment.Status = AppointmentConstants.COMPLETED;
-                _unitOfWork.Repository<Appointments>().Update(appointment);
-                if (session.DoctorJoined)
-                {
-                    var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
-                        .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
-
-                    if (payout != null)
-                    {
-                        payout.ConsultationId = session.ConsultanSessionId;
-                        payout.Status = "ReadyToPay";
-                        _unitOfWork.Repository<DoctorPayout>().Update(payout);
-
-                        // Query bác sĩ
-                        var docInfo = await _unitOfWork.Repository<Doctors>().GetQueryable()
-                            .Include(d => d.User)
-                            .FirstOrDefaultAsync(d => d.DoctorId == session.DoctorId);
-
-                        // Query Clinic thông qua ClinicDoctors
-                        var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
-                            .Include(cd => cd.Clinic)
-                            .FirstOrDefaultAsync(cd => cd.DoctorId == session.DoctorId && cd.Status == "Active");
-
-                        string docName = docInfo?.User?.FullName ?? "Unknown";
-                        string clinicName = clinicDoctor?.Clinic?.Name ?? "Phòng khám";
-
-                        // Thêm thông báo Admin
-                        await _notificationService.SendNotificationToRoleAsync(
-                            Roles.Admin,
-                            "Yêu cầu thanh toán mới",
-                            $"Bác sĩ {docName} thuộc {clinicName} vừa hoàn tất phiên khám {appointment.AppointmentId.ToString()[..8].ToUpper()} và có giao dịch cần thanh toán.",
-                            "Warning"
-                        );
-                    }
-                }
+                session.Status = ConsultationSessionConstants.ENDED;
+                session.EndedAt = DateTime.Now;
+                session.Note = (session.Note ?? "") + "; Hệ thống tự động đóng phiên do hết giờ.";
+                _unitOfWork.Repository<ConsultationSessions>().Update(session);
             }
 
-            // Lưu tất cả thay đổi vào DB
+            // 3. Cập nhật trạng thái Lịch hẹn
+            appointment.Status = AppointmentConstants.COMPLETED;
+            _unitOfWork.Repository<Appointments>().Update(appointment);
+
+            // 4. QUAN TRỌNG: Xử lý Payout cho bác sĩ (Dù có session hay không)
+            // Miễn là lịch đã ở trạng thái Approved và đến giờ kết thúc thì phải tính tiền
+            var clinicDoctor = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
+                .Include(cd => cd.Clinic)
+                .FirstOrDefaultAsync(cd => cd.DoctorId == appointment.DoctorId && cd.Status == "Active");
+
+            if (clinicDoctor != null)
+            {
+                var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                    .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
+
+                if (payout == null)
+                {
+                    // Nếu chưa có (do lỗi luồng trước), tạo mới ReadyToPay ngay
+                    payout = new DoctorPayout
+                    {
+                        PayoutId = Guid.NewGuid(),
+                        ClinicId = clinicDoctor.ClinicId,
+                        AppointmentId = appointment.AppointmentId,
+                        ConsultationId = session?.ConsultanSessionId, // Có thể null nếu chưa kịp tạo session
+                        Amount = clinicDoctor.ConsultationFee,
+                        Status = "ReadyToPay",
+                    };
+                    await _unitOfWork.Repository<DoctorPayout>().AddAsync(payout);
+                }
+                else if (payout.Status == "Hold")
+                {
+                    // Nếu đã có và đang giữ tiền, giải phóng sang ReadyToPay
+                    payout.Status = "ReadyToPay";
+                    payout.ConsultationId = session?.ConsultanSessionId;
+                   
+                    _unitOfWork.Repository<DoctorPayout>().Update(payout);
+                }
+
+                // 5. Gửi thông báo cho Admin (Flow 6 đối soát)
+                await _notificationService.SendNotificationToRoleAsync(
+                    Roles.Admin,
+                    "Tất toán tự động",
+                    $"Lịch hẹn {appointment.AppointmentId.ToString()[..8].ToUpper()} của BS {appointment.Doctor?.User?.FullName} đã tự động hoàn thành.",
+                    "Info"
+                );
+            }
+
+            // Lưu toàn bộ thay đổi xuống Database
             await _unitOfWork.CompleteAsync();
 
-            // 3. Gửi thông báo kết thúc cho cả 2 bên
-            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId);
-            var doctor = await _unitOfWork.Repository<Doctors>().GetByIdAsync(session.DoctorId);
+            // 6. Gửi thông báo kết thúc cho Bệnh nhân/Bác sĩ
+            await NotifyParticipantsAsync(appointment, session?.ConsultanSessionId);
+        }
 
-            // [QUAN TRỌNG]: Tìm chủ hộ (Family Head) để gửi Notification
-            Guid? headUserId = member?.UserId;
-            if (!headUserId.HasValue && member?.FamilyId != null)
+        private async Task NotifyParticipantsAsync(Appointments appointment, Guid? sessionId)
+        {
+            string title = "⏱️ Ca khám đã kết thúc";
+            string msg = "Ca khám đã hết thời gian và được hệ thống tự động hoàn thành.";
+
+            // Gửi cho bác sĩ
+            await _notificationService.SendNotificationAsync(appointment.Doctor.UserId, title, msg, "SESSION_TIMEOUT", sessionId);
+
+            // Gửi cho chủ hộ gia đình
+            Guid? headId = appointment.Member?.UserId;
+            if (!headId.HasValue && appointment.Member?.FamilyId != null)
             {
-                var familyManager = await _unitOfWork.Repository<Members>().GetQueryable()
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null);
-                headUserId = familyManager?.UserId;
+                headId = (await _unitOfWork.Repository<Members>().GetQueryable()
+                    .FirstOrDefaultAsync(m => m.FamilyId == appointment.Member.FamilyId && m.UserId != null))?.UserId;
             }
 
-            if (headUserId.HasValue)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: headUserId.Value,
-                    title: "Phiên tư vấn đã kết thúc",
-                    message: "Phiên tư vấn đã hết thời gian cho phép. Bác sĩ vẫn có thể nhắn tin cho bạn nếu cần.",
-                    type: ConsultationSessionActionTypes.SESSION_TIMEOUT,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
-
-            if (doctor != null)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "Phiên tư vấn đã kết thúc",
-                    message: $"Phiên tư vấn với bệnh nhân {member?.FullName ?? "Unknown"} đã hết thời gian. Bạn vẫn có thể gửi tin nhắn bổ sung.",
-                    type: ConsultationSessionActionTypes.SESSION_TIMEOUT,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
+            if (headId.HasValue)
+                await _notificationService.SendNotificationAsync(headId.Value, title, msg, "SESSION_TIMEOUT", sessionId);
         }
 
         public async Task AutoCancelUnapprovedAppointmentAsync(Guid appointmentId)

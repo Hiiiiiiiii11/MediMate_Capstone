@@ -470,124 +470,113 @@ namespace MediMateService.Services.Implementations
         // ─────────────────────────────────────────────
         // END SESSION (Bác sĩ hoặc Bệnh nhân đều được gọi)
         // ─────────────────────────────────────────────
-        public async Task<ConsultationSessionDto> EndSessionAsync(Guid sessionId, Guid userId)
+        public async Task<ConsultationSessionDto> EndSessionAsync(Guid sessionId, Guid? userId)
         {
             var session = await _appointmentRepository.GetSessionByIdAsync(sessionId);
-            if (session == null)
-                throw new NotFoundException("Không tìm thấy phiên tư vấn.");
+            if (session == null) throw new NotFoundException("Không tìm thấy phiên tư vấn.");
 
-            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
-            bool isDoctor = doctor != null && doctor.UserId == userId;
-
-            var patientMember = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetByIdAsync(session.MemberId);
-            bool isPatient = false;
-            
-            if (patientMember != null)
+            // 1. Kiểm tra quyền (Nếu có userId truyền vào - tức là người dùng chủ động bấm)
+            if (userId.HasValue)
             {
-                if (patientMember.UserId == userId || patientMember.MemberId == userId)
-                {
-                    isPatient = true;
-                }
-                else if (patientMember.FamilyId.HasValue)
-                {
-                    isPatient = await _unitOfWork.Repository<MediMateRepository.Model.Members>()
-                        .GetQueryable()
-                        .AnyAsync(m => m.FamilyId == patientMember.FamilyId && (m.UserId == userId || m.MemberId == userId));
-                }
-            }
+                var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+                bool isDoctor = doctor != null && doctor.UserId == userId;
 
-            if (!isDoctor && !isPatient)
-            {
-                throw new ForbiddenException("Chỉ bác sĩ phụ trách hoặc bệnh nhân trực tiếp mới có quyền kết thúc phiên tư vấn.");
+                var patientMember = await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId);
+                bool isPatientOrFamily = false;
+                if (patientMember != null)
+                {
+                    isPatientOrFamily = patientMember.UserId == userId ||
+                                       (patientMember.FamilyId.HasValue && await _unitOfWork.Repository<Members>()
+                                        .GetQueryable().AnyAsync(m => m.FamilyId == patientMember.FamilyId && m.UserId == userId));
+                }
+
+                if (!isDoctor && !isPatientOrFamily)
+                    throw new ForbiddenException("Bạn không có quyền kết thúc phiên này.");
             }
 
             if (session.Status == ConsultationSessionConstants.ENDED)
-                throw new ConflictException("Phiên tư vấn đã kết thúc trước đó.");
+                return MapSession(session);
 
+            // 2. Cập nhật trạng thái Session
             session.Status = ConsultationSessionConstants.ENDED;
             session.EndedAt = DateTime.Now;
-
             await _appointmentRepository.UpdateSessionAsync(session);
 
-            // Cập nhật Appointment → Completed
+            // 3. Cập nhật Appointment sang Completed
             var appointment = await _appointmentRepository.GetAppointmentByIdAsync(session.AppointmentId);
             if (appointment != null)
             {
-                appointment.Status = AppointmentConstants.COMPLETED;
-                await _appointmentRepository.UpdateAppointmentAsync(appointment);
-
-                // =========================================================
-                // [NEW] CẬP NHẬT PHIẾU TRẢ TIỀN (PAYOUT) CHO PHÒNG KHÁM
-                // =========================================================
-                var payout = await _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().GetQueryable()
-                    .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
-
-                if (payout != null)
+                if (appointment.Status != AppointmentConstants.COMPLETED)
                 {
-                    payout.ConsultationId = session.ConsultanSessionId;
-                    payout.Status = "ReadyToPay";
-                    _unitOfWork.Repository<MediMateRepository.Model.DoctorPayout>().Update(payout);
-
-                    // Lấy tên Clinic thông qua ClinicDoctors
-                    var clinicDoctor = await _unitOfWork.Repository<MediMateRepository.Model.ClinicDoctors>().GetQueryable()
-                        .Include(cd => cd.Clinic)
-                        .FirstOrDefaultAsync(cd => cd.DoctorId == session.DoctorId && cd.Status == "Active");
-
-                    string clinicName = clinicDoctor?.Clinic?.Name ?? "Phòng khám";
-                    string docName = doctor?.User?.FullName ?? "Unknown";
-
-                    await _notificationService.SendNotificationToRoleAsync(
-                        Roles.Admin,
-                        "Yêu cầu thanh toán mới",
-                        $"Bác sĩ {docName} thuộc {clinicName} vừa hoàn tất phiên khám {appointment.AppointmentId.ToString()[..8].ToUpper()} và có giao dịch cần thanh toán.",
-                        "Warning"
-                    );
+                    appointment.Status = AppointmentConstants.COMPLETED;
+                    await _appointmentRepository.UpdateAppointmentAsync(appointment);
                 }
+
+                // ✅ QUAN TRỌNG: Kích hoạt trạng thái ReadyToPay cho Payout (Flow 6)
+                await ProcessDoctorPayoutAsync(appointment, session.ConsultanSessionId);
             }
 
             await _unitOfWork.CompleteAsync();
 
-
-            // Thông báo cho các bên liên quan
-            string enderName = isDoctor ? "Bác sĩ" : "Bệnh nhân";
-
-            // Thông báo cho Bác sĩ (nếu bệnh nhân kết thúc) hoặc gửi thông báo chung
-            if (doctor != null)
-            {
-                await _notificationService.SendNotificationAsync(
-                    userId: doctor.UserId,
-                    title: "Phiên tư vấn đã kết thúc",
-                    message: $"{enderName} đã kết thúc phiên tư vấn. Hệ thống đã ghi nhận doanh thu phiên khám.",
-                    type: ConsultationSessionActionTypes.SESSION_ENDED,
-                    referenceId: session.ConsultanSessionId
-                );
-            }
-
-            // Thông báo cho bệnh nhân (chủ hộ)
-            if (patientMember != null)
-            {
-                Guid? headUserId = patientMember.UserId;
-                if (!headUserId.HasValue && patientMember.FamilyId != null)
-                {
-                    var familyManager = await _unitOfWork.Repository<MediMateRepository.Model.Members>().GetQueryable()
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(m => m.FamilyId == patientMember.FamilyId && m.UserId != null);
-                    headUserId = familyManager?.UserId;
-                }
-
-                if (headUserId.HasValue)
-                {
-                    await _notificationService.SendNotificationAsync(
-                        userId: headUserId.Value,
-                        title: "Phiên tư vấn đã kết thúc",
-                        message: $"{enderName} đã kết thúc phiên tư vấn.",
-                        type: ConsultationSessionActionTypes.SESSION_ENDED,
-                        referenceId: session.ConsultanSessionId
-                    );
-                }
-            }
+            // 4. Gửi thông báo cho các bên
+            string enderName = userId.HasValue ? "Người dùng" : "Hệ thống";
+            await NotifyEndSessionAsync(session, enderName);
 
             return MapSession(session);
+        }
+
+        // ✅ HÀM BỔ TRỢ XỬ LÝ PAYOUT (Đảm bảo đồng bộ tài chính cho Flow 6)
+        private async Task ProcessDoctorPayoutAsync(Appointments appointment, Guid sessionId)
+        {
+            var payout = await _unitOfWork.Repository<DoctorPayout>().GetQueryable()
+                .FirstOrDefaultAsync(p => p.AppointmentId == appointment.AppointmentId);
+
+            if (payout != null && payout.Status == "Hold")
+            {
+                payout.ConsultationId = sessionId;
+                payout.Status = "ReadyToPay";
+                _unitOfWork.Repository<DoctorPayout>().Update(payout);
+
+                // Lấy tên phòng khám để gửi thông báo Admin
+                var doctor = await _doctorRepository.GetDoctorByIdAsync(appointment.DoctorId);
+                var clinicDoc = await _unitOfWork.Repository<ClinicDoctors>().GetQueryable()
+                    .Include(cd => cd.Clinic)
+                    .FirstOrDefaultAsync(cd => cd.DoctorId == appointment.DoctorId && cd.Status == "Active");
+
+                // Thông báo cho Admin đối soát (Flow 6 - Reconciliation)
+                await _notificationService.SendNotificationToRoleAsync(
+                    Roles.Admin,
+                    "Yêu cầu tất toán mới",
+                    $"Bác sĩ {doctor?.FullName} thuộc {clinicDoc?.Clinic?.Name ?? "Phòng khám"} vừa hoàn tất ca khám {appointment.AppointmentId.ToString()[..8].ToUpper()}.",
+                    "Info"
+                );
+            }
+        }
+
+        // Hàm hỗ trợ gửi thông báo khi kết thúc
+        private async Task NotifyEndSessionAsync(ConsultationSessions session, string enderName)
+        {
+            string title = "✅ Phiên tư vấn đã kết thúc";
+            string message = $"{enderName} đã kết thúc buổi tư vấn. Bạn có thể xem lại hồ sơ trong lịch sử khám.";
+
+            // Notify Bác sĩ
+            var doctor = await _doctorRepository.GetDoctorByIdAsync(session.DoctorId);
+            if (doctor != null)
+                await _notificationService.SendNotificationAsync(doctor.UserId, title, message, ConsultationSessionActionTypes.SESSION_ENDED, session.ConsultanSessionId);
+
+            // Notify Bệnh nhân/Chủ hộ
+            var member = await _unitOfWork.Repository<Members>().GetByIdAsync(session.MemberId);
+            if (member != null)
+            {
+                Guid? headId = member.UserId;
+                if (!headId.HasValue && member.FamilyId != null)
+                {
+                    headId = (await _unitOfWork.Repository<Members>().GetQueryable()
+                        .FirstOrDefaultAsync(m => m.FamilyId == member.FamilyId && m.UserId != null))?.UserId;
+                }
+                if (headId.HasValue)
+                    await _notificationService.SendNotificationAsync(headId.Value, title, message, ConsultationSessionActionTypes.SESSION_ENDED, session.ConsultanSessionId);
+            }
         }
         // ─────────────────────────────────────────────
         // ATTACH PRESCRIPTION (chỉ bác sĩ)

@@ -18,7 +18,7 @@ namespace MediMateService.Services
         /// Force-end session nếu vẫn còn Processing/InProgress sau khi hết giờ (T+60 phút).
         /// Session tạo lúc T-5 → job này chạy sau 65 phút từ lúc tạo.
         /// </summary>
-        Task AutoEndExpiredSessionAsync(Guid sessionId);
+        Task AutoEndExpiredAppointmentAsync(Guid appointmentId);
         Task AutoCancelUnapprovedAppointmentAsync(Guid appointmentId);
     }
 }

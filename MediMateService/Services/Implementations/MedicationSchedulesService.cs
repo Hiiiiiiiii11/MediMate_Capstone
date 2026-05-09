@@ -3,6 +3,7 @@ using MediMateRepository.Model;
 using MediMateRepository.Repositories;
 using MediMateService.DTOs;
 using MediMateService.Shared;
+using Microsoft.EntityFrameworkCore;
 using Share.Common;
 using Share.Constants;
 using System;
@@ -65,13 +66,17 @@ namespace MediMateService.Services.Implementations
                                 && r.Schedule.IsActive,
                         includeProperties: "Schedule,Schedule.Member,Schedule.ScheduleDetails,Schedule.ScheduleDetails.PrescriptionMedicine");
 
-            // Preload dictionary TakenByUserId -> FullName
+            // ✅ SỬA LỖI SAME KEY: Sử dụng GroupBy để tránh trùng UserId trong Dictionary
             var takenUserIds = reminders.Where(r => r.TakenByUserId.HasValue)
-                                        .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
-            var takenByMembers = takenUserIds.Any()
-                ? (await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value)))
-                    .ToDictionary(m => m.UserId!.Value, m => m.FullName)
-                : new Dictionary<Guid, string>();
+                                         .Select(r => r.TakenByUserId!.Value).Distinct().ToList();
+
+            var takenByMembers = new Dictionary<Guid, string>();
+            if (takenUserIds.Any())
+            {
+                var members = await _unitOfWork.Repository<Members>().FindAsync(m => takenUserIds.Contains(m.UserId!.Value));
+                takenByMembers = members.GroupBy(m => m.UserId!.Value)
+                                        .ToDictionary(g => g.Key, g => g.First().FullName);
+            }
 
             var response = reminders.OrderBy(r => r.ReminderTime)
                                     .Select(r => MapToReminderDailyResponse(r, takenByMembers));
@@ -81,31 +86,28 @@ namespace MediMateService.Services.Implementations
         // 3. XỬ LÝ NÚT BẤM "ĐÃ UỐNG" VÀ GHI LOG
         public async Task<ApiResponse<bool>> MarkReminderActionAsync(Guid reminderId, Guid currentUserId, MedicationActionRequest request)
         {
-            // 1. Lấy Reminder - Quan trọng: không dùng Include(Schedule) nếu chỉ để update status reminder
-            // trừ khi bạn thực sự cần dữ liệu của Schedule để ghi Log.
+            // 1. Chỉ lấy Reminder và ID của Schedule, không load cả cây Object để tránh lỗi Key
             var reminder = (await _unitOfWork.Repository<MedicationReminders>()
-                .FindAsync(r => r.ReminderId == reminderId, "Schedule")).FirstOrDefault();
+                .GetQueryable()
+                .Include(r => r.Schedule) // Chỉ include Schedule để lấy MemberId cho Log
+                .FirstOrDefaultAsync(r => r.ReminderId == reminderId));
 
-            if (reminder == null)
-                return ApiResponse<bool>.Fail("Không tìm thấy nhắc nhở.", 404);
+            if (reminder == null) return ApiResponse<bool>.Fail("Không tìm thấy nhắc nhở.", 404);
 
-            // Chốt chặn quan trọng: Nếu đã xử lý rồi thì thoát ra ngay (tránh lỗi nhấn nhanh 2 lần)
+            // Chốt chặn: Không cho xử lý lại nếu đã Taken/Skipped (Tránh Duplicate Log)
             if (reminder.Status != "Pending" && reminder.Status != "Snoozed")
-                return ApiResponse<bool>.Fail("Nhắc nhở này đã được xử lý trước đó.", 400);
+                return ApiResponse<bool>.Ok(true, "Nhắc nhở đã được xử lý trước đó.");
 
-            // 2. Cập nhật trạng thái Reminder
-            reminder.Status = request.Status; // "Taken" hoặc "Skipped"
-            reminder.TakenByUserId = currentUserId; // Lưu lại ai là người nhấn nút
+            // 2. Cập nhật trực tiếp trên đối tượng đã được Track
+            reminder.Status = request.Status;
+            reminder.TakenByUserId = currentUserId; // Lưu người thực hiện để UI hiển thị "Đã uống bởi..."
 
-            // ✅ LƯU Ý: Trong Entity Framework, khi bạn đã Find một đối tượng (không dùng AsNoTracking),
-            // bạn chỉ cần thay đổi giá trị thuộc tính. 
-            // KHÔNG cần gọi .Update(reminder) vì nó sẽ kéo theo lỗi trùng Key ở các bảng liên quan (Schedule).
-
-            // 3. Sinh ra Log lưu lịch sử
+            // 3. Xử lý Timezone
             var localActualTime = request.ActualTime.Kind == DateTimeKind.Utc
                 ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
                 : request.ActualTime;
 
+            // 4. Tạo Log
             var log = new MedicationLogs
             {
                 LogId = Guid.NewGuid(),
@@ -122,12 +124,18 @@ namespace MediMateService.Services.Implementations
 
             await _unitOfWork.Repository<MedicationLogs>().AddAsync(log);
 
-            // 4. Lưu thay đổi
-            // Lúc này EF sẽ tự phát hiện reminder bị thay đổi Status và log là bản ghi mới.
-            await _unitOfWork.CompleteAsync();
+            // 5. Lưu thay đổi - EF sẽ tự nhận diện sự thay đổi của 'reminder' và 'log' mới
+            try
+            {
+                await _unitOfWork.CompleteAsync();
+            }
+            catch (Exception ex)
+            {
+                // Nếu vẫn lỗi, có khả năng do Database có Trigger hoặc ràng buộc Unique nhầm
+                return ApiResponse<bool>.Fail("Lỗi khi lưu dữ liệu: " + ex.Message, 500);
+            }
 
-
-            return ApiResponse<bool>.Ok(true, "Đã lưu lịch sử uống thuốc thành công.");
+            return ApiResponse<bool>.Ok(true, "Đã xác nhận thành công.");
         }
 
         public async Task<ApiResponse<bool>> SnoozeReminderAsync(Guid reminderId, Guid currentUserId, int delayMinutes)
@@ -453,14 +461,18 @@ namespace MediMateService.Services.Implementations
             if (!await _currentUserService.CheckAccess(memberId, currentUserId))
                 return ApiResponse<IEnumerable<ScheduleResponse>>.Fail("Không có quyền truy cập.", 403);
 
+            // Sử dụng AsNoTracking để EF Core không giữ cache gây lỗi Key
             var schedules = await _unitOfWork.Repository<MedicationSchedules>()
-                .FindAsync(s => s.MemberId == memberId && s.IsActive == true, "Member,ScheduleDetails,ScheduleDetails.PrescriptionMedicine");
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(s => s.Member)
+                .Include(s => s.ScheduleDetails)
+                    .ThenInclude(d => d.PrescriptionMedicine)
+                .Where(s => s.MemberId == memberId && s.IsActive)
+                .OrderBy(s => s.TimeOfDay)
+                .ToListAsync();
 
-            var response = schedules
-                .OrderByDescending(s => s.IsActive)
-                .ThenBy(s => s.TimeOfDay)
-                .Select(s => MapToResponse(s));
-
+            var response = schedules.Select(MapToResponse);
             return ApiResponse<IEnumerable<ScheduleResponse>>.Ok(response);
         }
 

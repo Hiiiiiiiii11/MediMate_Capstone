@@ -81,18 +81,27 @@ namespace MediMateService.Services.Implementations
         // 3. XỬ LÝ NÚT BẤM "ĐÃ UỐNG" VÀ GHI LOG
         public async Task<ApiResponse<bool>> MarkReminderActionAsync(Guid reminderId, Guid currentUserId, MedicationActionRequest request)
         {
+            // 1. Lấy Reminder - Quan trọng: không dùng Include(Schedule) nếu chỉ để update status reminder
+            // trừ khi bạn thực sự cần dữ liệu của Schedule để ghi Log.
             var reminder = (await _unitOfWork.Repository<MedicationReminders>()
                 .FindAsync(r => r.ReminderId == reminderId, "Schedule")).FirstOrDefault();
 
-            if (reminder == null || reminder.Status != "Pending")
-                return ApiResponse<bool>.Fail("Hành động không hợp lệ.", 400);
+            if (reminder == null)
+                return ApiResponse<bool>.Fail("Không tìm thấy nhắc nhở.", 404);
 
-            // 3.1 Cập nhật trạng thái Reminder
-            reminder.Status = request.Status; // Taken hoặc Skipped
-            _unitOfWork.Repository<MedicationReminders>().Update(reminder);
+            // Chốt chặn quan trọng: Nếu đã xử lý rồi thì thoát ra ngay (tránh lỗi nhấn nhanh 2 lần)
+            if (reminder.Status != "Pending" && reminder.Status != "Snoozed")
+                return ApiResponse<bool>.Fail("Nhắc nhở này đã được xử lý trước đó.", 400);
 
-            // 3.2 Sinh ra Log lưu lịch sử
-            // Fix timezone: convert UTC về Local nếu client gửi UTC
+            // 2. Cập nhật trạng thái Reminder
+            reminder.Status = request.Status; // "Taken" hoặc "Skipped"
+            reminder.TakenByUserId = currentUserId; // Lưu lại ai là người nhấn nút
+
+            // ✅ LƯU Ý: Trong Entity Framework, khi bạn đã Find một đối tượng (không dùng AsNoTracking),
+            // bạn chỉ cần thay đổi giá trị thuộc tính. 
+            // KHÔNG cần gọi .Update(reminder) vì nó sẽ kéo theo lỗi trùng Key ở các bảng liên quan (Schedule).
+
+            // 3. Sinh ra Log lưu lịch sử
             var localActualTime = request.ActualTime.Kind == DateTimeKind.Utc
                 ? TimeZoneInfo.ConvertTimeFromUtc(request.ActualTime, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))
                 : request.ActualTime;
@@ -110,10 +119,15 @@ namespace MediMateService.Services.Implementations
                 Notes = request.Notes,
                 CreatedAt = DateTime.Now
             };
+
             await _unitOfWork.Repository<MedicationLogs>().AddAsync(log);
+
+            // 4. Lưu thay đổi
+            // Lúc này EF sẽ tự phát hiện reminder bị thay đổi Status và log là bản ghi mới.
             await _unitOfWork.CompleteAsync();
 
-            return ApiResponse<bool>.Ok(true, "Đã lưu lịch sử uống thuốc.");
+
+            return ApiResponse<bool>.Ok(true, "Đã lưu lịch sử uống thuốc thành công.");
         }
 
         public async Task<ApiResponse<bool>> SnoozeReminderAsync(Guid reminderId, Guid currentUserId, int delayMinutes)
